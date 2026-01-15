@@ -8,6 +8,21 @@ app = Flask(__name__)
 def home():
     return jsonify({"status": "running", "message": "MME AI bot is live"})
 
+from flask import Response
+
+@app.route("/sms", methods=["POST"])
+def sms():
+    incoming_msg = request.form.get("Body", "").strip()
+    from_number = request.form.get("From", "")
+
+    print(f"📩 SMS from {from_number}: {incoming_msg}")
+
+    reply = "✅ MME AI Bot is live! We received your message."
+
+    return Response(
+        f"<Response><Message>{reply}</Message></Response>",
+        mimetype="text/xml"
+    )
 # ---------- Helpers ----------
 def norm(text: str) -> str:
     return re.sub(r"\s+", " ", (text or "").strip().lower())
