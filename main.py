@@ -161,10 +161,10 @@ try:
 except Exception as e:
     print("EMAIL FAILED:", str(e))
     
-    vr.say("Thanks. I recorded your request.")
-    vr.say("We will follow up shortly. Goodbye.")
-    vr.hangup()
-    return Response(str(vr), mimetype="text/xml")
+vr.say("Thanks. I recorded your request.")
+vr.say("We will follow up shortly. Goodbye.")
+vr.hangup()
+return Response(str(vr), mimetype="text/xml")
 
 
 # ---------- Helpers ----------
