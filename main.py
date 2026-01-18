@@ -10,7 +10,7 @@ app = Flask(__name__)
 def home():
     return jsonify({"status": "running", "message": "MME AI bot is live"})
 
-from flask import Response
+
 
 @app.route("/sms", methods=["POST"])
 def sms():
@@ -25,7 +25,8 @@ def sms():
         f"<Response><Message>{reply}</Message></Response>",
         mimetype="text/xml"
     )
-    @app.route("/voice", methods=["POST", "GET"])
+    
+@app.route("/voice", methods=["POST", "GET"])
 def voice():
     vr = VoiceResponse()
 
