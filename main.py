@@ -1,6 +1,8 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, Response
 import os
 import re
+
+from twilio.twiml.voice_response import VoiceResponse, Gather
 
 app = Flask(__name__)
 
@@ -23,6 +25,46 @@ def sms():
         f"<Response><Message>{reply}</Message></Response>",
         mimetype="text/xml"
     )
+    @app.route("/voice", methods=["POST", "GET"])
+def voice():
+    vr = VoiceResponse()
+
+    gather = Gather(
+        input="speech",
+        action="/voice-process",
+        method="POST",
+        timeout=5
+    )
+
+    gather.say(
+        "Hi, you've reached M M E Lawn Care and More. "
+        "Please tell me what you need help with after the beep."
+    )
+
+    vr.append(gather)
+
+    vr.say("Sorry, I didn’t catch that. Please call back or text us. Goodbye.")
+    vr.hangup()
+
+    return Response(str(vr), mimetype="text/xml")
+
+
+@app.route("/voice-process", methods=["POST"])
+def voice_process():
+    speech = request.form.get("SpeechResult", "").strip()
+
+    vr = VoiceResponse()
+
+    if speech:
+        vr.say(
+            f"Thanks. You said {speech}. "
+            "We’ll follow up shortly. Goodbye."
+        )
+    else:
+        vr.say("Sorry, I didn’t catch that. Goodbye.")
+
+    vr.hangup()
+    return Response(str(vr), mimetype="text/xml")
 # ---------- Helpers ----------
 def norm(text: str) -> str:
     return re.sub(r"\s+", " ", (text or "").strip().lower())
