@@ -6,12 +6,19 @@ from twilio.twiml.voice_response import VoiceResponse, Gather
 
 app = Flask(__name__)
 
+# ------------------------------
+# Simple in-memory call storage
+# (Phase 2: move to DB/Redis)
+# ------------------------------
+CALLS = {}
+
 @app.get("/")
 def home():
     return jsonify({"status": "running", "message": "MME AI bot is live"})
 
-
-
+# ------------------------------
+# SMS (keep this even if A2P pending)
+# ------------------------------
 @app.route("/sms", methods=["POST"])
 def sms():
     incoming_msg = request.form.get("Body", "").strip()
@@ -20,52 +27,98 @@ def sms():
     print(f"📩 SMS from {from_number}: {incoming_msg}")
 
     reply = "✅ MME AI Bot is live! We received your message."
+    return Response(f"<Response><Message>{reply}</Message></Response>", mimetype="text/xml")
 
-    return Response(
-        f"<Response><Message>{reply}</Message></Response>",
-        mimetype="text/xml"
-    )
-    
+# ------------------------------
+# VOICE: 4-question intake
+# ------------------------------
 @app.route("/voice", methods=["POST", "GET"])
 def voice():
-    vr = VoiceResponse()
+    call_sid = request.values.get("CallSid", "unknown")
+    CALLS[call_sid] = {"step": 1}  # reset for new call
 
+    vr = VoiceResponse()
     gather = Gather(
         input="speech",
-        action="/voice-process",
+        action="/voice-process?step=1",
         method="POST",
-        timeout=5
+        timeout=6,
+        speech_timeout="auto",
     )
-
-    gather.say(
-        "Hi, you've reached M M E Lawn Care and More. "
-        "Please tell me what you need help with after the beep."
-    )
-
+    gather.say("Thanks for calling M M E Lawn Care and More.")
+    gather.say("First, please say the service address after the beep.")
     vr.append(gather)
 
-    vr.say("Sorry, I didn’t catch that. Please call back or text us. Goodbye.")
+    vr.say("Sorry, I didn't catch that. Please call back and try again. Goodbye.")
     vr.hangup()
-
     return Response(str(vr), mimetype="text/xml")
 
 
 @app.route("/voice-process", methods=["POST"])
 def voice_process():
-    speech = request.form.get("SpeechResult", "").strip()
+    call_sid = request.values.get("CallSid", "unknown")
+    step = int(request.args.get("step", "1"))
+    speech = request.values.get("SpeechResult", "").strip()
+
+    state = CALLS.get(call_sid, {})
+    state["step"] = step
+
+    # Save answer by step
+    if step == 1:
+        state["address"] = speech
+        next_step = 2
+        prompt = "Thanks. Now briefly tell me what you need help with after the beep."
+    elif step == 2:
+        state["job"] = speech
+        next_step = 3
+        prompt = "Got it. When do you need this done? You can say today, tomorrow, or a date."
+    elif step == 3:
+        state["timing"] = speech
+        next_step = 4
+        prompt = "Last question. What is the best callback phone number?"
+    else:
+        state["callback"] = speech
+        next_step = 5
+
+    CALLS[call_sid] = state
 
     vr = VoiceResponse()
 
-    if speech:
-        vr.say(
-            f"Thanks. You said {speech}. "
-            "We’ll follow up shortly. Goodbye."
+    # If we still have questions to ask, gather again
+    if next_step <= 4:
+        gather = Gather(
+            input="speech",
+            action=f"/voice-process?step={next_step}",
+            method="POST",
+            timeout=6,
+            speech_timeout="auto",
         )
-    else:
-        vr.say("Sorry, I didn’t catch that. Goodbye.")
+        gather.say(prompt)
+        vr.append(gather)
 
+        vr.say("Sorry, I didn't catch that. Please call back and try again. Goodbye.")
+        vr.hangup()
+        return Response(str(vr), mimetype="text/xml")
+
+    # Done: confirm + log
+    address = state.get("address", "")
+    job = state.get("job", "")
+    timing = state.get("timing", "")
+    callback = state.get("callback", "")
+
+    print("📞 NEW VOICE INTAKE:")
+    print(f"  CallSid: {call_sid}")
+    print(f"  Address: {address}")
+    print(f"  Job: {job}")
+    print(f"  Timing: {timing}")
+    print(f"  Callback: {callback}")
+
+    vr.say("Thanks. I recorded your request.")
+    vr.say("We will follow up shortly. Goodbye.")
     vr.hangup()
     return Response(str(vr), mimetype="text/xml")
+
+
 # ---------- Helpers ----------
 def norm(text: str) -> str:
     return re.sub(r"\s+", " ", (text or "").strip().lower())
