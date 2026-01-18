@@ -3,7 +3,30 @@ import os
 import re
 
 from twilio.twiml.voice_response import VoiceResponse, Gather
+import smtplib
 
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+
+
+def send_email(subject: str, body: str):
+    host = os.environ.get("EMAIL_HOST")
+    port = int(os.environ.get("EMAIL_PORT", 587))
+    user = os.environ.get("EMAIL_USER")
+    password = os.environ.get("EMAIL_PASS")
+
+    msg = MIMEMultipart()
+    msg["From"] = user
+    msg["To"] = user
+    msg["Subject"] = subject
+
+    msg.attach(MIMEText(body, "plain"))
+
+    server = smtplib.SMTP(host, port)
+    server.starttls()
+    server.login(user, password)
+    server.send_message(msg)
+    server.quit()
 app = Flask(__name__)
 
 # ------------------------------
@@ -112,7 +135,29 @@ def voice_process():
     print(f"  Job: {job}")
     print(f"  Timing: {timing}")
     print(f"  Callback: {callback}")
+    email_body = f"""
+    New phone intake received:
 
+    Address:
+    {address}
+
+    Job:
+    {job}
+
+    Timing:
+    {timing}
+
+    Callback:
+    {callback}
+
+    CallSid:
+    {call_sid}
+    """
+
+    send_email(
+    subject="📞 New Call Intake – MME AI Bot",
+    body=email_body
+)
     vr.say("Thanks. I recorded your request.")
     vr.say("We will follow up shortly. Goodbye.")
     vr.hangup()
