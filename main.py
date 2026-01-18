@@ -54,7 +54,7 @@ def sms():
 # ------------------------------
 # VOICE: 4-question intake
 # ------------------------------
-@app.route("/voice", methods=["POST", "GET"])
+@app.route("/voice", methods=["POST"])
 def voice():
     call_sid = request.values.get("CallSid", "unknown")
     CALLS[call_sid] = {"step": 1}  # reset for new call
@@ -153,18 +153,22 @@ def voice_process():
     {call_sid}
     """
 
-try:
-    send_email(
+@app.route("/voice", methods=["POST"])
+def voice():
+    return process_call()
+def process_call():
+    try:
+        send_email(
         subject="📞 New Call Intake – MME AI Bot",
         body=email_body
-    )
-except Exception as e:
-    print("EMAIL FAILED:", str(e))
+        )
+    except Exception as e:
+        print("EMAIL FAILED:", str(e))
     
-vr.say("Thanks. I recorded your request.")
-vr.say("We will follow up shortly. Goodbye.")
-vr.hangup()
-return Response(str(vr), mimetype="text/xml")
+    vr.say("Thanks. I recorded your request.")
+    vr.say("We will follow up shortly. Goodbye.")
+    vr.hangup()
+    return Response(str(vr), mimetype="text/xml")
 
 
 # ---------- Helpers ----------
