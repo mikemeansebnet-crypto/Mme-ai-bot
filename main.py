@@ -153,23 +153,6 @@ def voice_process():
     {call_sid}
     """
 
-@app.route("/voice", methods=["POST"])
-def voice():
-    return process_call()
-def process_call():
-    try:
-        send_email(
-        subject="📞 New Call Intake – MME AI Bot",
-        body=email_body
-        )
-    except Exception as e:
-        print("EMAIL FAILED:", str(e))
-    
-    vr.say("Thanks. I recorded your request.")
-    vr.say("We will follow up shortly. Goodbye.")
-    vr.hangup()
-    return Response(str(vr), mimetype="text/xml")
-
 
 # ---------- Helpers ----------
 def norm(text: str) -> str:
