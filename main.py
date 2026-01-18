@@ -22,8 +22,7 @@ def send_email(subject: str, body: str):
 
     msg.attach(MIMEText(body, "plain"))
 
-    server = smtplib.SMTP(host, port)
-    server.starttls()
+    server = smtplib.SMTP_SSL(host, 465, timeout=10)
     server.login(user, password)
     server.send_message(msg)
     server.quit()
