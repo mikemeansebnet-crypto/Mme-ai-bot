@@ -121,37 +121,31 @@ def voice_process():
         vr.say("Sorry, I didn't catch that. Please call back and try again. Goodbye.")
         vr.hangup()
         return Response(str(vr), mimetype="text/xml")
-
-    # Done: confirm + log
-    address = state.get("address", "")
-    job = state.get("job", "")
-    timing = state.get("timing", "")
-    callback = state.get("callback", "")
-
-    print("📞 NEW VOICE INTAKE:")
-    print(f"  CallSid: {call_sid}")
-    print(f"  Address: {address}")
-    print(f"  Job: {job}")
-    print(f"  Timing: {timing}")
-    print(f"  Callback: {callback}")
-    email_body = f"""
+    else:
+        # FINAL STEP: we have all answers now
+        email_body = f"""
     New phone intake received:
 
-    Address:
-    {address}
-
-    Job:
-    {job}
-
-    Timing:
-    {timing}
-
-    Callback:
-    {callback}
-
-    CallSid:
-    {call_sid}
+    Address: {state.get('address','')}
+    Job: {state.get('job','')}
+    Timing: {state.get('timing','')}
+    Callback: {state.get('callback','')}
+    CallSid: {call_sid}
     """
+
+    try:
+        send_email(
+            subject="📞 New Call Intake — MME AI Bot",
+            body=email_body
+        )
+    except Exception as e:
+        print("EMAIL FAILED:", str(e))
+
+    vr.say("Thanks. I recorded your request.")
+    vr.say("We will follow up shortly. Goodbye.")
+    vr.hangup()
+    return Response(str(vr), mimetype="text/xml")
+   
 
 
 # ---------- Helpers ----------
