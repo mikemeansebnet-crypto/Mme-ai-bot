@@ -3,29 +3,36 @@ import os
 import re
 
 from twilio.twiml.voice_response import VoiceResponse, Gather
-import smtplib
 
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 
+from sendgrid import SendGridAPIClient
+from sendgrid.helpers.mail import Mail
 
 def send_email(subject: str, body: str):
-    host = os.environ.get("EMAIL_HOST")
-    port = int(os.environ.get("EMAIL_PORT", 587))
-    user = os.environ.get("EMAIL_USER")
-    password = os.environ.get("EMAIL_PASS")
+    api_key = os.environ.get("SENDGRID_API_KEY")
+    from_email = os.environ.get("FROM_EMAIL")
+    to_email = os.environ.get("TO_EMAIL")
 
-    msg = MIMEMultipart()
-    msg["From"] = user
-    msg["To"] = user
-    msg["Subject"] = subject
+    if not api_key:
+        raise Exception("Missing SENDGRID_API_KEY env var")
+    if not from_email:
+        raise Exception("Missing FROM_EMAIL env var")
+    if not to_email:
+        raise Exception("Missing TO_EMAIL env var")
 
-    msg.attach(MIMEText(body, "plain"))
+    message = Mail(
+        from_email=from_email,
+        to_emails=to_email,
+        subject=subject,
+        plain_text_content=body
+    )
 
-    server = smtplib.SMTP_SSL(host, 465, timeout=10)
-    server.login(user, password)
-    server.send_message(msg)
-    server.quit()
+    sg = SendGridAPIClient(api_key)
+    response = sg.send(message)
+
+    # Optional: helpful in Render logs
+    print("SendGrid status:", response.status_code)
+
 app = Flask(__name__)
 
 # ------------------------------
