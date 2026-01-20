@@ -2,3 +2,4 @@ flask
 gunicorn
 requests
 twilio
+sendgrid==6.11.0
