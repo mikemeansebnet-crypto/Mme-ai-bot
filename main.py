@@ -92,21 +92,25 @@ def voice():
     except Exception as e:
         print("Email notify failed:", e)
 
-    vr = VoiceResponse()
-    gather = Gather(
-        input="speech",
-        action="/voice-process?step=1",
-        method="POST",
-        timeout=6,
-        speech_timeout="auto",
-    )
-    gather.say("Thanks for calling M M E Lawn Care and More.")
-    gather.say("First, please say the service address after the beep.")
-    vr.append(gather)
+vr = VoiceResponse()
+    
+gather = Gather(
+    input="speech",
+    action="/voice-process?step=1",
+    method="POST",
+    timeout=6,
+    speech_timeout="auto",
+    record="true",
+    play_beep="true"
+)
+    
+gather.say("Thanks for calling M M E Lawn Care and More.")
+gather.say("First, please say the service address after the beep.")
+vr.append(gather)
 
-    vr.say("Sorry, I didn't catch that. Please call back and try again. Goodbye.")
-    vr.hangup()
-    return Response(str(vr), mimetype="text/xml")
+vr.say("Sorry, I didn't catch that. Please call back and try again. Goodbye.")
+vr.hangup()
+return Response(str(vr), mimetype="text/xml")
    
 
 @app.route("/voice-process", methods=["POST"])
