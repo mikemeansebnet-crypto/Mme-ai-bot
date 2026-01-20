@@ -74,10 +74,23 @@ def sms():
 # ------------------------------
 # VOICE: 4-question intake
 # ------------------------------
+
 @app.route("/voice", methods=["POST"])
 def voice():
     call_sid = request.values.get("CallSid", "unknown")
+    from_number = request.values.get("From", "unknown")
+    to_number = request.values.get("To", "unknown")
+
     CALLS[call_sid] = {"step": 1}  # reset for new call
+
+    # ✅ NEW: Email you immediately that a call started
+    try:
+        send_email(
+            "New call started (MME AI Bot)",
+            f"Incoming call\nFrom: {from_number}\nTo: {to_number}\nCallSid: {call_sid}\n\nThe bot is starting intake now."
+        )
+    except Exception as e:
+        print("Email notify failed:", e)
 
     vr = VoiceResponse()
     gather = Gather(
@@ -94,7 +107,7 @@ def voice():
     vr.say("Sorry, I didn't catch that. Please call back and try again. Goodbye.")
     vr.hangup()
     return Response(str(vr), mimetype="text/xml")
-
+   
 
 @app.route("/voice-process", methods=["POST"])
 def voice_process():
