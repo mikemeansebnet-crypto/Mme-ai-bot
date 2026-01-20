@@ -35,6 +35,19 @@ def send_email(subject: str, body: str):
 
 app = Flask(__name__)
 
+@app.get("/test-email")
+def test_email():
+    try:
+        send_email(
+            "MME AI Bot Test",
+            "If you got this, SendGrid is working ✅"
+        )
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({
+            "ok": False,
+            "error": str(e)
+        }), 500
 # ------------------------------
 # Simple in-memory call storage
 # (Phase 2: move to DB/Redis)
