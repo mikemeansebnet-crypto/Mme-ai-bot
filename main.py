@@ -104,7 +104,7 @@ def voice():
     )
     
     gather.say("Thanks for calling M M E Lawn Care and More.")
-    gather.say("First, please say the service address after the beep.")
+    gather.say("First, please say the service address now.")
     vr.append(gather)
 
     vr.say("Sorry, I didn't catch that. Please call back and try again. Goodbye.")
