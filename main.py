@@ -100,8 +100,7 @@ gather = Gather(
     method="POST",
     timeout=6,
     speech_timeout="auto",
-    record="true",
-    play_beep="true"
+    playBeep="True"
 )
     
 gather.say("Thanks for calling M M E Lawn Care and More.")
