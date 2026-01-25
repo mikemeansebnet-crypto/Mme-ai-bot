@@ -164,7 +164,7 @@ def voice_emergency():
     vr.hangup()
     return Response(str(vr), mimetype="text/xml")
 
-)
+
 
 @app.route("/voice-process", methods=["POST"])
 def voice_process():
