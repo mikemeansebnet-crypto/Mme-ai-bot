@@ -75,42 +75,82 @@ def sms():
 # VOICE: 4-question intake
 # ------------------------------
 
-@app.route("/voice", methods=["POST"])
+@app.route("/voice", methods=["POST", "GET"])
 def voice():
+    vr = VoiceResponse()
+
+    gather = Gather(
+        num_digits=1,
+        action="/voice-menu",
+        method="POST",
+        timeout=6
+    )
+    gather.say(
+        "Thanks for calling M M E Lawn Care and More. "
+        "If this is an emergency, press 1 to reach Mike now. "
+        "To leave details for an estimate, press 2."
+    )
+    vr.append(gather)
+
+    # If they don’t press anything
+    vr.say("No problem. We’ll take your details now.")
+    vr.redirect("/voice-intake")
+    return Response(str(vr), mimetype="text/xml")
+
+@app.route("/voice-menu", methods=["POST"])
+def voice_menu():
+    digit = request.form.get("Digits", "")
+    vr = VoiceResponse()
+
+    if digit == "1":
+        vr.redirect("/voice-emergency")
+    else:
+        vr.redirect("/voice-intake")
+
+    return Response(str(vr), mimetype="text/xml")
+
+
+@app.route("/voice-intake", methods=["POST", "GET"])
+def voice_intake():
+    # Start your existing 4-question flow
     call_sid = request.values.get("CallSid", "unknown")
-    from_number = request.values.get("From", "unknown")
-    to_number = request.values.get("To", "unknown")
-
-    CALLS[call_sid] = {"step": 1}  # reset for new call
-
-    # ✅ NEW: Email you immediately that a call started
-    try:
-        send_email(
-            "New call started (MME AI Bot)",
-            f"Incoming call\nFrom: {from_number}\nTo: {to_number}\nCallSid: {call_sid}\n\nThe bot is starting intake now."
-        )
-    except Exception as e:
-        print("Email notify failed:", e)
+    CALLS[call_sid] = {"step": 1}
 
     vr = VoiceResponse()
-    
     gather = Gather(
-    input="speech",
-    action="/voice-process?step=1",
-    method="POST",
-    timeout=6,
-    speech_timeout="auto",
-    play_beep=True
+        input="speech",
+        action="/voice-process?step=1",
+        method="POST",
+        timeout=6,
+        speech_timeout="auto",
     )
-    
-    gather.say("Thanks for calling M M E Lawn Care and More.")
     gather.say("First, please say the service address now.")
     vr.append(gather)
 
-    vr.say("Sorry, I didn't catch that. Please call back and try again. Goodbye.")
+    vr.say("Sorry, I didn’t catch that. Please call back and try again. Goodbye.")
     vr.hangup()
     return Response(str(vr), mimetype="text/xml")
-   
+
+@app.route("/voice-emergency", methods=["POST", "GET"])
+def voice_emergency():
+    vr = VoiceResponse()
+
+    vr.say("Okay. Connecting you now.")
+    dial = vr.dial(timeout=20, callerId=request.form.get("To", None))
+    dial.number("+17632132731")  # Mike’s business phone
+
+    # If no answer/busy, go to voicemail recording
+    vr.say("Sorry we missed you. Please leave your name, service address, and what you need help with after the beep.")
+    vr.record(
+        maxLength=120,
+        playBeep=True,
+        action="/twilio/voicemail",
+        method="POST"
+    )
+    vr.say("Thank you. Goodbye.")
+    vr.hangup()
+    return Response(str(vr), mimetype="text/xml")
+
 
 @app.route("/voice-process", methods=["POST"])
 def voice_process():
