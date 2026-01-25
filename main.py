@@ -9,6 +9,7 @@ from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
 
 def send_email(subject: str, body: str):
+    
     api_key = os.environ.get("SENDGRID_API_KEY")
     from_email = os.environ.get("FROM_EMAIL")
     to_email = os.environ.get("TO_EMAIL")
@@ -29,7 +30,19 @@ def send_email(subject: str, body: str):
 
     sg = SendGridAPIClient(api_key)
     response = sg.send(message)
+    
+def send_intake_summary(state: dict):
+    subject = "New MME AI Bot Intake"
 
+    body = (
+        "New lead captured by MME AI Bot:\n\n"
+        f"Service Address: {state.get('address', '')}\n"
+        f"Job Requested: {state.get('job', '')}\n"
+        f"Timing Needed: {state.get('timing', '')}\n"
+        f"Callback Number: {state.get('callback', '')}\n"
+    )
+
+    send_email(subject, body)
     # Optional: helpful in Render logs
     print("SendGrid status:", response.status_code)
 
@@ -151,79 +164,109 @@ def voice_emergency():
     vr.hangup()
     return Response(str(vr), mimetype="text/xml")
 
+)
 
 @app.route("/voice-process", methods=["POST"])
 def voice_process():
     call_sid = request.values.get("CallSid", "unknown")
     step = int(request.args.get("step", "1"))
+    digits = request.values.get("Digits", "")
     speech = request.values.get("SpeechResult", "").strip()
 
     state = CALLS.get(call_sid, {})
-    state["step"] = step
-
-    # Save answer by step
-    if step == 1:
-        state["address"] = speech
-        next_step = 2
-        prompt = "Thanks. Now briefly tell me what you need help with after the beep."
-    elif step == 2:
-        state["job"] = speech
-        next_step = 3
-        prompt = "Got it. When do you need this done? You can say today, tomorrow, or a date."
-    elif step == 3:
-        state["timing"] = speech
-        next_step = 4
-        prompt = "Last question. What is the best callback phone number?"
-    else:
-        state["callback"] = speech
-        next_step = 5
-
-    CALLS[call_sid] = state
-
     vr = VoiceResponse()
 
-    # If we still have questions to ask, gather again
-    if next_step <= 4:
+    # STEP 1: Service address
+    if step == 1:
+        state["address"] = speech
+        CALLS[call_sid] = state
+
         gather = Gather(
             input="speech",
-            action=f"/voice-process?step={next_step}",
+            action="/voice-process?step=2",
             method="POST",
             timeout=6,
             speech_timeout="auto",
         )
-        gather.say(prompt)
+        gather.say("Thanks. Now briefly tell me what you need help with after the beep.")
         vr.append(gather)
-
-        vr.say("Sorry, I didn't catch that. Please call back and try again. Goodbye.")
-        vr.hangup()
         return Response(str(vr), mimetype="text/xml")
-    else:
-        # FINAL STEP: we have all answers now
-        email_body = f"""
-    New phone intake received:
 
-    Address: {state.get('address','')}
-    Job: {state.get('job','')}
-    Timing: {state.get('timing','')}
-    Callback: {state.get('callback','')}
-    CallSid: {call_sid}
-    """
+    # STEP 2A: Capture job, then confirm
+    if step == 2 and digits == "":
+        state["job_temp"] = speech
+        CALLS[call_sid] = state
 
-    try:
-        send_email(
-            subject="📞 New Call Intake — MME AI Bot",
-            body=email_body
+        gather = Gather(
+            input="dtmf",
+            num_digits=1,
+            action="/voice-process?step=2",
+            method="POST",
+            timeout=6,
         )
-    except Exception as e:
-        print("EMAIL FAILED:", str(e))
+        gather.say(
+            f"I heard: {speech}. "
+            "Press 1 to confirm. "
+            "Press 2 to re say it."
+        )
+        vr.append(gather)
+        return Response(str(vr), mimetype="text/xml")
 
-    vr.say("Thanks. I recorded your request.")
-    vr.say("We will follow up shortly. Goodbye.")
-    vr.hangup()
-    return Response(str(vr), mimetype="text/xml")
+    # STEP 2B: Handle confirmation
+    if step == 2 and digits == "1":
+        state["job"] = state.get("job_temp", "")
+        CALLS[call_sid] = state
+
+        gather = Gather(
+            input="speech",
+            action="/voice-process?step=3",
+            method="POST",
+            timeout=6,
+            speech_timeout="auto",
+        )
+        gather.say("Got it. When do you need this done? You can say today, tomorrow, or a date.")
+        vr.append(gather)
+        return Response(str(vr), mimetype="text/xml")
+
+    if step == 2 and digits == "2":
+        gather = Gather(
+            input="speech",
+            action="/voice-process?step=2",
+            method="POST",
+            timeout=6,
+            speech_timeout="auto",
+        )
+        gather.say("No problem. Please say the service again after the beep.")
+        vr.append(gather)
+        return Response(str(vr), mimetype="text/xml")
+
+    # STEP 3: Timing
+    if step == 3:
+        state["timing"] = speech
+        CALLS[call_sid] = state
+
+        gather = Gather(
+            input="speech",
+            action="/voice-process?step=4",
+            method="POST",
+            timeout=6,
+            speech_timeout="auto",
+        )
+        gather.say("Last question. What is the best callback phone number?")
+        vr.append(gather)
+        return Response(str(vr), mimetype="text/xml")
+
+ # STEP 4: Callback + finish
+state["callback"] = speech
+CALLS[call_sid] = state
+
+send_intake_summary(state)
+
+vr.say("Thank you. We received your request and will follow up shortly.")
+vr.hangup()
+return Response(str(vr), mimetype="text/xml")
+
    
-
-
 # ---------- Helpers ----------
 def norm(text: str) -> str:
     return re.sub(r"\s+", " ", (text or "").strip().lower())
