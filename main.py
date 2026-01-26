@@ -236,7 +236,8 @@ def voice_process():
             timeout=6,
             speech_timeout="auto",
         )
-        gather.say("No problem. Please say the service again after the beep.")
+        
+        gather.say("No problem. Please say it again now.")
         vr.append(gather)
         return Response(str(vr), mimetype="text/xml")
 
@@ -256,22 +257,35 @@ def voice_process():
         vr.append(gather)
         return Response(str(vr), mimetype="text/xml")
 
-    # STEP 4: Callback + finish
-    if step == 4:
+# STEP 4: Callback + finish
+if step == 4:
+    # If Twilio didn’t capture speech, re-ask Step 4
+    if not speech:
+        gather = Gather(
+            input="speech",
+            action="/voice-process?step=4",
+            method="POST",
+            timeout=6,
+            speech_timeout="auto",
+        )
+        gather.say("Sorry, I didn’t catch that. Please say your callback number now.")
+        vr.append(gather)
+        return Response(str(vr), mimetype="text/xml")
+
+        # Save callback and finish
         state["callback"] = speech
         CALLS[call_sid] = state
 
+     try:
         send_intake_summary(state)
+     except Exception as e:
+        print("send_intake_summary failed:", e)
 
-        vr.say("Thank you. We received your request and will follow up shortly.")
-        vr.hangup()
-        return Response(str(vr), mimetype="text/xml")
-        
-    # FINAL SAFETY STOP — prevents voicemail fallback
-    vr.say("Thank you. Goodbye.")
-    vr.hangup()
-    return Response(str(vr), mimetype="text/xml")
-   
+     vr.say("Thank you. We received your request and will follow up shortly.")
+     vr.hangup()
+     return Response(str(vr), mimetype="text/xml")
+
+
 # ---------- Helpers ----------
 def norm(text: str) -> str:
     return re.sub(r"\s+", " ", (text or "").strip().lower())
