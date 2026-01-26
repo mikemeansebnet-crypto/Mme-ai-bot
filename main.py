@@ -266,7 +266,11 @@ def voice_process():
         vr.say("Thank you. We received your request and will follow up shortly.")
         vr.hangup()
         return Response(str(vr), mimetype="text/xml")
-
+        
+    # FINAL SAFETY STOP — prevents voicemail fallback
+    vr.say("Thank you. Goodbye.")
+    vr.hangup()
+    return Response(str(vr), mimetype="text/xml")
    
 # ---------- Helpers ----------
 def norm(text: str) -> str:
