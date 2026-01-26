@@ -256,15 +256,16 @@ def voice_process():
         vr.append(gather)
         return Response(str(vr), mimetype="text/xml")
 
- # STEP 4: Callback + finish
-state["callback"] = speech
-CALLS[call_sid] = state
+    # STEP 4: Callback + finish
+    if step == 4:
+        state["callback"] = speech
+        CALLS[call_sid] = state
 
-send_intake_summary(state)
+        send_intake_summary(state)
 
-vr.say("Thank you. We received your request and will follow up shortly.")
-vr.hangup()
-return Response(str(vr), mimetype="text/xml")
+        vr.say("Thank you. We received your request and will follow up shortly.")
+        vr.hangup()
+        return Response(str(vr), mimetype="text/xml")
 
    
 # ---------- Helpers ----------
