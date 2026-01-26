@@ -257,33 +257,33 @@ def voice_process():
         vr.append(gather)
         return Response(str(vr), mimetype="text/xml")
 
-# STEP 4: Callback + finish
-if step == 4:
-    # If Twilio didn’t capture speech, re-ask Step 4
-    if not speech:
-        gather = Gather(
-            input="speech",
-            action="/voice-process?step=4",
-            method="POST",
-            timeout=6,
-            speech_timeout="auto",
-        )
-        gather.say("Sorry, I didn’t catch that. Please say your callback number now.")
-        vr.append(gather)
-        return Response(str(vr), mimetype="text/xml")
+    # STEP 4: Callback + finish
+    if step == 4:
+        # If Twilio didn’t capture speech, re-ask Step 4
+        if not speech:
+            gather = Gather(
+                input="speech",
+                action="/voice-process?step=4",
+                method="POST",
+                timeout=6,
+                speech_timeout="auto",
+            )
+            gather.say("Sorry, I didn’t catch that. Please say your callback number now.")
+            vr.append(gather)
+            return Response(str(vr), mimetype="text/xml")
 
         # Save callback and finish
         state["callback"] = speech
         CALLS[call_sid] = state
 
-     try:
-        send_intake_summary(state)
-     except Exception as e:
-        print("send_intake_summary failed:", e)
+        try:
+            send_intake_summary(state)
+        except Exception as e:
+            print("send_intake_summary failed:", e)
 
-     vr.say("Thank you. We received your request and will follow up shortly.")
-     vr.hangup()
-     return Response(str(vr), mimetype="text/xml")
+        vr.say("Thank you. We received your request and will follow up shortly.")
+        vr.hangup()
+        return Response(str(vr), mimetype="text/xml")
 
 
 # ---------- Helpers ----------
