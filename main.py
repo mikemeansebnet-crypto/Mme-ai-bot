@@ -86,9 +86,9 @@ if appt_datetime and "T" in appt_datetime:
 airtable_result = airtable_create_record(airtable_fields)
 print("Airtable result:", airtable_result)
 
-    send_email(subject, body)
-    # Optional: helpful in Render logs
-    print("SendGrid status:", response.status_code)
+send_email(subject, body)
+# Optional: helpful in Render logs
+print("SendGrid status:", response.status_code)
 
 
 @app.get("/test-email")
