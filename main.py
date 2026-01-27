@@ -33,25 +33,6 @@ def airtable_create_record(fields: dict):
     return {"ok": True, "status": r.status_code, "data": r.json()}
 
 
-@app.route("/airtable/test", methods=["GET"])
-def airtable_test():
-    # IMPORTANT: field names must match Airtable column names EXACTLY
-    test_fields = {
-        "Client Name": "TEST - Mike Bot",
-        "Call Back Number": "+17632132731",
-        "Service Address": "123 Test St, Bowie, MD",
-        "Job Description": "Airtable API test record from Render",
-        "Source": "Manual Entry",
-        "Call SID": "TEST_CALL_SID_123",
-        # Use your exact field name for date/time column:
-        "Appointment Date and Time": "2026-01-27T14:30:00.000Z",
-        "Lead Status": "New Lead",
-    }
-
-    result = airtable_create_record(test_fields)
-    return jsonify(result), (200 if result.get("ok") else 500)
-
-
 def send_email(subject: str, body: str):
     
     api_key = os.environ.get("SENDGRID_API_KEY")
