@@ -226,6 +226,7 @@ def voice_process():
     vr = VoiceResponse()
     # STEP 0: Client name
     if step == 0:
+        # If speech is blank, reprompt and stay on step 0
         if not speech:
             gather = Gather(
                 input="speech",
@@ -234,10 +235,11 @@ def voice_process():
                 timeout=6,
                 speech_timeout="auto",
         )
-        gather.say("Please say your full name.")
+        gather.say("Please say your full name now.")
         vr.append(gather)
         return Response(str(vr), mimetype="text/xml")
-
+    
+    # Save name, then move to step 1                                                                                                                                    
     state["name"] = speech
     CALLS[call_sid] = state
 
