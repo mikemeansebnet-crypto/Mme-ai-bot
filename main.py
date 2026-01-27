@@ -169,18 +169,24 @@ def voice_menu():
 @app.route("/voice-intake", methods=["POST", "GET"])
 def voice_intake():
     # Start your existing 4-question flow
+    
     call_sid = request.values.get("CallSid", "unknown")
-    CALLS[call_sid] = {"step": 1}
+    caller = request.values.get("From", "")
+
+    CALLS[call_sid] = {
+        "step": 0,
+        "callback": caller
+}
 
     vr = VoiceResponse()
     gather = Gather(
         input="speech",
-        action="/voice-process?step=1",
+        action="/voice-process?step=0",
         method="POST",
         timeout=6,
         speech_timeout="auto",
     )
-    gather.say("First, please say the service address now.")
+    gather.say("First, please say your full name.")
     vr.append(gather)
 
     vr.say("Sorry, I didn’t catch that. Please call back and try again. Goodbye.")
@@ -212,28 +218,68 @@ def voice_emergency():
 @app.route("/voice-process", methods=["POST"])
 def voice_process():
     call_sid = request.values.get("CallSid", "unknown")
-    step = int(request.args.get("step", "1"))
-    digits = request.values.get("Digits", "")
+    step = int(request.args.get("step", "0"))
+    digits = request.values.get("Digits", "").strip()
     speech = request.values.get("SpeechResult", "").strip()
 
     state = CALLS.get(call_sid, {})
     vr = VoiceResponse()
-
-    # STEP 1: Service address
-    if step == 1:
-        state["address"] = speech
-        CALLS[call_sid] = state
-
-        gather = Gather(
-            input="speech",
-            action="/voice-process?step=2",
-            method="POST",
-            timeout=6,
-            speech_timeout="auto",
+    # STEP 0: Client name
+    if step == 0:
+        if not speech:
+            gather = Gather(
+                input="speech",
+                action="/voice-process?step=0",
+                method="POST",
+                timeout=6,
+                speech_timeout="auto",
         )
-        gather.say("Thanks. Now briefly tell me what you need help with after the beep.")
+        gather.say("Please say your full name.")
         vr.append(gather)
         return Response(str(vr), mimetype="text/xml")
+
+    state["name"] = speech
+    CALLS[call_sid] = state
+
+    gather = Gather(
+        input="speech",
+        action="/voice-process?step=1",
+        method="POST",
+        timeout=6,
+        speech_timeout="auto",
+    )
+    gather.say("Thanks. Please say the service address now.")
+    vr.append(gather)
+    return Response(str(vr), mimetype="text/xml")
+    
+    # STEP 1: Service address
+    if step == 1:
+        # If speech is blank, reprompt and stay on step 1
+        if not speech:
+            gather = Gather(
+                input="speech",
+                action="/voice-process?step=1",
+                method="POST",
+                timeout=6,
+                speech_timeout="auto",
+        )
+        gather.say("Sorry, I didn’t catch the service address. Please say the service address now.")
+        vr.append(gather)
+        return Response(str(vr), mimetype="text/xml")
+
+    state["address"] = speech
+    CALLS[call_sid] = state
+
+    gather = Gather(
+        input="speech",
+        action="/voice-process?step=2",
+        method="POST",
+        timeout=6,
+        speech_timeout="auto",
+    )
+    gather.say("Thanks. Now briefly tell me what you need help with.")
+    vr.append(gather)
+    return Response(str(vr), mimetype="text/xml")
 
     # STEP 2A: Capture job, then confirm
     if step == 2 and digits == "":
