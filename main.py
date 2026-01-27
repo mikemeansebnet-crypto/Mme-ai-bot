@@ -1,12 +1,56 @@
 from flask import Flask, request, jsonify, Response
 import os
-import re
+import requests
 
 from twilio.twiml.voice_response import VoiceResponse, Gather
 
-
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
+
+app = Flask(__name__)
+
+def airtable_create_record(fields: dict):
+    token = os.getenv("AIRTABLE_TOKEN")
+    base_id = os.getenv("AIRTABLE_BASE_ID")
+    table_name = os.getenv("AIRTABLE_TABLE_NAME")
+
+    if not token or not base_id or not table_name:
+        return {"ok": False, "error": "Missing AIRTABLE_TOKEN / AIRTABLE_BASE_ID / AIRTABLE_TABLE_NAME env vars"}
+
+    url = f"https://api.airtable.com/v0/{base_id}/{table_name}"
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+    }
+    payload = {"fields": fields}
+
+    r = requests.post(url, headers=headers, json=payload, timeout=20)
+
+    # Airtable returns 200 for success, 4xx for errors
+    if r.status_code >= 400:
+        return {"ok": False, "status": r.status_code, "airtable_error": r.text}
+
+    return {"ok": True, "status": r.status_code, "data": r.json()}
+
+
+@app.route("/airtable/test", methods=["GET"])
+def airtable_test():
+    # IMPORTANT: field names must match Airtable column names EXACTLY
+    test_fields = {
+        "Client Name": "TEST - Mike Bot",
+        "Call Back Number": "+17632132731",
+        "Service Address": "123 Test St, Bowie, MD",
+        "Job Description": "Airtable API test record from Render",
+        "Source": "Manual Entry",
+        "Call SID": "TEST_CALL_SID_123",
+        # Use your exact field name for date/time column:
+        "Appointment Date and Time": "2026-01-27T14:30:00.000Z",
+        "Lead Status": "New Lead",
+    }
+
+    result = airtable_create_record(test_fields)
+    return jsonify(result), (200 if result.get("ok") else 500)
+
 
 def send_email(subject: str, body: str):
     
@@ -46,7 +90,6 @@ def send_intake_summary(state: dict):
     # Optional: helpful in Render logs
     print("SendGrid status:", response.status_code)
 
-app = Flask(__name__)
 
 @app.get("/test-email")
 def test_email():
