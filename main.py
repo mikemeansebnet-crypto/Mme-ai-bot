@@ -224,6 +224,7 @@ def voice_process():
 
     state = CALLS.get(call_sid, {})
     vr = VoiceResponse()
+    
     # STEP 0: Client name
     if step == 0:
         # If speech is blank, reprompt and stay on step 0
