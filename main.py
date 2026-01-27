@@ -66,6 +66,19 @@ def send_intake_summary(state: dict):
         f"Timing Needed: {state.get('timing', '')}\n"
         f"Callback Number: {state.get('callback', '')}\n"
     )
+        airtable_fields = {
+        "Client Name": state.get("name", ""),
+        "Call Back Number": state.get("callback", ""),
+        "Service Address": state.get("address", ""),
+        "Job Description": state.get("job", ""),
+        "Source": "AI Phone Call",
+        "Call SID": state.get("call_sid", ""),
+        "Appointment Date and Time": state.get("appointment", ""),
+        "Lead Status": "New Lead",
+    }
+
+    airtable_result = airtable_create_record(airtable_fields)
+    print("Airtable result:", airtable_result)
 
     send_email(subject, body)
     # Optional: helpful in Render logs
