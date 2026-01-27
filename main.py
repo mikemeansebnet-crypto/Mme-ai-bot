@@ -66,6 +66,7 @@ def send_intake_summary(state: dict):
         f"Timing Needed: {state.get('timing', '')}\n"
         f"Callback Number: {state.get('callback', '')}\n"
     )
+    # Build Airtable payload (SAFE – no forced datetime)
     airtable_fields = {
         "Client Name": state.get("name", ""),
         "Call Back Number": state.get("callback", ""),
@@ -73,12 +74,17 @@ def send_intake_summary(state: dict):
         "Job Description": state.get("job", ""),
         "Source": "AI Phone Call",
         "Call SID": state.get("call_sid", ""),
-        "Appointment Date and Time": state.get("appointment", ""),
+        "Appointment Requested": state.get("timing", ""),
         "Lead Status": "New Lead",
-    }
+}
 
-    airtable_result = airtable_create_record(airtable_fields)
-    print("Airtable result:", airtable_result)
+# Only include real datetime if it exists and is valid
+appt_datetime = state.get("appointment")
+if appt_datetime and "T" in appt_datetime:
+    airtable_fields["Appointment Date and Time"] = appt_datetime
+
+airtable_result = airtable_create_record(airtable_fields)
+print("Airtable result:", airtable_result)
 
     send_email(subject, body)
     # Optional: helpful in Render logs
