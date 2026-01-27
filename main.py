@@ -66,7 +66,7 @@ def send_intake_summary(state: dict):
         f"Timing Needed: {state.get('timing', '')}\n"
         f"Callback Number: {state.get('callback', '')}\n"
     )
-        airtable_fields = {
+    airtable_fields = {
         "Client Name": state.get("name", ""),
         "Call Back Number": state.get("callback", ""),
         "Service Address": state.get("address", ""),
