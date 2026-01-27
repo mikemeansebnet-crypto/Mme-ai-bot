@@ -78,17 +78,17 @@ def send_intake_summary(state: dict):
         "Lead Status": "New Lead",
 }
 
-# Only include real datetime if it exists and is valid
-appt_datetime = state.get("appointment")
-if appt_datetime and "T" in appt_datetime:
+    # Only include real datetime if it exists and is valid
+    appt_datetime = state.get("appointment")
+    if appt_datetime and "T" in appt_datetime:
     airtable_fields["Appointment Date and Time"] = appt_datetime
 
-airtable_result = airtable_create_record(airtable_fields)
-print("Airtable result:", airtable_result)
+    airtable_result = airtable_create_record(airtable_fields)
+    print("Airtable result:", airtable_result)
 
-send_email(subject, body)
-# Optional: helpful in Render logs
-print("SendGrid status:", response.status_code)
+    send_email(subject, body)
+    # Optional: helpful in Render logs
+    
 
 
 @app.get("/test-email")
