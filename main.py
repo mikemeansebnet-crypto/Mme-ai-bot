@@ -81,7 +81,7 @@ def send_intake_summary(state: dict):
     # Only include real datetime if it exists and is valid
     appt_datetime = state.get("appointment")
     if appt_datetime and "T" in appt_datetime:
-    airtable_fields["Appointment Date and Time"] = appt_datetime
+        airtable_fields["Appointment Date and Time"] = appt_datetime
 
     airtable_result = airtable_create_record(airtable_fields)
     print("Airtable result:", airtable_result)
