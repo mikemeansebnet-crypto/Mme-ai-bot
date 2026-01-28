@@ -227,7 +227,6 @@ def voice_process():
 
     # STEP 0: Client name
     if step == 0:
-        # If speech is blank, reprompt and stay on step 0
         if not speech:
             gather = Gather(
                 input="speech",
@@ -235,25 +234,25 @@ def voice_process():
                 method="POST",
                 timeout=6,
                 speech_timeout="auto",
+             )
+             gather.say("Please say your full name now.")
+             vr.append(gather)
+             return Response(str(vr), mimetype="text/xml")
+
+        
+        state["name"] = speech
+        CALLS[call_sid] = state
+
+        gather = Gather(
+            input="speech",
+            action="/voice-process?step=1",
+            method="POST",
+            timeout=6,
+            speech_timeout="auto",
         )
-        gather.say("Please say your full name now.")
+        gather.say("Thanks. Please say the service address now.")
         vr.append(gather)
         return Response(str(vr), mimetype="text/xml")
-
-    # Speech exists -> save it and move to step 1
-    state["name"] = speech
-    CALLS[call_sid] = state
-
-    gather = Gather(
-        input="speech",
-        action="/voice-process?step=1",
-        method="POST",
-        timeout=6,
-        speech_timeout="auto",
-    )
-    gather.say("Thanks. Please say the service address now.")
-    vr.append(gather)
-    return Response(str(vr), mimetype="text/xml")
     
     # STEP 1: Service address
     if step == 1:
