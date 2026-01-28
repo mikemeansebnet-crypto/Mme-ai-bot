@@ -266,7 +266,7 @@ def voice_process():
                 timeout=6,
                 speech_timeout="auto",
         )
-        gather.say("Sorry, I didn’t catch the service address. Please say the service address now.")
+        gather.say("Sorry I didn't catch the service address. Please say the service address now.")
         vr.append(gather)
         return Response(str(vr), mimetype="text/xml")
 
