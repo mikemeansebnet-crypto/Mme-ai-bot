@@ -269,19 +269,19 @@ def voice_process():
         vr.append(gather)
         return Response(str(vr), mimetype="text/xml")
 
-    state["address"] = speech
-    CALLS[call_sid] = state
+        state["address"] = speech
+        CALLS[call_sid] = state
 
-    gather = Gather(
-        input="speech",
-        action="/voice-process?step=2",
-        method="POST",
-        timeout=6,
-        speech_timeout="auto",
-    )
-    gather.say("Thanks. Now briefly tell me what you need help with.")
-    vr.append(gather)
-    return Response(str(vr), mimetype="text/xml")
+        gather = Gather(
+            input="speech",
+            action="/voice-process?step=2",
+            method="POST",
+            timeout=6,
+            speech_timeout="auto",
+        )
+        gather.say("Thanks. Now briefly tell me what you need help with.")
+        vr.append(gather)
+        return Response(str(vr), mimetype="text/xml")
 
     # STEP 2A: Capture job, then confirm
     if step == 2 and digits == "":
