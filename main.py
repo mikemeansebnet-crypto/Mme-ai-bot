@@ -219,12 +219,12 @@ def voice_emergency():
 def voice_process():
     call_sid = request.values.get("CallSid", "unknown")
     step = int(request.args.get("step", "0"))
-    digits = request.values.get("Digits", "").strip()
-    speech = request.values.get("SpeechResult", "").strip()
+    digits = (request.values.get("Digits") or "").strip()
+    speech = (request.values.get("SpeechResult") or "").strip()
 
     state = CALLS.get(call_sid, {})
     vr = VoiceResponse()
-    
+
     # STEP 0: Client name
     if step == 0:
         # If speech is blank, reprompt and stay on step 0
@@ -239,8 +239,8 @@ def voice_process():
         gather.say("Please say your full name now.")
         vr.append(gather)
         return Response(str(vr), mimetype="text/xml")
-    
-    # Save name, then move to step 1                                                                                                                                    
+
+    # Speech exists -> save it and move to step 1
     state["name"] = speech
     CALLS[call_sid] = state
 
