@@ -282,8 +282,9 @@ def voice_process():
         vr.append(gather)
         return Response(str(vr), mimetype="text/xml")
 
-    # STEP 2A: Capture job, then confirm
-    if step == 2 and digits == "":
+    # STEP 2A: Capture job description, then confirm
+    if step == 2 and not digits:
+        # Save spoken job description
         state["job_temp"] = speech
         CALLS[call_sid] = state
 
@@ -295,15 +296,17 @@ def voice_process():
             timeout=6,
         )
         gather.say(
-            f"I heard: {speech}. "
+            f"I heard {speech}. "
             "Press 1 to confirm. "
-            "Press 2 to re say it."
+            "Press 2 to say it again."
         )
         vr.append(gather)
         return Response(str(vr), mimetype="text/xml")
 
+
     # STEP 2B: Handle confirmation
     if step == 2 and digits == "1":
+        # Confirm job description
         state["job"] = state.get("job_temp", "")
         CALLS[call_sid] = state
 
@@ -314,11 +317,16 @@ def voice_process():
             timeout=6,
             speech_timeout="auto",
         )
-        gather.say("Got it. When do you need this done? You can say today, tomorrow, or a date.")
+        gather.say(
+            "Got it. When do you need this done? "
+            "You can say today, tomorrow, or a specific date."
+        )
         vr.append(gather)
         return Response(str(vr), mimetype="text/xml")
 
+
     if step == 2 and digits == "2":
+        # Re-ask job description
         gather = Gather(
             input="speech",
             action="/voice-process?step=2",
@@ -326,8 +334,7 @@ def voice_process():
             timeout=6,
             speech_timeout="auto",
         )
-        
-        gather.say("No problem. Please say it again now.")
+        gather.say("No problem. Please say the job description again.")
         vr.append(gather)
         return Response(str(vr), mimetype="text/xml")
 
