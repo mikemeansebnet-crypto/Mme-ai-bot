@@ -256,7 +256,6 @@ def voice_process():
     
     # STEP 1: Service address
     if step == 1:
-        # If speech is blank, reprompt and stay on step 1
         if not speech:
             gather = Gather(
                 input="speech",
