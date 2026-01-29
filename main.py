@@ -256,6 +256,7 @@ def voice_process():
     
     # STEP 1: Service address
     if step == 1:
+        # If speech is blank -> reprompt and stay on step 1
         if not speech:
             gather = Gather(
                 input="speech",
@@ -263,11 +264,12 @@ def voice_process():
                 method="POST",
                 timeout=6,
                 speech_timeout="auto",
-        )
-        gather.say("Sorry I didn't catch the service address. Please say the service address now.")
-        vr.append(gather)
-        return Response(str(vr), mimetype="text/xml")
+            )
+            gather.say("Sorry, I didn’t catch the service address. Please say the service address now.")
+            vr.append(gather)
+            return Response(str(vr), mimetype="text/xml")
 
+        # Speech exists -> save it and move to step 2
         state["address"] = speech
         CALLS[call_sid] = state
 
