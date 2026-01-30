@@ -154,7 +154,7 @@ def voice():
     # If they don’t press anything
     vr.say(
         "No problem. We’ll take your details now.",
-        voice=Polly.Joanna",
+        voice="Polly.Joanna",
         language="en=US"
     )
     vr.redirect("/voice-intake")
