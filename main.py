@@ -243,8 +243,8 @@ def voice_process():
             return Response(str(vr), mimetype="text/xml")
 
         
-        state["name"] = speech
-        CALLS[call_sid] = state
+            state["name"] = speech
+            CALLS[call_sid] = state
 
             gather = Gather(
                 input="speech",
