@@ -240,6 +240,7 @@ def voice_process():
                 voice="Polly.Joanna",
                 language="en-US"
 )
+            vr.append(gather)
             return Response(str(vr), mimetype="text/xml")
 
         
