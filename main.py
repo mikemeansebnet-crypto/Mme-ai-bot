@@ -145,11 +145,18 @@ def voice():
         "Thanks for calling M M E Lawn Care and More. "
         "If this is an emergency, press 1 to reach Mike now. "
         "To leave details for an estimate, press 2."
+        voice="Polly.Joanna",
+        language="en-US"
     )
+    
     vr.append(gather)
 
     # If they don’t press anything
-    vr.say("No problem. We’ll take your details now.")
+    vr.say(
+        "No problem. We’ll take your details now.",
+        voice=Polly.Joanna",
+        language="en=US"
+    )
     vr.redirect("/voice-intake")
     return Response(str(vr), mimetype="text/xml")
 
@@ -392,6 +399,22 @@ def voice_process():
         vr.say("Thank you. We received your request and will follow up shortly.")
         vr.hangup()
         return Response(str(vr), mimetype="text/xml")
+
+    # --- SAFETY FALLBACK (prevents None return) ---
+            gather = Gather(
+                input="speech",
+                action="/voice-process?step=0",
+                method="POST",
+                timeout=6,
+                speech_timeout="auto",
+            )
+            gather.say(
+            "Sorry, let's try again. Please say your full name.",
+            voice="Polly.Joanna",
+            language="en-US",
+)
+            vr.append(gather)
+            return Response(str(vr), mimetype="text/xml")
 
 
 # ---------- Helpers ----------
