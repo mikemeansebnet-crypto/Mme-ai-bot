@@ -235,24 +235,32 @@ def voice_process():
                 timeout=6,
                 speech_timeout="auto",
             )
-            gather.say("Please say your full name now.")
-            vr.append(gather)
+            gather.say(
+                "Please say your full name now.",
+                voice="Polly.Joanna",
+                language="en-US"
+)
             return Response(str(vr), mimetype="text/xml")
 
         
         state["name"] = speech
         CALLS[call_sid] = state
 
-        gather = Gather(
-            input="speech",
-            action="/voice-process?step=1",
-            method="POST",
-            timeout=6,
-            speech_timeout="auto",
-        )
-        gather.say("Thanks. Please say the service address now.")
-        vr.append(gather)
-        return Response(str(vr), mimetype="text/xml")
+            gather = Gather(
+                input="speech",
+                action="/voice-process?step=1",
+                method="POST",
+                timeout=6,
+                speech_timeout="auto",
+            )
+            gather.say(
+                "Thanks. Please say the service address now.",
+                voice="Polly.Joanna",
+                language="en-US"
+            )
+
+            vr.append(gather)
+            return Response(str(vr), mimetype="text/xml")
     
     # STEP 1: Service address
     if step == 1:
