@@ -401,9 +401,9 @@ def voice_process():
         )
         gather.say(
             "Got it. When do you need this done? "
-            "You can say today, tomorrow, or a specific date."
+            "You can say today, tomorrow, or a specific date.",
             voice="Polly.Joanna",
-            language="en-US"
+            language="en-US",
         )
         vr.append(gather)
         return Response(str(vr), mimetype="text/xml")
