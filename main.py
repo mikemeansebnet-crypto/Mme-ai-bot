@@ -227,9 +227,18 @@ def voice_process():
     call_sid = request.values.get("CallSid", "unknown")
     step = int(request.args.get("step", "0"))
     digits = (request.values.get("Digits") or "").strip()
-    speech = (request.values.get("SpeechResult") or "").strip()
-
+    speech = (
+        request.values.get("SpeechResult") 
+        or request.values.get("UnstableSpeechResult")
+        or ""
+    ).strip()
+    print("DEBUG SpeechResult:", request.values.get("SpeechResult"))
+    print("DEBUG UnstableSpeechResult:", request.values.get("UnstableSpeechResult"))
+    
     state = CALLS.get(call_sid, {})
+    
+    state.setdefault("retries", 0)
+    
     vr = VoiceResponse()
 
     # STEP 0: Client name
@@ -239,8 +248,9 @@ def voice_process():
                 input="speech",
                 action="/voice-process?step=0",
                 method="POST",
-                timeout=6,
+                timeout=8,
                 speech_timeout="auto",
+                hints="name full-name first-name last-name",
             )
             gather.say(
                 "Please say your full name now.",
@@ -252,13 +262,14 @@ def voice_process():
 
         
             state["name"] = speech
+            state["retries"] = 0
             CALLS[call_sid] = state
 
             gather = Gather(
                 input="speech",
                 action="/voice-process?step=1",
                 method="POST",
-                timeout=6,
+                timeout=8,
                 speech_timeout="auto",
             )
             gather.say(
@@ -278,7 +289,7 @@ def voice_process():
                 input="speech",
                 action="/voice-process?step=1",
                 method="POST",
-                timeout=6,
+                timeout=8,
                 speech_timeout="auto",
             )
             gather.say("Sorry, I didn’t catch the service address. Please say the service address now.")
@@ -332,7 +343,7 @@ def voice_process():
             input="speech",
             action="/voice-process?step=3",
             method="POST",
-            timeout=6,
+            timeout=8,
             speech_timeout="auto",
         )
         gather.say(
@@ -365,7 +376,7 @@ def voice_process():
             input="speech",
             action="/voice-process?step=4",
             method="POST",
-            timeout=6,
+            timeout=8,
             speech_timeout="auto",
         )
         gather.say("Last question. What is the best callback phone number?")
@@ -380,7 +391,7 @@ def voice_process():
                 input="speech",
                 action="/voice-process?step=4",
                 method="POST",
-                timeout=6,
+                timeout=8,
                 speech_timeout="auto",
             )
             gather.say("Sorry, I didn’t catch that. Please say your callback number now.")
@@ -401,20 +412,21 @@ def voice_process():
         return Response(str(vr), mimetype="text/xml")
 
     # --- SAFETY FALLBACK (prevents None return) ---
-    gather = Gather(
-        input="speech",
-        action="/voice-process?step=0",
-        method="POST",
-        timeout=6,
-        speech_timeout="auto",
-    )
-    gather.say(
-        "Sorry, let's try again. Please say your full name.",
-        voice="Polly.Joanna",
-        language="en-US",
-)
-    vr.append(gather)
-    return Response(str(vr), mimetype="text/xml")
+    if step not in [0, 1, 2, 3, 4]:
+        gather = Gather(
+            input="speech",
+            action="/voice-process?step=0",
+            method="POST",
+            timeout=8,
+            speech_timeout="auto",
+        )
+        gather.say(
+            "Sorry, let's try again. Please say your full name.",
+            voice="Polly.Joanna",
+            language="en-US",
+        )
+        vr.append(gather)
+        return Response(str(vr), mimetype="text/xml")
 
 
 # ---------- Helpers ----------
