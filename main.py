@@ -293,8 +293,8 @@ def voice_process():
                 voice="Polly.Joanna",
                 language="en-US"
                 )
-                vr.hangup()
-                return Response(str(vr), mimetype="text/xml")
+            vr.hangup()
+            return Response(str(vr), mimetype="text/xml")
 
             gather = Gather(
                 input="speech",
