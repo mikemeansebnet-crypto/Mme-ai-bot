@@ -287,7 +287,7 @@ def voice_process():
             state["retries"] += 1
             CALLS[call_sid] = state
 
-            if state["retries"] >= 2:
+        if state["retries"] >= 2:
             vr.say(
                 "Sorry, I'm having trouble hearing you. We'll follow up shortly.",
                 voice="Polly.Joanna",
