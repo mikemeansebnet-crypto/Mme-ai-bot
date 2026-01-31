@@ -283,33 +283,53 @@ def voice_process():
     
     # STEP 1: Service address
     if step == 1:
-        # If speech is blank -> reprompt and stay on step 1
         if not speech:
+            state["retries"] += 1
+            CALLS[call_sid] = state
+
+            if state["retries"] >= 2:
+            vr.say(
+                "Sorry, I'm having trouble hearing you. We'll follow up shortly.",
+                voice="Polly.Joanna",
+                language="en-US"
+                )
+                vr.hangup()
+                return Response(str(vr), mimetype="text/xml")
+
             gather = Gather(
                 input="speech",
                 action="/voice-process?step=1",
                 method="POST",
                 timeout=8,
-                speech_timeout="auto",
+                speech_timeout="auto"
             )
-            gather.say("Sorry, I didn’t catch the service address. Please say the service address now.")
+            gather.say(
+                "Please say the service address now.",
+                voice="Polly.Joanna",
+                language="en-US"
+            )
             vr.append(gather)
             return Response(str(vr), mimetype="text/xml")
 
-        # Speech exists -> save it and move to step 2
-        state["address"] = speech
+        state["service_address"] = speech
+        state["retries"] = 0
         CALLS[call_sid] = state
 
         gather = Gather(
             input="speech",
             action="/voice-process?step=2",
             method="POST",
-            timeout=6,
-            speech_timeout="auto",
+            timeout=8,
+            speech_timeout="auto"
         )
-        gather.say("Thanks. Now briefly tell me what you need help with.")
+        gather.say(
+            "What service do you need today?",
+            voice="Polly.Joanna",
+            language="en-US"
+        )
         vr.append(gather)
         return Response(str(vr), mimetype="text/xml")
+
 
     # STEP 2A: Capture job description, then confirm
     if step == 2 and not digits:
