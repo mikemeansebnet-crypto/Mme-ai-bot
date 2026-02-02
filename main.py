@@ -61,17 +61,21 @@ def send_intake_summary(state: dict):
 
     body = (
         "New lead captured by MME AI Bot:\n\n"
-        f"Service Address: {state.get('address', '')}\n"
-        f"Job Requested: {state.get('job', '')}\n"
+        f"Client Name: {state.get('name', '')}\n"
+        f"Service Address: {state.get('service_address', '')}\n"
+        f"Job Requested: {state.get('job_description', '')}\n"
         f"Timing Needed: {state.get('timing', '')}\n"
         f"Callback Number: {state.get('callback', '')}\n"
+        f"Call SID: {state.get('call_sid', '')}\n"
     )
+
+    
     # Build Airtable payload (SAFE – no forced datetime)
     airtable_fields = {
         "Client Name": state.get("name", ""),
         "Call Back Number": state.get("callback", ""),
-        "Service Address": state.get("address", ""),
-        "Job Description": state.get("job", ""),
+        "Service Address": state.get("service_address", ""),
+        "Job Description": state.get("job_description", ""),
         "Source": "AI Phone Call",
         "Call SID": state.get("call_sid", ""),
         "Appointment Requested": state.get("timing", ""),
@@ -236,9 +240,20 @@ def voice_process():
     print("DEBUG UnstableSpeechResult:", request.values.get("UnstableSpeechResult"))
     
     state = CALLS.get(call_sid, {})
-    
+
+    # Always store CallSid in state so Airtable/email can use it
+    state["call_sid"] = call_sid
+
+    # Safe defaults
     state.setdefault("retries", 0)
-    
+    state.setdefault("name", "")
+    state.setdefault("service_address", "")
+    state.setdefault("job_description", "")
+    state.setdefault("timing", "")
+    state.setdefault("callback", "")
+    # Save back immediately
+    CALLS[call_sid] = state
+
     vr = VoiceResponse()
 
 # Make sure these exist earlier in your handler:
