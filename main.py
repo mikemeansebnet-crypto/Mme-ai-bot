@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, Response
+from flask import Flask, request, jsonify, Response, redirect
 import os
 import requests
 
@@ -256,7 +256,7 @@ def voice_process():
                 "Please say your full name now.",
                 voice="Polly.Joanna",
                 language="en-US"
-)
+            )
             vr.append(gather)
             return Response(str(vr), mimetype="text/xml")
 
