@@ -241,16 +241,20 @@ def voice_process():
     
     state = CALLS.get(call_sid, {})
 
-    # Always store CallSid in state so Airtable/email can use it
+    # Always store CallSid
     state["call_sid"] = call_sid
 
-    # Safe defaults
+    # Safe defaults (define keys first)
     state.setdefault("retries", 0)
     state.setdefault("name", "")
     state.setdefault("service_address", "")
     state.setdefault("job_description", "")
     state.setdefault("timing", "")
     state.setdefault("callback", "")
+
+    # Always capture caller phone number (do not overwrite if already set)
+    state["callback"] = state["callback"] or request.values.get("From", "")
+
     # Save back immediately
     CALLS[call_sid] = state
 
@@ -492,37 +496,31 @@ def voice_process():
         return Response(str(vr), mimetype="text/xml")
 
 
-    # STEP 4: Callback
+    # STEP 4: Callback (DTMF)
     if step == 4:
-        if not speech:
+        if not digits:
             state["retries"] = state.get("retries", 0) + 1
             CALLS[call_sid] = state
 
             if state["retries"] >= 2:
-                vr.say(
-                    "Sorry, I'm having trouble hearing you. We'll follow up shortly.",
-                    voice="Polly.Joanna",
-                    language="en-US",
-                )
+                vr.say("Sorry, I didn't get that number. We'll follow up shortly.", voice="Polly.Joanna", language="en-US")
                 vr.hangup()
                 return Response(str(vr), mimetype="text/xml")
 
             gather = Gather(
-                input="speech",
+                input="dtmf",
+                num_digits=10,
                 action="/voice-process?step=4",
                 method="POST",
-                timeout=8,
-                speech_timeout="auto",
+                timeout=10,
             )
-            gather.say( 
-                "Please say your callback phone number now.",
-                voice="Polly.Joanna",
-                language="en-US",
-            )
+            gather.say("Please enter your 10 digit callback number now.", voice="Polly.Joanna", language="en-US")
             vr.append(gather)
             return Response(str(vr), mimetype="text/xml")
 
-        state["callback"] = speech
+        # Save digits as callback
+        state["callback"] = digits
+        state["retries"] = 0
         CALLS[call_sid] = state
 
         try:
@@ -530,13 +528,10 @@ def voice_process():
         except Exception as e:
             print("send_intake_summary failed:", e)
 
-        vr.say(
-            "Thank you. We received your request and will follow up shortly.",
-            voice="Polly.Joanna",
-            language="en-US",
-        )
+        vr.say("Thank you. We received your request and will follow up shortly.", voice="Polly.Joanna", language="en-US")
         vr.hangup()
         return Response(str(vr), mimetype="text/xml")
+         
                
    
 
