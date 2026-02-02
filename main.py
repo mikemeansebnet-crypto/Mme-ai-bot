@@ -247,60 +247,29 @@ def voice_process():
 # state = CALLS.get(call_sid, {"retries": 0})
 # vr = VoiceResponse()
 
-# STEP 0: Client name
-if step == 0:
-    if not speech:
-        gather = Gather(
-            input="speech",
-            action="/voice-process?step=0",
-            method="POST",
-            timeout=8,
-            speech_timeout="auto",
-            hints="name full-name first-name last-name",
-        )
-        gather.say(
-            "Please say your full name now.",
-            voice="Polly.Joanna",
-            language="en-US",
-        )
-        vr.append(gather)
-        return Response(str(vr), mimetype="text/xml")
-
-    # Speech EXISTS → save name and move to step 1
-    state["name"] = speech
-    state["retries"] = 0
-    CALLS[call_sid] = state
-
-    gather = Gather(
-        input="speech",
-        action="/voice-process?step=1",
-        method="POST",
-        timeout=8,
-        speech_timeout="auto",
-    )
-    gather.say(
-        "Thanks. Please say the service address now.",
-        voice="Polly.Joanna",
-        language="en-US",
-    )
-    vr.append(gather)
-    return Response(str(vr), mimetype="text/xml")
-
-
-# STEP 1: Service address
-if step == 1:
-    if not speech:
-        state["retries"] = state.get("retries", 0) + 1
-        CALLS[call_sid] = state
-
-        if state["retries"] >= 2:
-            vr.say(
-                "Sorry, I'm having trouble hearing you. We'll follow up shortly.",
+    # STEP 0: Client name
+    if step == 0:
+        if not speech:
+            gather = Gather(
+                input="speech",
+                action="/voice-process?step=0",
+                method="POST",
+                timeout=8,
+                speech_timeout="auto",
+                hints="name full-name first-name last-name",
+            )
+            gather.say(
+                "Please say your full name now.",
                 voice="Polly.Joanna",
                 language="en-US",
             )
-            vr.hangup()
+            vr.append(gather)
             return Response(str(vr), mimetype="text/xml")
+
+        # Speech EXISTS → save name and move to step 1
+        state["name"] = speech
+        state["retries"] = 0
+        CALLS[call_sid] = state
 
         gather = Gather(
             input="speech",
@@ -310,183 +279,183 @@ if step == 1:
             speech_timeout="auto",
         )
         gather.say(
-            "Please say the service address now.",
+            "Thanks. Please say the service address now.",
             voice="Polly.Joanna",
             language="en-US",
         )
         vr.append(gather)
         return Response(str(vr), mimetype="text/xml")
 
-    # Speech EXISTS → save and move to step 2
-    state["service_address"] = speech
-    state["retries"] = 0
-    CALLS[call_sid] = state
 
-    gather = Gather(
-        input="speech",
-        action="/voice-process?step=2",
-        method="POST",
-        timeout=8,
-        speech_timeout="auto",
-    )
-    gather.say(
-        "What service do you need today?",
-        voice="Polly.Joanna",
-        language="en-US",
-    )
-    vr.append(gather)
-    return Response(str(vr), mimetype="text/xml")
-
-
-# STEP 2: Job description + confirm/repeat
-if step == 2:
-    # If we don't have a job description yet, ask for it
-    if not state.get("job_description"):
+    # STEP 1: Service address
+    if step == 1:
         if not speech:
+            state["retries"] = state.get("retries", 0) + 1
+            CALLS[call_sid] = state
+
+            if state["retries"] >= 2:
+                vr.say(
+                    "Sorry, I'm having trouble hearing you. We'll follow up shortly.",
+                    voice="Polly.Joanna",
+                    language="en-US",
+                )
+                vr.hangup()
+                return Response(str(vr), mimetype="text/xml")
+
             gather = Gather(
                 input="speech",
-                action="/voice-process?step=2",
+                action="/voice-process?step=1",
                 method="POST",
                 timeout=8,
                 speech_timeout="auto",
             )
             gather.say(
-                "Please briefly describe the service you need.",
+                "Please say the service address now.",
                 voice="Polly.Joanna",
                 language="en-US",
             )
             vr.append(gather)
             return Response(str(vr), mimetype="text/xml")
 
-        # Speech exists → save it
-        state["job_description"] = speech.strip()
-        CALLS[call_sid] = state
-
-        # Now ask for confirm via DTMF
-        gather = Gather(
-            input="dtmf",
-            num_digits=1,
-            action="/voice-process?step=2",
-            method="POST",
-            timeout=6,
-        )
-        gather.say(
-            f"I heard: {state['job_description']}. Press 1 to confirm, or press 2 to repeat.",
-            voice="Polly.Joanna",
-            language="en-US",
-        )
-        vr.append(gather)
-        return Response(str(vr), mimetype="text/xml")
-
-    # We already have a job description → we are waiting on digits
-    if not digits:
-        gather = Gather(
-            input="dtmf",
-            num_digits=1,
-            action="/voice-process?step=2",
-            method="POST",
-            timeout=6,
-        )
-        gather.say(
-            "Press 1 to confirm, or press 2 to repeat.",
-            voice="Polly.Joanna",
-            language="en-US",
-        )
-        vr.append(gather)
-        return Response(str(vr), mimetype="text/xml")
-
-    if digits == "2":
-        state.pop("job_description", None)
-        CALLS[call_sid] = state
-        return redirect("/voice-process?step=2", code=307)
-
-    if digits == "1":
-        state["step"] = 3
+        # Speech EXISTS → save and move to step 2
+        state["service_address"] = speech
         state["retries"] = 0
         CALLS[call_sid] = state
-        return redirect("/voice-process?step=3", code=307)
-
-    # Any other key → reprompt
-    gather = Gather(
-        input="dtmf",
-        num_digits=1,
-        action="/voice-process?step=2",
-        method="POST",
-        timeout=6,
-    )
-    gather.say(
-        "Please press 1 to confirm, or press 2 to repeat.",
-        voice="Polly.Joanna",
-        language="en-US",
-    )
-    vr.append(gather)
-    return Response(str(vr), mimetype="text/xml")
-
-
-# STEP 3: Timing
-if step == 3:
-    if not speech:
-        state["retries"] = state.get("retries", 0) + 1
-        CALLS[call_sid] = state
-
-        if state["retries"] >= 2:
-            vr.say(
-                "Sorry, I'm having trouble hearing you. We'll follow up shortly.",
-                voice="Polly.Joanna",
-                language="en-US",
-            )
-            vr.hangup()
-            return Response(str(vr), mimetype="text/xml")
 
         gather = Gather(
             input="speech",
-            action="/voice-process?step=3",
+            action="/voice-process?step=2",
             method="POST",
             timeout=8,
             speech_timeout="auto",
         )
         gather.say(
-            "Please tell me when you need the service.",
+            "What service do you need today?",
             voice="Polly.Joanna",
             language="en-US",
         )
         vr.append(gather)
         return Response(str(vr), mimetype="text/xml")
 
-    state["timing"] = speech
-    state["retries"] = 0
-    CALLS[call_sid] = state
 
-    gather = Gather(
-        input="speech",
-        action="/voice-process?step=4",
-        method="POST",
-        timeout=8,
-        speech_timeout="auto",
-    )
-    gather.say(
-        "What is the best callback phone number?",
-        voice="Polly.Joanna",
-        language="en-US",
-    )
-    vr.append(gather)
-    return Response(str(vr), mimetype="text/xml")
+    # STEP 2: Job description + confirm/repeat
+    if step == 2:
+        # If we don't have a job description yet, ask for it
+        if not state.get("job_description"):
+            if not speech:
+                gather = Gather(
+                    input="speech",
+                    action="/voice-process?step=2",
+                    method="POST",
+                    timeout=8,
+                    speech_timeout="auto",
+                )
+                gather.say(
+                    "Please briefly describe the service you need.",
+                    voice="Polly.Joanna",
+                    language="en-US",
+                )
+                vr.append(gather)
+                return Response(str(vr), mimetype="text/xml")
 
+            # Speech exists → save it
+            state["job_description"] = speech.strip()
+            CALLS[call_sid] = state
 
-# STEP 4: Callback
-if step == 4:
-    if not speech:
-        state["retries"] = state.get("retries", 0) + 1
-        CALLS[call_sid] = state
-
-        if state["retries"] >= 2:
-            vr.say(
-                "Sorry, I'm having trouble hearing you. We'll follow up shortly.",
+            # Now ask for confirm via DTMF
+            gather = Gather(
+                input="dtmf",
+                num_digits=1,
+                action="/voice-process?step=2",
+                method="POST",
+                timeout=6,
+            )
+            gather.say(
+                f"I heard: {state['job_description']}. Press 1 to confirm, or press 2 to repeat.",
                 voice="Polly.Joanna",
                 language="en-US",
             )
-            vr.hangup()
+            vr.append(gather)
             return Response(str(vr), mimetype="text/xml")
+
+        # We already have a job description → we are waiting on digits
+        if not digits:
+            gather = Gather(
+                input="dtmf",
+                num_digits=1,
+                action="/voice-process?step=2",
+                method="POST",
+                timeout=6,
+            )
+            gather.say(
+                "Press 1 to confirm, or press 2 to repeat.",
+                voice="Polly.Joanna",
+                language="en-US",
+            )
+            vr.append(gather)
+            return Response(str(vr), mimetype="text/xml")
+
+        if digits == "2":
+            state.pop("job_description", None)
+            CALLS[call_sid] = state
+            return redirect("/voice-process?step=2", code=307)
+
+        if digits == "1":
+            state["step"] = 3
+            state["retries"] = 0
+            CALLS[call_sid] = state
+            return redirect("/voice-process?step=3", code=307)
+
+        # Any other key → reprompt
+        gather = Gather(
+            input="dtmf",
+            num_digits=1,
+            action="/voice-process?step=2",
+            method="POST",
+            timeout=6,
+        )
+        gather.say(
+            "Please press 1 to confirm, or press 2 to repeat.",
+            voice="Polly.Joanna",
+            language="en-US",
+        )
+        vr.append(gather)
+        return Response(str(vr), mimetype="text/xml")
+
+
+    # STEP 3: Timing
+    if step == 3:
+        if not speech:
+            state["retries"] = state.get("retries", 0) + 1
+            CALLS[call_sid] = state
+
+            if state["retries"] >= 2:
+                vr.say(
+                    "Sorry, I'm having trouble hearing you. We'll follow up shortly.",
+                    voice="Polly.Joanna",
+                    language="en-US",
+                )
+                vr.hangup()
+                return Response(str(vr), mimetype="text/xml")
+
+            gather = Gather(
+                input="speech",
+                action="/voice-process?step=3",
+                method="POST",
+                timeout=8,
+                speech_timeout="auto",
+            )
+            gather.say(
+                "Please tell me when you need the service.",
+                voice="Polly.Joanna",
+                language="en-US",
+            )
+            vr.append(gather)
+            return Response(str(vr), mimetype="text/xml")
+
+        state["timing"] = speech
+        state["retries"] = 0
+        CALLS[call_sid] = state
 
         gather = Gather(
             input="speech",
@@ -496,28 +465,59 @@ if step == 4:
             speech_timeout="auto",
         )
         gather.say(
-            "Please say your callback phone number now.",
+            "What is the best callback phone number?",
             voice="Polly.Joanna",
             language="en-US",
         )
         vr.append(gather)
         return Response(str(vr), mimetype="text/xml")
 
-    state["callback"] = speech
-    CALLS[call_sid] = state
 
-    try:
-        send_intake_summary(state)
-    except Exception as e:
-        print("send_intake_summary failed:", e)
+    # STEP 4: Callback
+    if step == 4:
+        if not speech:
+            state["retries"] = state.get("retries", 0) + 1
+            CALLS[call_sid] = state
 
-    vr.say(
-        "Thank you. We received your request and will follow up shortly.",
-        voice="Polly.Joanna",
-        language="en-US",
-    )
-    vr.hangup()
-    return Response(str(vr), mimetype="text/xml")
+            if state["retries"] >= 2:
+                vr.say(
+                    "Sorry, I'm having trouble hearing you. We'll follow up shortly.",
+                    voice="Polly.Joanna",
+                    language="en-US",
+                )
+                vr.hangup()
+                return Response(str(vr), mimetype="text/xml")
+
+            gather = Gather(
+                input="speech",
+                action="/voice-process?step=4",
+                method="POST",
+                timeout=8,
+                speech_timeout="auto",
+            )
+            gather.say( 
+                "Please say your callback phone number now.",
+                voice="Polly.Joanna",
+                language="en-US",
+            )
+            vr.append(gather)
+            return Response(str(vr), mimetype="text/xml")
+
+        state["callback"] = speech
+        CALLS[call_sid] = state
+
+        try:
+            send_intake_summary(state)
+        except Exception as e:
+            print("send_intake_summary failed:", e)
+
+        vr.say(
+            "Thank you. We received your request and will follow up shortly.",
+            voice="Polly.Joanna",
+            language="en-US",
+        )
+        vr.hangup()
+        return Response(str(vr), mimetype="text/xml")
                
    
 
