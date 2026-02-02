@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, Response, redirect
+from flask import Flask, request, jsonify, Response, 
 import os
 import requests
 
@@ -398,13 +398,17 @@ def voice_process():
         if digits == "2":
             state.pop("job_description", None)
             CALLS[call_sid] = state
-            return redirect("/voice-process?step=2", code=307)
+
+            vr.redirect("/voice-process?step=2", method="POST")
+            return Response(str(vr), mimetype="text/xml")
 
         if digits == "1":
             state["step"] = 3
             state["retries"] = 0
             CALLS[call_sid] = state
-            return redirect("/voice-process?step=3", code=307)
+
+            vr.redirect("/voice-process?step=3", method="POST")
+            return Response(str(vr), mimetype="text/xml")
 
         # Any other key → reprompt
         gather = Gather(
