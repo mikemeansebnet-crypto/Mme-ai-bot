@@ -31,7 +31,36 @@ def airtable_create_record(fields: dict):
         return {"ok": False, "status": r.status_code, "airtable_error": r.text}
 
     return {"ok": True, "status": r.status_code, "data": r.json()}
+    
+def get_contractor_by_twilio_number(to_number: str) -> dict:
+    token = os.getenv("AIRTABLE_TOKEN")
+    base_id = os.getenv("AIRTABLE_BASE_ID")
+    contractors_table = os.getenv("AIRTABLE_CONTRACTORS_TABLE", "Contractors")
 
+    if not token or not base_id:
+        return {}
+
+    if not to_number:
+        return {}
+
+    url = f"https://api.airtable.com/v0/{base_id}/{contractors_table}"
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # Airtable formula: match Twilio Number AND Active is true
+    formula = f"AND({{Twilio Number}}='{to_number}', {{Active}}=TRUE())"
+    params = {"filterByFormula": formula, "maxRecords": 1}
+
+    r = requests.get(url, headers=headers, params=params, timeout=20)
+    if r.status_code >= 400:
+        print("Contractor lookup error:", r.status_code, r.text)
+        return {}
+
+    data = r.json()
+    records = data.get("records", [])
+    if not records:
+        return {}
+
+    return records[0].get("fields", {})
 
 def send_email(subject: str, body: str):
     
@@ -135,9 +164,14 @@ def sms():
 # VOICE: 4-question intake
 # ------------------------------
 
+
 @app.route("/voice", methods=["POST", "GET"])
 def voice():
     vr = VoiceResponse()
+
+    to_number = request.values.get("To", "")
+    contractor = get_contractor_by_twilio_number(to_number)
+    business_name = contractor.get("Business Name", "our office")
 
     gather = Gather(
         num_digits=1,
@@ -146,38 +180,27 @@ def voice():
         timeout=6
     )
     gather.say(
-        "Thanks for calling M M E Lawn Care and More. "
-        "If this is an emergency, press 1 to reach Mike now. "
+        f"Thanks for calling {business_name}. "
+        "If this is an emergency, press 1. "
         "To leave details for an estimate, press 2.",
         voice="Polly.Joanna",
         language="en-US"
     )
-    
+
     vr.append(gather)
 
-    # If they don’t press anything
     vr.say(
         "No problem. We’ll take your details now.",
         voice="Polly.Joanna",
-        language="en=US"
+        language="en-US"
     )
     vr.redirect("/voice-intake")
     return Response(str(vr), mimetype="text/xml")
 
-@app.route("/voice-menu", methods=["POST"])
-def voice_menu():
-    digit = request.form.get("Digits", "")
-    vr = VoiceResponse()
-
-    if digit == "1":
-        vr.redirect("/voice-emergency")
-    else:
-        vr.redirect("/voice-intake")
-
-    return Response(str(vr), mimetype="text/xml")
 
 
-@app.route("/voice-intake", methods=["POST", "GET"])
+
+
 def voice_intake():
     # Start your existing 4-question flow
     
@@ -208,20 +231,35 @@ def voice_intake():
 def voice_emergency():
     vr = VoiceResponse()
 
-    vr.say("Okay. Connecting you now.")
-    dial = vr.dial(timeout=20, callerId=request.form.get("To", None))
-    dial.number("+17632132731")  # Mike’s business phone
+    to_number = request.values.get("To", "")
+    contractor = get_contractor_by_twilio_number(to_number)
 
-    # If no answer/busy, go to voicemail recording
-    vr.say("Sorry we missed you. Please leave your name, service address, and what you need help with after the beep.")
+    emergency_phone = contractor.get("Emergency Phone")
+
+    if emergency_phone:
+        vr.say("Okay. Connecting you now.", voice="Polly.Joanna", language="en-US")
+        dial = vr.dial(timeout=20, callerId=to_number)
+        dial.number(emergency_phone)
+        return Response(str(vr), mimetype="text/xml")
+
+    # Fallback if no emergency phone is set
+    vr.say(
+        "We're unable to connect you right now. "
+        "Please leave your name, address, and details after the beep.",
+        voice="Polly.Joanna",
+        language="en-US"
+    )
+
     vr.record(
         maxLength=120,
         playBeep=True,
         action="/twilio/voicemail",
         method="POST"
     )
+
     vr.say("Thank you. Goodbye.")
     vr.hangup()
+
     return Response(str(vr), mimetype="text/xml")
 
 
@@ -496,31 +534,15 @@ def voice_process():
         return Response(str(vr), mimetype="text/xml")
 
 
-    # STEP 4: Callback (DTMF)
+    # STEP 4: Callback number
     if step == 4:
-        if not digits:
-            state["retries"] = state.get("retries", 0) + 1
-            CALLS[call_sid] = state
+        # If digits were entered, use them
+        if digits and len(digits) >= 7:
+            state["callback"] = digits
+        else:
+            # Fallback to caller ID
+            state["callback"] = state.get("callback") or request.values.get("From", "")
 
-            if state["retries"] >= 2:
-                vr.say("Sorry, I didn't get that number. We'll follow up shortly.", voice="Polly.Joanna", language="en-US")
-                vr.hangup()
-                return Response(str(vr), mimetype="text/xml")
-
-            gather = Gather(
-                input="dtmf",
-                num_digits=10,
-                action="/voice-process?step=4",
-                method="POST",
-                timeout=10,
-            )
-            gather.say("Please enter your 10 digit callback number now.", voice="Polly.Joanna", language="en-US")
-            vr.append(gather)
-            return Response(str(vr), mimetype="text/xml")
-
-        # Save digits as callback
-        state["callback"] = digits
-        state["retries"] = 0
         CALLS[call_sid] = state
 
         try:
@@ -528,7 +550,11 @@ def voice_process():
         except Exception as e:
             print("send_intake_summary failed:", e)
 
-        vr.say("Thank you. We received your request and will follow up shortly.", voice="Polly.Joanna", language="en-US")
+        vr.say(
+            "Thank you. We received your request and will follow up shortly.",
+            voice="Polly.Joanna",
+            language="en-US"
+        )
         vr.hangup()
         return Response(str(vr), mimetype="text/xml")
          
