@@ -198,7 +198,17 @@ def voice():
     return Response(str(vr), mimetype="text/xml")
 
 
+@app.route("/voice-menu", methods=["POST", "GET"])
+def voice_menu():
+    digit = (request.values.get("Digits") or "").strip()
+    vr = VoiceResponse()
 
+    if digit == "1":
+        vr.redirect("/voice-emergency", method="POST")
+    else:
+        vr.redirect("/voice-intake", method="POST")
+
+    return Response(str(vr), mimetype="text/xml")
 
 
 def voice_intake():
