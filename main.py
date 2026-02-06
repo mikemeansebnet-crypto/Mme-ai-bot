@@ -237,7 +237,7 @@ def twilio_voicemail():
     vr.hangup()
     return Response(str(vr), mimetype="text/xml")
 
-
+@app.route("/voice-intake", methods=["POST", "GET"])
 def voice_intake():
     # Start your existing 4-question flow
     
