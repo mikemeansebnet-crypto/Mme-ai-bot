@@ -271,7 +271,11 @@ def voice_emergency():
     to_number = request.values.get("To", "")
     contractor = get_contractor_by_twilio_number(to_number)
     emergency_phone = contractor.get("Emergency Phone")
-
+    
+    print("DEBUG To number:", to_number)
+    print("DEBUG contractor:", contractor)
+    print("DEBUG emergency_phone:", emergency_phone)
+    
     if emergency_phone:
         vr.say(
             "Okay. Connecting you now.",
