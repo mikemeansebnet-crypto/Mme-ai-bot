@@ -211,6 +211,33 @@ def voice_menu():
     return Response(str(vr), mimetype="text/xml")
 
 
+@app.route("/twilio/voicemail", methods=["POST"])
+def twilio_voicemail():
+    call_sid = request.values.get("CallSid", "")
+    from_number = request.values.get("From", "")
+    recording_url = request.values.get("RecordingUrl", "")
+    recording_duration = request.values.get("RecordingDuration", "")
+
+    print("📞 Voicemail received:", call_sid, from_number, recording_url, recording_duration)
+
+    # OPTIONAL: save to Airtable (add fields that exist in your Airtable table)
+    try:
+        airtable_create_record({
+            "Source": "Voicemail",
+            "Call SID": call_sid,
+            "Call Back Number": from_number,
+            "Job Description": f"VOICEMAIL: {recording_url} ({recording_duration}s)",
+            "Lead Status": "New Lead",
+        })
+    except Exception as e:
+        print("Airtable voicemail save failed:", e)
+
+    vr = VoiceResponse()
+    vr.say("Thank you. Your message has been recorded. Goodbye.", voice="Polly.Joanna", language="en-US")
+    vr.hangup()
+    return Response(str(vr), mimetype="text/xml")
+
+
 def voice_intake():
     # Start your existing 4-question flow
     
@@ -243,16 +270,25 @@ def voice_emergency():
 
     to_number = request.values.get("To", "")
     contractor = get_contractor_by_twilio_number(to_number)
-
     emergency_phone = contractor.get("Emergency Phone")
 
     if emergency_phone:
-        vr.say("Okay. Connecting you now.", voice="Polly.Joanna", language="en-US")
-        dial = vr.dial(timeout=20, callerId=to_number)
+        vr.say(
+            "Okay. Connecting you now.",
+            voice="Polly.Joanna",
+            language="en-US"
+        )
+
+        dial = vr.dial(
+            timeout=20,
+            callerId=to_number
+        )
         dial.number(emergency_phone)
+
+        # IMPORTANT: return immediately after dial
         return Response(str(vr), mimetype="text/xml")
 
-    # Fallback if no emergency phone is set
+    # ---- FALLBACK ONLY IF NO EMERGENCY PHONE ----
     vr.say(
         "We're unable to connect you right now. "
         "Please leave your name, address, and details after the beep.",
@@ -267,9 +303,7 @@ def voice_emergency():
         method="POST"
     )
 
-    vr.say("Thank you. Goodbye.")
     vr.hangup()
-
     return Response(str(vr), mimetype="text/xml")
 
 
