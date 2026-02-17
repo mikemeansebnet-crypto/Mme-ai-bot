@@ -37,6 +37,26 @@ def clear_state(call_sid: str) -> None:
     if redis_client and call_sid:
         redis_client.delete(_redis_key(call_sid))
 
+# ================= Alias Helpers =================
+
+def alias_key(new_call_sid: str) -> str:
+    return f"mmea:alias:{new_call_sid}"
+
+def set_call_alias(new_call_sid: str, old_call_sid: str, ttl_seconds: int = 900):
+    if not redis_client or not new_call_sid or not old_call_sid:
+        return
+    redis_client.setex(alias_key(new_call_sid), ttl_seconds, old_call_sid)
+
+def get_call_alias(new_call_sid: str):
+    if not redis_client or not new_call_sid:
+        return None
+    v = redis_client.get(alias_key(new_call_sid))
+    return v if v else None
+
+def clear_call_alias(new_call_sid: str):
+    if redis_client and new_call_sid:
+        redis_client.delete(alias_key(new_call_sid))
+
 def contractor_calls_key(contractor_key: str) -> str:
     return f"mmeai:contractor:{contractor_key}:calls"
 
