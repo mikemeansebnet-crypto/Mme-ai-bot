@@ -467,8 +467,22 @@ def voice_process():
     
     state = get_state(call_sid)
 
+    # ---------------- Restore step on resumed callback ----------------
+    # If Twilio hits /voice-process?step=0 again on a callback,
+    # continue from the last saved step in Redis.
+    saved_step = int(state.get("step") or 0)
+
+    if step == 0 and saved_step > 0:
+        print("RESUME STEP OVERRIDE:", saved_step)
+        step = saved_step
+# ------------------------------------------------------------------
+
+   
+
     # Always store CallSid
     state["call_sid"] = call_sid
+
+    
 
     # Safe defaults (define keys first)
     state.setdefault("retries", 0)
@@ -513,6 +527,7 @@ def voice_process():
 
         # Speech EXISTS → save name and move to step 1
         state["name"] = speech
+        state["step"] = 1
         state["retries"] = 0
         set_state(call_sid, state)
 
@@ -564,6 +579,7 @@ def voice_process():
 
         # Speech EXISTS → save and move to step 2
         state["service_address"] = speech
+        state["step"] = 2
         state["retries"] = 0
         set_state(call_sid, state)
 
@@ -605,6 +621,7 @@ def voice_process():
 
             # Speech exists → save it
             state["job_description"] = speech.strip()
+            state["step"] = 3
             set_state(call_sid, state)
 
             # Now ask for confirm via DTMF
@@ -689,7 +706,7 @@ def voice_process():
 
             gather = Gather(
                 input="speech",
-                action="/voice-process?step=3",
+                action="/voice-process?step=4",
                 method="POST",
                 timeout=8,
                 speech_timeout="auto",
@@ -704,6 +721,7 @@ def voice_process():
 
         state["timing"] = speech
         state["retries"] = 0
+        state["step"] = 4
         set_state(call_sid, state)
 
         gather = Gather(
