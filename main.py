@@ -436,16 +436,24 @@ def voice_process():
     ).strip()
     
 
-    # -------- Resume logic (caller hung up and called back) --------
-    to_number = (request.values.get("To") or "").strip()
-    from_number = (request.values.get("From") or "").strip()
+    # -------- Resume / Alias logic (caller hung up and called back) --------
 
+    # Keep the NEW CallSid so we can map it to the OLD one
+    new_call_sid = call_sid
+
+    # If this new CallSid was already aliased earlier, follow it
+    aliased = get_call_alias(new_call_sid)
+    if aliased:
+        call_sid = aliased
+
+    # If we are at step 0, try to resume by mapping this new CallSid -> old CallSid
     if step == 0 and redis_client and to_number and from_number:
         old_call_sid = get_resume_pointer(to_number, from_number)
         if old_call_sid and old_call_sid != call_sid:
+            set_call_alias(new_call_sid, old_call_sid)   # NEW -> OLD mapping
             call_sid = old_call_sid
 
-    # -------- Save resume pointer (refresh on every hit) --------
+    # Always refresh the resume pointer so it stays alive while caller is interacting
     if redis_client and to_number and from_number and call_sid:
         save_resume_pointer(to_number, from_number, call_sid)
         print("RESUME PTR SAVED:", to_number, from_number, call_sid)
