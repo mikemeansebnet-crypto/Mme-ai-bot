@@ -425,6 +425,11 @@ def voice_process():
         if old_call_sid and old_call_sid != call_sid:
             call_sid = old_call_sid
 
+    # -------- Save resume pointer (refresh on every hit) --------
+    if redis_client and to_number and from_number and call_sid:
+        save_resume_pointer(to_number, from_number, call_sid)
+        print("RESUME PTR SAVED:", to_number, from_number, call_sid)
+
     
     print("DEBUG SpeechResult:", request.values.get("SpeechResult"))
     print("DEBUG UnstableSpeechResult:", request.values.get("UnstableSpeechResult"))
