@@ -494,7 +494,7 @@ def voice_process():
         # Speech EXISTS → save and move to step 2
         state["service_address"] = speech
         state["retries"] = 0
-        set_state)call_sid, state)
+        set_state(call_sid, state)
 
         gather = Gather(
             input="speech",
