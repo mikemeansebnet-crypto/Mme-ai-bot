@@ -9,6 +9,64 @@ from sendgrid.helpers.mail import Mail
 
 app = Flask(__name__)
 
+import json
+import time
+import redis
+
+REDIS_URL = os.getenv("REDIS_URL")
+REDIS_PREFIX = os.getenv("REDIS_PREFIX", "mmeai:call:")
+REDIS_TTL_SECONDS = int(os.getenv("REDIS_TTL_SECONDS", "7200"))
+
+redis_client = redis.from_url(REDIS_URL, decode_responses=True) if REDIS_URL else None
+
+def _redis_key(call_sid: str) -> str:
+    return f"{REDIS_PREFIX}{call_sid}"
+
+def get_state(call_sid: str) -> dict:
+    if not redis_client or not call_sid:
+        return {}
+    raw = redis_client.get(_redis_key(call_sid))
+    return json.loads(raw) if raw else {}
+
+def set_state(call_sid: str, state: dict) -> None:
+    if not redis_client or not call_sid:
+        return
+    redis_client.setex(_redis_key(call_sid), REDIS_TTL_SECONDS, json.dumps(state))
+
+def clear_state(call_sid: str) -> None:
+    if redis_client and call_sid:
+        redis_client.delete(_redis_key(call_sid))
+
+def contractor_calls_key(contractor_key: str) -> str:
+    return f"mmeai:contractor:{contractor_key}:calls"
+
+def register_live_call(contractor_key: str, call_sid: str) -> None:
+    """
+    Track that this call is active for this contractor.
+    Uses a Redis SET to avoid duplicates.
+    """
+    if not redis_client or not contractor_key or not call_sid:
+        return
+    k = contractor_calls_key(contractor_key)
+    redis_client.sadd(k, call_sid)
+    # Keep the contractor live-call set from lasting forever
+    redis_client.expire(k, REDIS_TTL_SECONDS)
+
+def unregister_live_call(contractor_key: str, call_sid: str) -> None:
+    if not redis_client or not contractor_key or not call_sid:
+        return
+    k = contractor_calls_key(contractor_key)
+    redis_client.srem(k, call_sid)
+
+def list_live_calls(contractor_key: str) -> list[str]:
+    """
+    Returns list of CallSids currently registered as live for this contractor.
+    """
+    if not redis_client or not contractor_key:
+        return []
+    k = contractor_calls_key(contractor_key)
+    return list(redis_client.smembers(k))
+
 def airtable_create_record(fields: dict):
     token = os.getenv("AIRTABLE_TOKEN")
     base_id = os.getenv("AIRTABLE_BASE_ID")
