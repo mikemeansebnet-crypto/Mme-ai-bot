@@ -58,6 +58,27 @@ def unregister_live_call(contractor_key: str, call_sid: str) -> None:
     k = contractor_calls_key(contractor_key)
     redis_client.srem(k, call_sid)
 
+# ---------------- Resume Helpers ----------------
+
+def resume_key(to_number: str, from_number: str) -> str:
+    return f"mmeai:resume:{to_number}:{from_number}"
+
+def save_resume_pointer(to_number: str, from_number: str, call_sid: str, ttl_seconds: int = 600):
+    if not redis_client or not to_number or not from_number or not call_sid:
+        return
+    redis_client.setex(resume_key(to_number, from_number), ttl_seconds, call_sid)
+
+def get_resume_pointer(to_number: str, from_number: str):
+    if not redis_client:
+        return None
+    value = redis_client.get(resume_key(to_number, from_number))
+    return value if value else None
+
+def clear_resume_pointer(to_number: str, from_number: str):
+    if not redis_client:
+        return
+    redis_client.delete(resume_key(to_number, from_number))
+
 def list_live_calls(contractor_key: str) -> list[str]:
     """
     Returns list of CallSids currently registered as live for this contractor.
