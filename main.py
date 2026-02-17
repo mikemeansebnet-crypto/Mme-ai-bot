@@ -195,11 +195,7 @@ def test_email():
             "ok": False,
             "error": str(e)
         }), 500
-# ------------------------------
-# Simple in-memory call storage
-# (Phase 2: move to DB/Redis)
-# ------------------------------
-CALLS = {}
+
 
 @app.get("/")
 def home():
@@ -302,10 +298,25 @@ def voice_intake():
     call_sid = request.values.get("CallSid", "unknown")
     caller = request.values.get("From", "")
 
-    CALLS[call_sid] = {
+    to_number = request.values.get("To", "")  # Twilio number called
+    contractor_key = to_number or "unknown"
+
+    state = {
         "step": 0,
-        "callback": caller
-}
+        "callback": caller,
+        "retries": 0,
+        "name": "",
+        "service_address": "",
+        "job_description": "",
+        "timing": "",
+        "call_sid": call_sid,
+        "to_number": to_number,
+        "contractor_key": contractor_key,
+        "started_at": int(time.time()),
+    }
+
+    set_state(call_sid, state)
+    register_live_call(contractor_key, call_sid)
 
     vr = VoiceResponse()
     gather = Gather(
@@ -383,7 +394,7 @@ def voice_process():
     print("DEBUG SpeechResult:", request.values.get("SpeechResult"))
     print("DEBUG UnstableSpeechResult:", request.values.get("UnstableSpeechResult"))
     
-    state = CALLS.get(call_sid, {})
+    state = get_state(call_sid)
 
     # Always store CallSid
     state["call_sid"] = call_sid
@@ -400,7 +411,7 @@ def voice_process():
     state["callback"] = state["callback"] or request.values.get("From", "")
 
     # Save back immediately
-    CALLS[call_sid] = state
+    set_state(call_sid, state)
 
     vr = VoiceResponse()
 
@@ -432,7 +443,7 @@ def voice_process():
         # Speech EXISTS → save name and move to step 1
         state["name"] = speech
         state["retries"] = 0
-        CALLS[call_sid] = state
+        set_state(call_sid, state)
 
         gather = Gather(
             input="speech",
@@ -454,7 +465,7 @@ def voice_process():
     if step == 1:
         if not speech:
             state["retries"] = state.get("retries", 0) + 1
-            CALLS[call_sid] = state
+            set_state(call_sid, state)
 
             if state["retries"] >= 2:
                 vr.say(
@@ -483,7 +494,7 @@ def voice_process():
         # Speech EXISTS → save and move to step 2
         state["service_address"] = speech
         state["retries"] = 0
-        CALLS[call_sid] = state
+        set_state)call_sid, state)
 
         gather = Gather(
             input="speech",
@@ -523,7 +534,7 @@ def voice_process():
 
             # Speech exists → save it
             state["job_description"] = speech.strip()
-            CALLS[call_sid] = state
+            set_state(call_sid, state)
 
             # Now ask for confirm via DTMF
             gather = Gather(
@@ -560,7 +571,7 @@ def voice_process():
 
         if digits == "2":
             state.pop("job_description", None)
-            CALLS[call_sid] = state
+            set_state(call_sid, state)
 
             vr.redirect("/voice-process?step=2", method="POST")
             return Response(str(vr), mimetype="text/xml")
@@ -568,7 +579,7 @@ def voice_process():
         if digits == "1":
             state["step"] = 3
             state["retries"] = 0
-            CALLS[call_sid] = state
+            set_state(call_sid, state)
 
             vr.redirect("/voice-process?step=3", method="POST")
             return Response(str(vr), mimetype="text/xml")
@@ -594,7 +605,7 @@ def voice_process():
     if step == 3:
         if not speech:
             state["retries"] = state.get("retries", 0) + 1
-            CALLS[call_sid] = state
+            set_state(call_sid, state)
 
             if state["retries"] >= 2:
                 vr.say(
@@ -622,7 +633,7 @@ def voice_process():
 
         state["timing"] = speech
         state["retries"] = 0
-        CALLS[call_sid] = state
+        set_state(call_sid, state)
 
         gather = Gather(
             input="speech",
@@ -649,12 +660,18 @@ def voice_process():
             # Fallback to caller ID
             state["callback"] = state.get("callback") or request.values.get("From", "")
 
-        CALLS[call_sid] = state
+        set_state(call_sid, state)
 
         try:
             send_intake_summary(state)
         except Exception as e:
             print("send_intake_summary failed:", e)
+
+        unregister_live_call(state.get("contractor_key", "unknown"), call_sid)
+        clear_state(call_sid)
+
+
+        
 
         vr.say(
             "Thank you. We received your request and will follow up shortly.",
