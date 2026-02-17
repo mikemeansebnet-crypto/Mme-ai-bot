@@ -497,13 +497,6 @@ def voice_process():
     print("DEBUG resume check | request step:", step, "| call_sid:", call_sid, "| state.step:", state.get("step"))
     print("DEBUG state keys:", list(state.keys()))
 
-    
-
-    if step == 0 and saved_step > 0:
-        print("RESUME STEP OVERRIDE:", saved_step)
-        step = saved_step
-# ------------------------------------------------------------------
-
    
 
     # Always store CallSid
