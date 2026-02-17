@@ -407,11 +407,25 @@ def voice_process():
     call_sid = request.values.get("CallSid", "unknown")
     step = int(request.args.get("step", "0"))
     digits = (request.values.get("Digits") or "").strip()
+   
     speech = (
+    
         request.values.get("SpeechResult") 
         or request.values.get("UnstableSpeechResult")
         or ""
     ).strip()
+    
+
+    # -------- Resume logic (caller hung up and called back) --------
+    to_number = (request.values.get("To") or "").strip()
+    from_number = (request.values.get("From") or "").strip()
+
+    if step == 0 and redis_client and to_number and from_number:
+        old_call_sid = get_resume_pointer(to_number, from_number)
+        if old_call_sid and old_call_sid != call_sid:
+            call_sid = old_call_sid
+
+    
     print("DEBUG SpeechResult:", request.values.get("SpeechResult"))
     print("DEBUG UnstableSpeechResult:", request.values.get("UnstableSpeechResult"))
     
