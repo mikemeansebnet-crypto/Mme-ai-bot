@@ -467,6 +467,9 @@ def voice_process():
     
     state = get_state(call_sid)
 
+    print("DEBUG resume check | request step:", step, "| call_sid:", call_sid, "| state.step:", state.get("step"))
+    print("DEBUG state keys:", list(state.keys()))
+
     # ---------------- Restore step on resumed callback ----------------
     # If Twilio hits /voice-process?step=0 again on a callback,
     # continue from the last saved step in Redis.
