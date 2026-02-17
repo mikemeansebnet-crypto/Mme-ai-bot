@@ -434,6 +434,9 @@ def voice_process():
         or request.values.get("UnstableSpeechResult")
         or ""
     ).strip()
+
+    to_number = (request.values.get("To") or "").strip()
+    from_number = (request.values.get("From") or "").strip()
     
 
     # -------- Resume / Alias logic (caller hung up and called back) --------
