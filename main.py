@@ -467,13 +467,37 @@ def voice_process():
     
     state = get_state(call_sid)
 
+    # -------- Restore step on callback by checking which fields are already filled --------
+    def _resume_step_from_fields(s: dict) -> int:
+        name_ok = bool((s.get("name") or "").strip())
+        addr_ok = bool((s.get("service_address") or "").strip())
+        job_ok  = bool((s.get("job_description") or "").strip())
+        time_ok = bool((s.get("timing") or "").strip())
+
+        if not name_ok:
+            return 0
+        if not addr_ok:
+            return 1
+        if not job_ok:
+            return 2
+        if not time_ok:
+            return 3
+        return 4
+
+    # If Twilio hits us with step=0 again on a callback, jump to the correct step
+    if step == 0:
+        inferred_step = _resume_step_from_fields(state)
+        if inferred_step > 0:
+            print("RESUME STEP INFERRED:", inferred_step, "| from keys:", list(state.keys()))
+            step = inferred_step
+            state["step"] = inferred_step
+            set_state(call_sid, state)
+    # -------------------------------------------------------------------------------
+
     print("DEBUG resume check | request step:", step, "| call_sid:", call_sid, "| state.step:", state.get("step"))
     print("DEBUG state keys:", list(state.keys()))
 
-    # ---------------- Restore step on resumed callback ----------------
-    # If Twilio hits /voice-process?step=0 again on a callback,
-    # continue from the last saved step in Redis.
-    saved_step = int(state.get("step") or 0)
+    
 
     if step == 0 and saved_step > 0:
         print("RESUME STEP OVERRIDE:", saved_step)
