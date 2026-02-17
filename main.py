@@ -709,6 +709,7 @@ def voice_process():
         return Response(str(vr), mimetype="text/xml")
 
 
+   
     # STEP 3: Timing
     if step == 3:
         if not speech:
@@ -726,7 +727,7 @@ def voice_process():
 
             gather = Gather(
                 input="speech",
-                action="/voice-process?step=4",
+                action="/voice-process?step=3",   # <-- FIXED
                 method="POST",
                 timeout=8,
                 speech_timeout="auto",
@@ -739,7 +740,8 @@ def voice_process():
             vr.append(gather)
             return Response(str(vr), mimetype="text/xml")
 
-        state["timing"] = speech
+        # Speech EXISTS -> save timing, move to step 4
+        state["timing"] = speech.strip()
         state["retries"] = 0
         state["step"] = 4
         set_state(call_sid, state)
@@ -759,16 +761,38 @@ def voice_process():
         vr.append(gather)
         return Response(str(vr), mimetype="text/xml")
 
-
     # STEP 4: Callback number
     if step == 4:
-        # If digits were entered, use them
+        # Prefer DTMF if provided
         if digits and len(digits) >= 7:
-            state["callback"] = digits
+            callback_val = digits.strip()
         else:
-            # Fallback to caller ID
-            state["callback"] = state.get("callback") or request.values.get("From", "")
+            # Otherwise use speech if provided
+            callback_val = (speech or "").strip()
 
+        # If still nothing usable, reprompt
+        if not callback_val:
+            gather = Gather(
+                input="speech",
+                action="/voice-process?step=4",
+                method="POST",
+                timeout=8,
+                speech_timeout="auto",
+            )
+            gather.say(
+                "I didn't catch that. Please say the best callback phone number.",
+                voice="Polly.Joanna",
+                language="en-US",
+            )
+            vr.append(gather)
+            return Response(str(vr), mimetype="text/xml")
+
+        # Save callback (fallback to caller ID only if callback_val is still short)
+        if len(callback_val) < 7:
+            callback_val = request.values.get("From", "")
+
+        state["callback"] = callback_val
+        state["step"] = 4
         set_state(call_sid, state)
 
         try:
@@ -779,9 +803,6 @@ def voice_process():
         unregister_live_call(state.get("contractor_key", "unknown"), call_sid)
         clear_state(call_sid)
 
-
-        
-
         vr.say(
             "Thank you. We received your request and will follow up shortly.",
             voice="Polly.Joanna",
@@ -789,6 +810,8 @@ def voice_process():
         )
         vr.hangup()
         return Response(str(vr), mimetype="text/xml")
+
+        
          
                
    
