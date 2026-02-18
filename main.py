@@ -467,6 +467,22 @@ def voice_process():
     
     state = get_state(call_sid)
 
+
+    # Always store CallSid
+    state["call_sid"] = call_sid
+
+    # Safe defaults (define keys first)
+    state.setdefault("retries", 0)
+    state.setdefault("name", "")
+    state.setdefault("service_address", "")
+    state.setdefault("job_description", "")
+    state.setdefault("timing", "")
+    state.setdefault("callback", "")
+    state.setdefault("step", 0)
+
+    # Always capture caller phone number (do not overwrite if already set)
+    state["callback"] = state["callback"] or request.values.get("From", "")
+
     # -------- Restore step on callback by checking which fields are already filled --------
     def _resume_step_from_fields(s: dict) -> int:
         name_ok = bool((s.get("name") or "").strip())
@@ -488,37 +504,19 @@ def voice_process():
     if step == 0:
         inferred_step = _resume_step_from_fields(state)
         if inferred_step > 0:
-            print("RESUME STEP INFERRED:", inferred_step, "| from keys:", list(state.keys()))
+            print("RESUME STEP INFERRED:", inferred_step, "| from keys:", list(state.keys())).  
             step = inferred_step
             state["step"] = inferred_step
-            set_state(call_sid, state)
     # -------------------------------------------------------------------------------
 
     print("DEBUG resume check | request step:", step, "| call_sid:", call_sid, "| state.step:", state.get("step"))
     print("DEBUG state keys:", list(state.keys()))
 
-   
-
-    # Always store CallSid
-    state["call_sid"] = call_sid
-
-    
-
-    # Safe defaults (define keys first)
-    state.setdefault("retries", 0)
-    state.setdefault("name", "")
-    state.setdefault("service_address", "")
-    state.setdefault("job_description", "")
-    state.setdefault("timing", "")
-    state.setdefault("callback", "")
-
-    # Always capture caller phone number (do not overwrite if already set)
-    state["callback"] = state["callback"] or request.values.get("From", "")
-
-    # Save back immediately
+    # Save back immediately (single save)
     set_state(call_sid, state)
 
     vr = VoiceResponse()
+
 
 # Make sure these exist earlier in your handler:
 # speech = (request.values.get("SpeechResult") or "").strip()
