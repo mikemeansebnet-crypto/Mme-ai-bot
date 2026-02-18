@@ -680,7 +680,7 @@ def voice_process():
         if digits == "2":
             state.pop("job_description", None)
             set_state(call_sid, state)
-
+            digits =  ""  # prevent stuck digits looping
             vr.redirect("/voice-process?step=2", method="POST")
             return Response(str(vr), mimetype="text/xml")
 
