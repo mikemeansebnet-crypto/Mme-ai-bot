@@ -450,13 +450,22 @@ def voice_process():
         call_sid = aliased
 
     # If we are at step 0, try to resume by mapping this new CallSid -> old CallSid
-    if step == 0 and redis_client and to_number and from_number:
-        old_call_sid = get_resume_pointer(to_number, from_number)
-        if old_call_sid and old_call_sid != new_call_sid:
-            set_call_alias(new_call_sid, old_call_sid)   # NEW -> OLD mapping
-            call_sid = old_call_sid
+    old_call_sid = None  # <-- ADD THIS LINE
 
-    print("DEBUG resume pointer:", "new=", new_call_sid, "old=", old_call_sid, "call_sid(before swap)=", call_sid)
+    if step == 0 and redis_client and to_number and from_number:
+    old_call_sid = get_resume_pointer(to_number, from_number)
+
+    print("DEBUG resume pointer:",
+          "new=", new_call_sid,
+          "old=", old_call_sid,
+          "call_sid(before swap)=", call_sid)
+
+    if old_call_sid and old_call_sid != new_call_sid:
+        set_call_alias(new_call_sid, old_call_sid)  # NEW -> OLD mapping
+        call_sid = old_call_sid
+        print("DEBUG call_sid(after swap)=", call_sid)
+
+            
 
     # Always refresh the resume pointer so it stays alive while caller is interacting
     if redis_client and to_number and from_number and call_sid:
