@@ -504,7 +504,7 @@ def voice_process():
     if step == 0:
         inferred_step = _resume_step_from_fields(state)
         if inferred_step > 0:
-            print("RESUME STEP INFERRED:", inferred_step, "| from keys:", list(state.keys())).  
+            print("RESUME STEP INFERRED:", inferred_step, "| from keys:", list(state.keys()))  
             step = inferred_step
             state["step"] = inferred_step
     # -------------------------------------------------------------------------------
