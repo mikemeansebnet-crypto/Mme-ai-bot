@@ -546,7 +546,7 @@ def voice_process():
             return Response(str(vr), mimetype="text/xml")
 
         # Speech EXISTS → save name and move to step 1
-        state["name"] = speech
+        state["name"] = speech.strip()
         state["step"] = 1
         state["retries"] = 0
         set_state(call_sid, state)
@@ -598,7 +598,7 @@ def voice_process():
             return Response(str(vr), mimetype="text/xml")
 
         # Speech EXISTS → save and move to step 2
-        state["service_address"] = speech
+        state["service_address"] = speech.strip()
         state["step"] = 2
         state["retries"] = 0
         set_state(call_sid, state)
@@ -763,12 +763,8 @@ def voice_process():
 
     # STEP 4: Callback number
     if step == 4:
-        # Prefer DTMF if provided
-        if digits and len(digits) >= 7:
-            callback_val = digits.strip()
-        else:
-            # Otherwise use speech if provided
-            callback_val = (speech or "").strip()
+        # Prefer DTMF if provided, otherwise use speech
+        callback_val = (digits or speech or "").strip()
 
         # If still nothing usable, reprompt
         if not callback_val:
@@ -787,12 +783,14 @@ def voice_process():
             vr.append(gather)
             return Response(str(vr), mimetype="text/xml")
 
-        # Save callback (fallback to caller ID only if callback_val is still short)
-        if len(callback_val) < 7:
-            callback_val = request.values.get("From", "")
+        # Normalize to digits only (handles 240-555-1234, etc.)
+        callback_digits = "".join([c for c in callback_val if c.isdigit()])
 
-        state["callback"] = callback_val
-        state["step"] = 4
+        # If caller spoke something too short, fall back to caller ID
+        if len(callback_digits) < 7:
+            callback_digits = (request.values.get("From", "") or "").strip()
+
+        state["callback"] = callback_digits
         set_state(call_sid, state)
 
         try:
@@ -810,6 +808,7 @@ def voice_process():
         )
         vr.hangup()
         return Response(str(vr), mimetype="text/xml")
+
 
         
          
