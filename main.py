@@ -641,7 +641,7 @@ def voice_process():
 
             # Speech exists → save it
             state["job_description"] = speech.strip()
-            state["step"] = 3
+            state["step"] = 2   # stay on step 2 until confirmed 
             set_state(call_sid, state)
 
             # Now ask for confirm via DTMF
