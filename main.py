@@ -437,9 +437,6 @@ def voice_process():
 
     to_number = (request.values.get("To") or "").strip()
     from_number = (request.values.get("From") or "").strip()
-    
-
-    # -------- Resume / Alias logic (caller hung up and called back) --------
 
     # Keep the NEW CallSid so we can map it to the OLD one
     new_call_sid = call_sid
@@ -448,33 +445,24 @@ def voice_process():
     aliased = get_call_alias(new_call_sid)
     if aliased:
         call_sid = aliased
-
-    # If we are at step 0, try to resume by mapping this new CallSid -> old CallSid
-    old_call_sid = None  # <-- ADD THIS LINE
-
+    
+    # --- Lookup existing resume pointer BEFORE saving anything ---
+    old_call_sid = None
     if step == 0 and redis_client and to_number and from_number:
         old_call_sid = get_resume_pointer(to_number, from_number)
 
-        print("DEBUG resume pointer:",
-              "new=", new_call_sid,
-              "old=", old_call_sid,
-              "call_sid(before swap)=", call_sid)
+    print("DEBUG resume pointer lookup:",
+          "step=", step,
+          "new=", new_call_sid,
+          "old=", old_call_sid)
 
-        if old_call_sid and old_call_sid != new_call_sid:
-            set_call_alias(new_call_sid, old_call_sid)  # NEW -> OLD mapping
-            call_sid = old_call_sid
-            print("DEBUG call_sid(after swap)=", call_sid)
-
-            
-
-    # Always refresh the resume pointer so it stays alive while caller is interacting
-    if redis_client and to_number and from_number and call_sid:
-        save_resume_pointer(to_number, from_number, call_sid)
-        print("RESUME PTR SAVED:", to_number, from_number, call_sid)
+    # If we found an older CallSid for this same caller, swap to it
+    if old_call_sid and old_call_sid != new_call_sid:
+        set_call_alias(new_call_sid, old_call_sid)   # NEW -> OLD mapping
+        call_sid = old_call_sid
+        print("DEBUG swapped call_sid to OLD:", call_sid)
 
     
-    print("DEBUG SpeechResult:", request.values.get("SpeechResult"))
-    print("DEBUG UnstableSpeechResult:", request.values.get("UnstableSpeechResult"))
     
     state = get_state(call_sid)
 
