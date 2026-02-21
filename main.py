@@ -92,7 +92,9 @@ def get_resume_pointer(to_number: str, from_number: str):
     if not redis_client:
         return None
     value = redis_client.get(resume_key(to_number, from_number))
-    return value if value else None
+    if not value:
+        return None
+    return value.decode("utf-8") if isinstance(value, (bytes, bytearray)) else value
 
 def clear_resume_pointer(to_number: str, from_number: str):
     if not redis_client:
@@ -438,14 +440,16 @@ def voice_process():
     to_number = (request.values.get("To") or "").strip()
     from_number = (request.values.get("From") or "").strip()
 
+    # --- Resume / Alias logic (caller hung up and called back) ---
+
     # Keep the NEW CallSid so we can map it to the OLD one
     new_call_sid = call_sid
 
-    # If this new CallSid was already aliased earlier, follow it
+    # If this CallSid was already aliased earlier, follow it
     aliased = get_call_alias(new_call_sid)
     if aliased:
         call_sid = aliased
-    
+
     # --- Lookup existing resume pointer BEFORE saving anything ---
     old_call_sid = None
     if step == 0 and redis_client and to_number and from_number:
@@ -454,7 +458,8 @@ def voice_process():
     print("DEBUG resume pointer lookup:",
           "step=", step,
           "new=", new_call_sid,
-          "old=", old_call_sid)
+          "old=", old_call_sid,
+          "call_sid(before swap)=", call_sid)
 
     # If we found an older CallSid for this same caller, swap to it
     if old_call_sid and old_call_sid != new_call_sid:
@@ -462,8 +467,7 @@ def voice_process():
         call_sid = old_call_sid
         print("DEBUG swapped call_sid to OLD:", call_sid)
 
-    
-    
+    # Now load state for the FINAL chosen call_sid
     state = get_state(call_sid)
 
 
@@ -506,6 +510,7 @@ def voice_process():
             print("RESUME STEP INFERRED:", inferred_step, "| from keys:", list(state.keys()))  
             step = inferred_step
             state["step"] = inferred_step
+            set_state(call_sid, state)
     # -------------------------------------------------------------------------------
 
     print("DEBUG resume check | request step:", step, "| call_sid:", call_sid, "| state.step:", state.get("step"))
