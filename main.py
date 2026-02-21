@@ -547,6 +547,11 @@ def voice_process():
         state["step"] = 1
         state["retries"] = 0
         set_state(call_sid, state)
+        
+        # Save resume pointer now that we have progress (step 1)
+        if redis_client and to_number and from_number:
+            save_resume_pointer(to_number, from_number, call_sid)
+            print("RESUME PTR SAVED (after name):", to_number, from_number, call_sid, "state.step=", state["step"])
 
         gather = Gather(
             input="speech",
@@ -599,6 +604,10 @@ def voice_process():
         state["step"] = 2
         state["retries"] = 0
         set_state(call_sid, state)
+        
+        if redis_client and to_number and from_number:
+            save_resume_pointer(to_number, from_number, call_sid)
+            print("RESUME PTR SAVED (after address):", to_number, from_number, call_sid, "state.step=", state["step"])
 
         gather = Gather(
             input="speech",
@@ -640,6 +649,10 @@ def voice_process():
             state["job_description"] = speech.strip()
             state["step"] = 2   # stay on step 2 until confirmed 
             set_state(call_sid, state)
+
+            if redis_client and to_number and from_number:
+                save_resume_pointer(to_number, from_number, call_sid)
+                print("RESUME PTR SAVED (after job desc):", to_number, from_number, call_sid, "state.step=", state["step"])
 
             # Now ask for confirm via DTMF
             gather = Gather(
@@ -685,6 +698,10 @@ def voice_process():
             state["step"] = 3
             state["retries"] = 0
             set_state(call_sid, state)
+
+            if redis_client and to_number and from_number:
+                save_resume_pointer(to_number, from_number, call_sid)
+                print("RESUME PTR SAVED (after confirm):", to_number, from_number, call_sid, "state.step=", state["step"])
 
             vr.redirect("/voice-process?step=3", method="POST")
             return Response(str(vr), mimetype="text/xml")
@@ -743,6 +760,10 @@ def voice_process():
         state["step"] = 4
         set_state(call_sid, state)
 
+        if redis_client and to_number and from_number:
+            save_resume_pointer(to_number, from_number, call_sid)
+            print("RESUME PTR SAVED (after timing):", to_number, from_number, call_sid, "state.step=", state["step"])                  
+
         gather = Gather(
             input="speech",
             action="/voice-process?step=4",
@@ -789,11 +810,19 @@ def voice_process():
 
         state["callback"] = callback_digits
         set_state(call_sid, state)
+        
+        if redis_client and to_number and from_number:
+            save_resume_pointer(to_number, from_number, call_sid)
+            print("RESUME PTR SAVED (after callback):", to_number, from_number, call_sid, "state.step=", state.get("step"))
 
         try:
             send_intake_summary(state)
         except Exception as e:
             print("send_intake_summary failed:", e)
+
+        if redis_client and to_number and from_number:
+            clear_resume_pointer(to_number, from_number)
+            print("RESUME PTR CLEARED:", to_number, from_number)
 
         unregister_live_call(state.get("contractor_key", "unknown"), call_sid)
         clear_state(call_sid)
