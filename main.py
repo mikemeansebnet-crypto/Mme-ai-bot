@@ -334,19 +334,99 @@ def twilio_voicemail():
     vr.hangup()
     return Response(str(vr), mimetype="text/xml")
 
-@app.route("/voice-intake", methods=["POST", "GET"])
+@app.route("/voice-intake", methods=["POST"])
 def voice_intake():
-    # Start your existing 4-question flow
-    
     call_sid = request.values.get("CallSid", "unknown")
-    caller = request.values.get("From", "")
 
-    to_number = request.values.get("To", "")  # Twilio number called
+    # Normalize To/From (Twilio sometimes uses Called/Caller depending on webhook)
+    to_number = (request.values.get("To") or request.values.get("Called") or "").strip()
+    from_number = (request.values.get("From") or request.values.get("Caller") or "").strip()
+
+    digits = (request.values.get("Digits") or "").strip()
+
     contractor_key = to_number or "unknown"
 
+    # Helper: infer which step we should resume
+    def _resume_step_from_fields(s: dict) -> int:
+        if not (s.get("name") or "").strip():
+            return 0
+        if not (s.get("service_address") or "").strip():
+            return 1
+        if not (s.get("job_description") or "").strip():
+            return 2
+        if not (s.get("timing") or "").strip():
+            return 3
+        return 4
+
+    vr = VoiceResponse()
+
+    # ---- Check if there is an existing in-progress call for this same caller ----
+    old_call_sid = None
+    if redis_client and to_number and from_number:
+        old_call_sid = get_resume_pointer(to_number, from_number)
+
+    old_state = get_state(old_call_sid) if old_call_sid else {}
+    inferred_step = _resume_step_from_fields(old_state or {})
+
+    # If we have progress (step > 0), offer Resume / Restart
+    if old_call_sid and inferred_step > 0:
+        if not digits:
+            g = Gather(
+                input="dtmf",
+                num_digits=1,
+                timeout=6,
+                action="/voice-intake",   # come back here with Digits
+                method="POST",
+            )
+            g.say(
+                "It looks like you were in the middle of a request. "
+                "Press 1 to resume where you left off. "
+                "Press 2 to start over.",
+                voice="Polly.Joanna",
+                language="en-US",
+            )
+            vr.append(g)
+
+            # fallback if no input
+            vr.say(
+                "No problem. We'll start over.",
+                voice="Polly.Joanna",
+                language="en-US",
+            )
+            # If they don't press anything, start over below:
+            digits = "2"
+
+        if digits == "1":
+            # Map NEW CallSid -> OLD CallSid so /voice-process uses old state
+            set_call_alias(call_sid, old_call_sid)
+
+            # Keep the pointer alive on the OLD call sid
+            if redis_client and to_number and from_number:
+                save_resume_pointer(to_number, from_number, old_call_sid)
+
+            vr.say(
+                "Resuming your request now.",
+                voice="Polly.Joanna",
+                language="en-US",
+            )
+            vr.redirect(f"/voice-process?step={inferred_step}", method="POST")
+            return Response(str(vr), mimetype="text/xml")
+
+        # If they pressed 2 (or timed out), clear pointer and start fresh
+        if digits == "2":
+            if redis_client and to_number and from_number:
+                clear_resume_pointer(to_number, from_number)
+
+            # Also clear any old call alias for this new call (optional but clean)
+            # (Only if you have a delete alias helper; otherwise ignore)
+            # clear_call_alias(call_sid)
+
+            # continue into "start fresh" flow below…
+
+    # ---- Start fresh (your original flow) ----
     state = {
         "step": 0,
-        "callback": caller,
+        "callback": from_number,
         "retries": 0,
         "name": "",
         "service_address": "",
@@ -361,7 +441,6 @@ def voice_intake():
     set_state(call_sid, state)
     register_live_call(contractor_key, call_sid)
 
-    vr = VoiceResponse()
     gather = Gather(
         input="speech",
         action="/voice-process?step=0",
@@ -369,10 +448,18 @@ def voice_intake():
         timeout=6,
         speech_timeout="auto",
     )
-    gather.say("First, please say your full name.")
+    gather.say(
+        "First, please say your full name.",
+        voice="Polly.Joanna",
+        language="en-US",
+    )
     vr.append(gather)
 
-    vr.say("Sorry, I didn’t catch that. Please call back and try again. Goodbye.")
+    vr.say(
+        "Sorry, I didn’t catch that. Please call back and try again. Goodbye.",
+        voice="Polly.Joanna",
+        language="en-US",
+    )
     vr.hangup()
     return Response(str(vr), mimetype="text/xml")
 
