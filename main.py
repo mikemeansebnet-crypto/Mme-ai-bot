@@ -40,7 +40,7 @@ def clear_state(call_sid: str) -> None:
 # ================= Alias Helpers =================
 
 def alias_key(new_call_sid: str) -> str:
-    return f"mmea:alias:{new_call_sid}"
+    return f"mmeai:alias:{new_call_sid}"
 
 def set_call_alias(new_call_sid: str, old_call_sid: str, ttl_seconds: int = 900):
     if not redis_client or not new_call_sid or not old_call_sid:
@@ -134,14 +134,31 @@ def airtable_create_record(fields: dict):
     return {"ok": True, "status": r.status_code, "data": r.json()}
     
 def get_contractor_by_twilio_number(to_number: str) -> dict:
+    """
+    Lookup contractor config by the Twilio number (To).
+    Uses Redis cache to reduce Airtable calls and speed up call flow.
+    """
+    if not to_number:
+        return {}
+
+    # Redis cache key for this Twilio number
+    cache_key = f"mmeai:contractor_cache:{to_number}"
+
+    # 1) Try Redis first
+    if redis_client:
+        cached_raw = redis_client.get(cache_key)
+        if cached_raw:
+            try:
+                return json.loads(cached_raw)
+            except Exception as e:
+                print("Bad contractor cache JSON; ignoring cache:", e)
+
+    # 2) Fall back to Airtable
     token = os.getenv("AIRTABLE_TOKEN")
     base_id = os.getenv("AIRTABLE_BASE_ID")
     contractors_table = os.getenv("AIRTABLE_CONTRACTORS_TABLE", "Contractors")
 
     if not token or not base_id:
-        return {}
-
-    if not to_number:
         return {}
 
     url = f"https://api.airtable.com/v0/{base_id}/{contractors_table}"
@@ -151,17 +168,27 @@ def get_contractor_by_twilio_number(to_number: str) -> dict:
     formula = f"AND({{Twilio Number}}='{to_number}', {{Active}}=TRUE())"
     params = {"filterByFormula": formula, "maxRecords": 1}
 
-    r = requests.get(url, headers=headers, params=params, timeout=20)
-    if r.status_code >= 400:
-        print("Contractor lookup error:", r.status_code, r.text)
-        return {}
+    try:
+        r = requests.get(url, headers=headers, params=params, timeout=10)
+        if r.status_code >= 400:
+            print("Contractor lookup error:", r.status_code, r.text)
+            return {}
 
-    data = r.json()
-    records = data.get("records", [])
-    if not records:
-        return {}
+        records = r.json().get("records", [])
+        if not records:
+            return {}
 
-    return records[0].get("fields", {})
+        contractor_fields = records[0].get("fields", {}) or {}
+
+        # 3) Cache for 1 hour
+        if redis_client and contractor_fields:
+            redis_client.setex(cache_key, 3600, json.dumps(contractor_fields))
+
+        return contractor_fields
+
+    except Exception as e:
+        print("Contractor lookup exception:", e)
+        return {}
 
 def send_email(subject: str, body: str):
     
