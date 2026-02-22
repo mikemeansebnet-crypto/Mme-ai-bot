@@ -287,7 +287,7 @@ def voice():
     vr.append(gather)
 
     # If they press nothing, treat it like estimate flow (go to voice_menu so resume logic can run)
-    vr.redirect("/voice-menu", method=POST")
+    vr.redirect("/voice-menu", method="POST")
     return Response(str(vr), mimetype="text/xml")
 
 
