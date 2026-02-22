@@ -286,12 +286,8 @@ def voice():
 
     vr.append(gather)
 
-    vr.say(
-        "No problem. We’ll take your details now.",
-        voice="Polly.Joanna",
-        language="en-US"
-    )
-    vr.redirect("/voice-intake")
+    # If they press nothing, treat it like estimate flow (go to voice_menu so resume logic can run)
+    vr.redirect("/voice-menu", method=POST")
     return Response(str(vr), mimetype="text/xml")
 
 
@@ -300,11 +296,86 @@ def voice_menu():
     digit = (request.values.get("Digits") or "").strip()
     vr = VoiceResponse()
 
+    to_number = (request.values.get("To") or "").strip()
+    from_number = (request.values.get("From") or "").strip()
+
+    # Emergency stays immediate
     if digit == "1":
         vr.redirect("/voice-emergency", method="POST")
-    else:
-        vr.redirect("/voice-intake", method="POST")
+        return Response(str(vr), mimetype="text/xml")
 
+    # Anything else (including blank/timeout) = estimate flow with AUTO-RESUME check
+    old_call_sid = None
+    inferred_step = 0
+
+    if redis_client and to_number and from_number:
+        old_call_sid = get_resume_pointer(to_number, from_number)
+        if old_call_sid:
+            old_state = get_state(old_call_sid)
+            inferred_step = int(old_state.get("step", 0) or 0)
+
+    # If we have progress, auto-resume unless they press 2
+    if old_call_sid and inferred_step > 0:
+        g = Gather(
+            input="dtmf",
+            num_digits=1,
+            timeout=3,
+            action=f"/resume-choice?old={old_call_sid}&step={inferred_step}",
+            method="POST",
+        )
+        g.say(
+            "Looks like we were in the middle of a request. "
+            "I will resume where we left off. "
+            "Press 2 to start over.",
+            voice="Polly.Joanna",
+            language="en-US",
+        )
+        vr.append(g)
+
+        # No input -> Twilio will still hit /resume-choice after timeout
+        return Response(str(vr), mimetype="text/xml")
+
+    # No resume progress -> start fresh
+    vr.redirect("/voice-intake", method="POST")
+    return Response(str(vr), mimetype="text/xml")
+
+@app.route("/resume-choice", methods=["POST"])
+def resume_choice():
+    new_call_sid = request.values.get("CallSid", "unknown")
+    digits = (request.values.get("Digits") or "").strip()
+
+    to_number = (request.values.get("To") or "").strip()
+    from_number = (request.values.get("From") or "").strip()
+
+    old_call_sid = request.args.get("old", "") or ""
+    inferred_step = int(request.args.get("step", "0") or "0")
+
+    vr = VoiceResponse()
+
+    # Press 2 => start over fresh
+    if digits == "2":
+        if redis_client and to_number and from_number:
+            clear_resume_pointer(to_number, from_number)
+            print("RESUME PTR CLEARED (restart):", to_number, from_number)
+
+        vr.say("No problem. We'll start over.", voice="Polly.Joanna", language="en-US")
+        vr.redirect("/voice-intake", method="POST")
+        return Response(str(vr), mimetype="text/xml")
+
+    # Default => resume
+    if old_call_sid and inferred_step > 0:
+        # Map NEW CallSid -> OLD CallSid so /voice-process uses old state
+        set_call_alias(new_call_sid, old_call_sid)
+
+        # Keep pointer alive pointing at OLD call sid
+        if redis_client and to_number and from_number:
+            save_resume_pointer(to_number, from_number, old_call_sid)
+
+        vr.say("Resuming your request now.", voice="Polly.Joanna", language="en-US")
+        vr.redirect(f"/voice-process?step={inferred_step}", method="POST")
+        return Response(str(vr), mimetype="text/xml")
+
+    vr.redirect("/voice-intake", method="POST")
     return Response(str(vr), mimetype="text/xml")
 
 
