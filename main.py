@@ -409,7 +409,7 @@ def voice_intake():
                 voice="Polly.Joanna",
                 language="en-US",
             )
-            vr.redirect(f"/voice-process?step={inferred_step}", method="POST")
+            vr.redirect("/voice-process?step=0",  method="POST")
             return Response(str(vr), mimetype="text/xml")
 
         # If they pressed 2 (or timed out), clear pointer and start fresh
