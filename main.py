@@ -738,7 +738,7 @@ def voice_process():
 
         # Press 2 => repeat name (but cap attempts to prevent infinite loops)
         if digits == "2":
-            state["name_attempts"] = state.get("name_attempts", 0) + 1
+            state["name_attempts"] = int(state.get("name_attempts") or 0) + 1
 
             # After 2 repeats, continue anyway with best guess (unconfirmed)
             if state["name_attempts"] >= 2:
@@ -746,13 +746,13 @@ def voice_process():
                 state["name"] = best_guess
                 state["name_confirmed"] = False
                 state["name_attempts"] = 0
-                state.pop("name_candidate", None) 
+                state.pop("name_candidate", None)
 
                 state["step"] = 1
                 state["retries"] = 0
                 set_state(call_sid, state)
 
-                if redis_client and to_number and from_number: 
+                if redis_client and to_number and from_number:
                     save_resume_pointer(to_number, from_number, call_sid)
 
                 vr.say(
@@ -763,11 +763,11 @@ def voice_process():
                 vr.redirect("/voice-process?step=1", method="POST")
                 return Response(str(vr), mimetype="text/xml")
 
-        # Normal repeat (under the cap)
-        state.pop("name_candidate", None)
-        set_state(call_sid, state)
-        vr.redirect("/voice-process?step=0", method="POST")
-        return Response(str(vr), mimetype="text/xml")
+            # Normal repeat (under the cap)
+            state.pop("name_candidate", None)
+            set_state(call_sid, state)
+            vr.redirect("/voice-process?step=0", method="POST")
+            return Response(str(vr), mimetype="text/xml")
 
         # Press 1 => commit name and move to Step 1
         if digits == "1":
