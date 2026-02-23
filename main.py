@@ -289,10 +289,12 @@ def health():
             print("Redis health check failed:", e)
             redis_ok = False
 
+    status_code = 200 if redis_ok else 500
+
     return jsonify({
-        "status": "ok",
+        "status": "ok", if redis_ok else "degraded",
         "redis_connected": redis_ok
-    })
+    }), status_code
 
 
 # ------------------------------
