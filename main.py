@@ -674,105 +674,115 @@ def voice_process():
 
     vr = VoiceResponse()
 
-    # STEP 0: Client name (capture + confirm)
+    # STEP 0: Client name (speech -> DTMF confirm)
     if step == 0:
+        # If we are waiting for DTMF confirm, Digits will be present
+        name_candidate = (state.get("name_candidate") or "").strip()
 
-        # If name not captured yet, ask for it
-        if not state.get("name"):
-            if not speech:
-                gather = Gather(
-                    input="speech",
-                    action="/voice-process?step=0",
-                    method="POST",
-                    timeout=8,
-                    speech_timeout="auto",
-                    profanity_filter=False,
-                    hints="name full-name first-name last-name",
-                )
-                gather.say(
-                    "Please say your full name now.",
-                    voice="Polly.Joanna",
-                    language="en-US",
-                )
-                vr.append(gather)
-                return Response(str(vr), mimetype="text/xml")
+        # 0A) If we don't yet have a candidate name, ask for speech
+        if not name_candidate and not speech:
+            gather = Gather(
+                input="speech",
+                action="/voice-process?step=0",
+                method="POST",
+                timeout=8,
+                speech_timeout="auto",
+                profanity_filter=False,
+                hints="first name last name full name",
+            )
+            gather.say(
+                "Please say your full name now.",
+                voice="Polly.Joanna",
+                language="en-US",
+            )
+            vr.append(gather)
+            return Response(str(vr), mimetype="text/xml")
 
-            # Speech exists -> save name, then ask to confirm via keypad
-            state["name"] = speech.strip()
-            state["retries"] = 0
+        # 0B) If speech just came in, store it as candidate and ask for DTMF confirm
+        if speech and not name_candidate:
+            state["name_candidate"] = speech.strip()
             set_state(call_sid, state)
 
-            if redis_client and to_number and from_number:
-                save_resume_pointer(to_number, from_number, call_sid)
-                print("RESUME PTR SAVED (after name capture):", to_number, from_number, call_sid)
-
-            gather = Gather(
+            g = Gather(
                 input="dtmf",
                 num_digits=1,
                 action="/voice-process?step=0",
                 method="POST",
                 timeout=6,
             )
-            gather.say(
-                f"I heard: {state['name']}. Press 1 to confirm, or press 2 to repeat.",
+            g.say(
+                f"I heard: {state['name_candidate']}. "
+                "Press 1 to confirm, or press 2 to say it again.",
                 voice="Polly.Joanna",
                 language="en-US",
             )
-            vr.append(gather)
+            vr.append(g)
             return Response(str(vr), mimetype="text/xml")
 
-        # Name exists -> we are waiting on confirm digits
+        # 0C) We have a candidate name; now we must have digits
         if not digits:
-            gather = Gather(
+            g = Gather(
                 input="dtmf",
                 num_digits=1,
                 action="/voice-process?step=0",
                 method="POST",
                 timeout=6,
             )
-            gather.say(
-                "Press 1 to confirm your name, or press 2 to repeat.",
+            g.say(
+                "Press 1 to confirm, or press 2 to repeat.",
                 voice="Polly.Joanna",
                 language="en-US",
             )
-            vr.append(gather)
+            vr.append(g)
             return Response(str(vr), mimetype="text/xml")
 
-        # Repeat name
+        # Press 2 => clear candidate and re-ask speech
         if digits == "2":
-            state.pop("name", None) 
+            state.pop("name_candidate", None)
             set_state(call_sid, state)
             vr.redirect("/voice-process?step=0", method="POST")
             return Response(str(vr), mimetype="text/xml")
 
-        # Confirm name -> move to Step 1 (address flow)
+        # Press 1 => commit name and move to Step 1
         if digits == "1":
+            state["name"] = state.get("name_candidate", "").strip()
+            state.pop("name_candidate", None)
             state["step"] = 1
             state["retries"] = 0
             set_state(call_sid, state)
 
             if redis_client and to_number and from_number:
                 save_resume_pointer(to_number, from_number, call_sid)
-                print("RESUME PTR SAVED (after name confirm):", to_number, from_number, call_sid, "state.step=", state["step"])
 
-            # IMPORTANT: Now Step 1 is your address multi-part flow, so just redirect there
-            vr.redirect("/voice-process?step=1", method="POST")
+            gather = Gather(
+                input="speech",
+                action="/voice-process?step=1",
+                method="POST",
+                timeout=8,
+                speech_timeout="auto",
+            )
+            gather.say(
+                "Thanks. Please say the service address now.",
+                voice="Polly.Joanna",
+                language="en-US",
+            )
+            vr.append(gather)
             return Response(str(vr), mimetype="text/xml")
 
-        # Any other key -> reprompt
-        gather = Gather(
+        # Any other key => reprompt
+        g = Gather(
             input="dtmf",
             num_digits=1,
             action="/voice-process?step=0",
             method="POST",
             timeout=6,
         )
-        gather.say(
+        g.say(
             "Please press 1 to confirm, or press 2 to repeat.",
             voice="Polly.Joanna",
             language="en-US",
         )
-        vr.append(gather)
+        vr.append(g)
         return Response(str(vr), mimetype="text/xml")
 
     
@@ -1045,6 +1055,7 @@ def voice_process():
                 method="POST",
                 timeout=8,
                 speech_timeout="auto",
+                profanity_filter=False,
             )
             gather.say(
                 "Please tell me when you need the service.",
@@ -1092,6 +1103,7 @@ def voice_process():
                 method="POST",
                 timeout=8,
                 speech_timeout="auto",
+                profanity_filter=False,
             )
             gather.say(
                 "I didn't catch that. Please say the best callback phone number.",
