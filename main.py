@@ -292,7 +292,7 @@ def health():
     status_code = 200 if redis_ok else 500
 
     return jsonify({
-        "status": "ok", if redis_ok else "degraded",
+        "status": "ok" if redis_ok else "degraded",
         "redis_connected": redis_ok
     }), status_code
 
