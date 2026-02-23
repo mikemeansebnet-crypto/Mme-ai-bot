@@ -34,7 +34,13 @@ def get_state(call_sid: str) -> dict:
     if not redis_client or not call_sid:
         return {}
     raw = redis_client.get(_redis_key(call_sid))
-    return json.loads(raw) if raw else {}
+    if not raw:
+        return {}
+    try:
+        return json.loads(raw)
+    except Exception as e:
+        print("Bad state JSON in Redis for", call_sid, "err:", e)
+        return {}
 
 def set_state(call_sid: str, state: dict) -> None:
     if not redis_client or not call_sid:
@@ -48,7 +54,7 @@ def clear_state(call_sid: str) -> None:
 # ================= Alias Helpers =================
 
 def alias_key(new_call_sid: str) -> str:
-    return f"mmea:alias:{new_call_sid}"
+    return f"mmeai:alias:{new_call_sid}"
 
 def set_call_alias(new_call_sid: str, old_call_sid: str, ttl_seconds: int = 900):
     if not redis_client or not new_call_sid or not old_call_sid:
@@ -146,6 +152,35 @@ def get_contractor_by_twilio_number(to_number: str) -> dict:
     # 1. Define a unique Cache Key
     # Using a specific prefix like 'mmeai:contractor_cache:' is a Redis best practice
     cache_key = f"mmeai:contractor_cache:{to_number}"
+    """
+    Lookup contractor config by the Twilio number (To).
+    Uses Redis cache to reduce Airtable calls and speed up call flow.
+    """
+    if not to_number:
+        return {}
+
+    # Redis cache key for this Twilio number
+    cache_key = f"mmeai:contractor_cache:{to_number}"
+
+    # 1) Try Redis first
+    if redis_client:
+        cached_raw = redis_client.get(cache_key)
+        if cached_raw:
+            try:
+                return json.loads(cached_raw)
+            except Exception as e:
+                print("Bad contractor cache JSON; ignoring cache:", e)
+
+    # 2) Fall back to Airtable
+    token = os.getenv("AIRTABLE_TOKEN")
+    base_id = os.getenv("AIRTABLE_BASE_ID")
+    contractors_table = os.getenv("AIRTABLE_CONTRACTORS_TABLE", "Contractors")
+
+    if not token or not base_id:
+        return {}
+
+    url = f"https://api.airtable.com/v0/{base_id}/{contractors_table}"
+    headers = {"Authorization": f"Bearer {token}"}
 
     # 2. Attempt to fetch from Redis first
     if redis_client:
@@ -189,6 +224,24 @@ def get_contractor_by_twilio_number(to_number: str) -> dict:
 
     except Exception as e:
         print(f"Contractor lookup error: {e}")
+        if r.status_code >= 400:
+            print("Contractor lookup error:", r.status_code, r.text)
+            return {}
+
+        records = r.json().get("records", [])
+        if not records:
+            return {}
+
+        contractor_fields = records[0].get("fields", {}) or {}
+
+        # 3) Cache for 1 hour
+        if redis_client and contractor_fields:
+            redis_client.setex(cache_key, 3600, json.dumps(contractor_fields))
+
+        return contractor_fields
+
+    except Exception as e:
+        print("Contractor lookup exception:", e)
         return {}
 
 def send_email(subject: str, body: str):
@@ -268,6 +321,26 @@ def test_email():
 def home():
     return jsonify({"status": "running", "message": "MME AI bot is live"})
 
+@app.get("/health")
+def health():
+    redis_ok = False
+
+    if redis_client:
+        try:
+            redis_client.ping()
+            redis_ok = True
+        except Exception as e:
+            print("Redis health check failed:", e)
+            redis_ok = False
+
+    status_code = 200 if redis_ok else 500
+
+    return jsonify({
+        "status": "ok" if redis_ok else "degraded",
+        "redis_connected": redis_ok
+    }), status_code
+
+
 # ------------------------------
 # SMS (keep this even if A2P pending)
 # ------------------------------
@@ -310,12 +383,8 @@ def voice():
 
     vr.append(gather)
 
-    vr.say(
-        "No problem. We’ll take your details now.",
-        voice="Polly.Joanna",
-        language="en-US"
-    )
-    vr.redirect("/voice-intake")
+    # If they press nothing, treat it like estimate flow (go to voice_menu so resume logic can run)
+    vr.redirect("/voice-menu", method="POST")
     return Response(str(vr), mimetype="text/xml")
 
 
@@ -324,11 +393,98 @@ def voice_menu():
     digit = (request.values.get("Digits") or "").strip()
     vr = VoiceResponse()
 
+    to_number = (request.values.get("To") or "").strip()
+    from_number = (request.values.get("From") or "").strip()
+
+    # Emergency stays immediate
     if digit == "1":
         vr.redirect("/voice-emergency", method="POST")
-    else:
-        vr.redirect("/voice-intake", method="POST")
+        return Response(str(vr), mimetype="text/xml")
 
+    # Anything else (including blank/timeout) = estimate flow with AUTO-RESUME check
+
+    old_call_sid = None
+    inferred_step = 0
+
+    def _resume_step_from_fields(s: dict) -> int:
+        if not (s.get("name") or "").strip():
+            return 0
+        if not (s.get("service_address") or "").strip():
+            return 1
+        if not (s.get("job_description") or "").strip():
+            return 2
+        if not (s.get("timing") or "").strip():
+            return 3
+        return 4
+
+    if redis_client and to_number and from_number:
+        old_call_sid = get_resume_pointer(to_number, from_number)
+        if old_call_sid:
+            old_state = get_state(old_call_sid) or {}
+            inferred_step = _resume_step_from_fields(old_state)
+
+    # If we have progress, auto-resume unless they press 2
+    if old_call_sid and inferred_step > 0:
+        g = Gather(
+            input="dtmf",
+            num_digits=1,
+            timeout=3,
+            action=f"/resume-choice?old={old_call_sid}&step={inferred_step}",
+            method="POST",
+        )
+        g.say(
+            "Looks like we were in the middle of a request. "
+            "I will resume where we left off. "
+            "Press 2 to start over.",
+            voice="Polly.Joanna",
+            language="en-US",
+        )
+        vr.append(g)
+
+        # No input -> Twilio will still hit /resume-choice after timeout
+        return Response(str(vr), mimetype="text/xml")
+
+    # No resume progress -> start fresh
+    vr.redirect("/voice-intake", method="POST")
+    return Response(str(vr), mimetype="text/xml")
+
+@app.route("/resume-choice", methods=["POST"])
+def resume_choice():
+    new_call_sid = request.values.get("CallSid", "unknown")
+    digits = (request.values.get("Digits") or "").strip()
+
+    to_number = (request.values.get("To") or "").strip()
+    from_number = (request.values.get("From") or "").strip()
+
+    old_call_sid = request.args.get("old", "") or ""
+    inferred_step = int(request.args.get("step", "0") or "0")
+
+    vr = VoiceResponse()
+
+    # Press 2 => start over fresh
+    if digits == "2":
+        if redis_client and to_number and from_number:
+            clear_resume_pointer(to_number, from_number)
+            print("RESUME PTR CLEARED (restart):", to_number, from_number)
+
+        vr.say("No problem. We'll start over.", voice="Polly.Joanna", language="en-US")
+        vr.redirect("/voice-intake", method="POST")
+        return Response(str(vr), mimetype="text/xml")
+
+    # Default => resume
+    if old_call_sid and inferred_step > 0:
+        # Map NEW CallSid -> OLD CallSid so /voice-process uses old state
+        set_call_alias(new_call_sid, old_call_sid)
+
+        # Keep pointer alive pointing at OLD call sid
+        if redis_client and to_number and from_number:
+            save_resume_pointer(to_number, from_number, old_call_sid)
+
+        vr.say("Resuming your request now.", voice="Polly.Joanna", language="en-US")
+        vr.redirect(f"/voice-process?step={inferred_step}", method="POST")
+        return Response(str(vr), mimetype="text/xml")
+
+    vr.redirect("/voice-intake", method="POST")
     return Response(str(vr), mimetype="text/xml")
 
 
@@ -358,19 +514,24 @@ def twilio_voicemail():
     vr.hangup()
     return Response(str(vr), mimetype="text/xml")
 
-@app.route("/voice-intake", methods=["POST", "GET"])
+@app.route("/voice-intake", methods=["POST"])
 def voice_intake():
-    # Start your existing 4-question flow
-    
-    call_sid = request.values.get("CallSid", "unknown")
-    caller = request.values.get("From", "")
+    """
+    Start a fresh intake.
+    Resume/restart decision happens only in /voice-menu -> /resume-choice.
+    """
 
-    to_number = request.values.get("To", "")  # Twilio number called
+    call_sid = request.values.get("CallSid", "unknown")
+
+    # Normalize To/From (Twilio sometimes uses Called/Caller depending on webhook)
+    to_number = (request.values.get("To") or request.values.get("Called") or "").strip()
+    from_number = (request.values.get("From") or request.values.get("Caller") or "").strip()
+
     contractor_key = to_number or "unknown"
 
     state = {
         "step": 0,
-        "callback": caller,
+        "callback": from_number,
         "retries": 0,
         "name": "",
         "service_address": "",
@@ -386,6 +547,7 @@ def voice_intake():
     register_live_call(contractor_key, call_sid)
 
     vr = VoiceResponse()
+
     gather = Gather(
         input="speech",
         action="/voice-process?step=0",
@@ -393,12 +555,23 @@ def voice_intake():
         timeout=6,
         speech_timeout="auto",
     )
-    gather.say("First, please say your full name.")
+    gather.say(
+        "First, please say your full name.",
+        voice="Polly.Joanna",
+        language="en-US",
+    )
+
     vr.append(gather)
 
-    vr.say("Sorry, I didn’t catch that. Please call back and try again. Goodbye.")
+    vr.say(
+        "Sorry, I didn’t catch that. Please call back and try again. Goodbye.",
+        voice="Polly.Joanna",
+        language="en-US",
+    )
+
     vr.hangup()
     return Response(str(vr), mimetype="text/xml")
+
 
 @app.route("/voice-emergency", methods=["POST", "GET"])
 def voice_emergency():
@@ -545,18 +718,21 @@ def voice_process():
 
     vr = VoiceResponse()
 
-
-
-    # STEP 0: Client name
+    # STEP 0: Client name (speech -> DTMF confirm)
     if step == 0:
-        if not speech:
+        # If we are waiting for DTMF confirm, Digits will be present
+        name_candidate = (state.get("name_candidate") or "").strip()
+
+        # 0A) If we don't yet have a candidate name, ask for speech
+        if not name_candidate and not speech:
             gather = Gather(
                 input="speech",
                 action="/voice-process?step=0",
                 method="POST",
                 timeout=8,
                 speech_timeout="auto",
-                hints="name full-name first-name last-name",
+                profanity_filter=False,
+                hints="first name last name full name",
             )
             gather.say(
                 "Please say your full name now.",
@@ -566,47 +742,88 @@ def voice_process():
             vr.append(gather)
             return Response(str(vr), mimetype="text/xml")
 
-        # Speech EXISTS → save name and move to step 1
-        state["name"] = speech.strip()
-        state["step"] = 1
-        state["retries"] = 0
-        set_state(call_sid, state)
-        
-        # Save resume pointer now that we have progress (step 1)
-        if redis_client and to_number and from_number:
-            save_resume_pointer(to_number, from_number, call_sid)
-            print("RESUME PTR SAVED (after name):", to_number, from_number, call_sid, "state.step=", state["step"])
-
-        gather = Gather(
-            input="speech",
-            action="/voice-process?step=1",
-            method="POST",
-            timeout=8,
-            speech_timeout="auto",
-        )
-        gather.say(
-            "Thanks. Please say the service address now.",
-            voice="Polly.Joanna",
-            language="en-US",
-        )
-        vr.append(gather)
-        return Response(str(vr), mimetype="text/xml")
-
-
-    # STEP 1: Service address
-    if step == 1:
-        if not speech:
-            state["retries"] = state.get("retries", 0) + 1
+        # 0B) If speech just came in, store it as candidate and ask for DTMF confirm
+        if speech and not name_candidate:
+            state["name_candidate"] = speech.strip()
             set_state(call_sid, state)
 
-            if state["retries"] >= 2:
+            g = Gather(
+                input="dtmf",
+                num_digits=1,
+                action="/voice-process?step=0",
+                method="POST",
+                timeout=6,
+            )
+            g.say(
+                f"I heard: {state['name_candidate']}. "
+                "Press 1 to confirm, or press 2 to say it again.",
+                voice="Polly.Joanna",
+                language="en-US",
+            )
+            vr.append(g)
+            return Response(str(vr), mimetype="text/xml")
+
+        # 0C) We have a candidate name; now we must have digits
+        if not digits:
+            g = Gather(
+                input="dtmf",
+                num_digits=1,
+                action="/voice-process?step=0",
+                method="POST",
+                timeout=6,
+            )
+            g.say(
+                "Press 1 to confirm, or press 2 to repeat.",
+                voice="Polly.Joanna",
+                language="en-US",
+            )
+            vr.append(g)
+            return Response(str(vr), mimetype="text/xml")
+
+        # Press 2 => repeat name (but cap attempts to prevent infinite loops)
+        if digits == "2":
+            state["name_attempts"] = state.get("name_attempts", 0) + 1
+
+            # After 2 repeats, continue anyway with best guess (unconfirmed)
+            if state["name_attempts"] >= 2:
+                best_guess = (state.get("name_candidate") or "").strip()
+                state["name"] = best_guess
+                state["name_confirmed"] = False
+                state["name_attempts"] = 0
+                state.pop("name_candidate", None) 
+
+                state["step"] = 1
+                state["retries"] = 0
+                set_state(call_sid, state)
+
+                if redis_client and to_number and from_number: 
+                    save_resume_pointer(to_number, from_number, call_sid)
+
                 vr.say(
-                    "Sorry, I'm having trouble hearing you. We'll follow up shortly.",
+                    "Thanks. We'll continue and we can confirm spelling later.",
                     voice="Polly.Joanna",
                     language="en-US",
                 )
-                vr.hangup()
+                vr.redirect("/voice-process?step=1", method="POST")
                 return Response(str(vr), mimetype="text/xml")
+
+        # Normal repeat (under the cap)
+        state.pop("name_candidate", None)
+        set_state(call_sid, state)
+        vr.redirect("/voice-process?step=0", method="POST")
+        return Response(str(vr), mimetype="text/xml")
+
+        # Press 1 => commit name and move to Step 1
+        if digits == "1":
+            state["name"] = state.get("name_candidate", "").strip()
+            state["name_confirmed"] = True
+            state["name_attempts"] = 0
+            state.pop("name_candidate", None)
+            state["retries"] = 0
+            set_state(call_sid, state)
+
+            if redis_client and to_number and from_number:
+                save_resume_pointer(to_number, from_number, call_sid)
 
             gather = Gather(
                 input="speech",
@@ -616,22 +833,164 @@ def voice_process():
                 speech_timeout="auto",
             )
             gather.say(
-                "Please say the service address now.",
+                "Thanks. Please say the service address now.",
                 voice="Polly.Joanna",
                 language="en-US",
             )
             vr.append(gather)
             return Response(str(vr), mimetype="text/xml")
 
-        # Speech EXISTS → save and move to step 2
-        state["service_address"] = speech.strip()
+        # Any other key => reprompt
+        g = Gather(
+            input="dtmf",
+            num_digits=1,
+            action="/voice-process?step=0",
+            method="POST",
+            timeout=6,
+        )
+        g.say(
+            "Please press 1 to confirm, or press 2 to repeat.",
+            voice="Polly.Joanna",
+            language="en-US",
+        )
+        vr.append(g)
+        return Response(str(vr), mimetype="text/xml")
+
+    
+
+    # STEP 1: Service address (split into parts)
+    if step == 1:
+        # 1A) Street number (DTMF preferred)
+        if not state.get("addr_number"):
+            if not (digits or speech):
+                gather = Gather(
+                    input="dtmf speech",
+                    num_digits=6,  # enough for most house numbers; user can speak if they want
+                    action="/voice-process?step=1",
+                    method="POST",
+                    timeout=8,
+                    speech_timeout="auto",
+                    profanity_filter=False,
+                )
+                gather.say(
+                    "Please enter or say the street number only. For example, 1 2 3 4.",
+                    voice="Polly.Joanna",
+                    language="en-US",
+                )
+                vr.append(gather)
+                return Response(str(vr), mimetype="text/xml")
+
+            street_num = "".join([c for c in (digits or speech) if c.isdigit()]).strip()
+            if len(street_num) < 1:
+                vr.redirect("/voice-process?step=1", method="POST")
+                return Response(str(vr), mimetype="text/xml")
+
+            state["addr_number"] = street_num
+            state["retries"] = 0
+            set_state(call_sid, state)
+
+            if redis_client and to_number and from_number:
+                save_resume_pointer(to_number, from_number, call_sid)
+
+            vr.redirect("/voice-process?step=1", method="POST")
+            return Response(str(vr), mimetype="text/xml")
+
+        # 1B) Street name
+        if not state.get("addr_street"):
+            if not speech:
+                gather = Gather(
+                    input="speech",
+                    action="/voice-process?step=1",
+                    method="POST",
+                    timeout=8,
+                    speech_timeout="auto",
+                    profanity_filter=False,
+                )
+                gather.say(
+                    "Now say the street name. For example, Main Street, or Oak Court.",
+                    voice="Polly.Joanna",
+                    language="en-US",
+                )
+                vr.append(gather)
+                return Response(str(vr), mimetype="text/xml")
+
+            state["addr_street"] = speech.strip()
+            state["retries"] = 0
+            set_state(call_sid, state)
+            if redis_client and to_number and from_number:
+                save_resume_pointer(to_number, from_number, call_sid)
+
+            vr.redirect("/voice-process?step=1", method="POST")
+            return Response(str(vr), mimetype="text/xml")
+
+        # 1C) City
+        if not state.get("addr_city"):
+            if not speech:
+                gather = Gather(
+                    input="speech",
+                    action="/voice-process?step=1",
+                    method="POST",
+                    timeout=8,
+                    speech_timeout="auto",
+                    profanity_filter=False,
+                )
+                gather.say(
+                    "Now say the city.",
+                    voice="Polly.Joanna",
+                    language="en-US",
+                )
+                vr.append(gather)
+                return Response(str(vr), mimetype="text/xml")
+
+            state["addr_city"] = speech.strip()
+            state["retries"] = 0
+            set_state(call_sid, state)
+            if redis_client and to_number and from_number:
+                save_resume_pointer(to_number, from_number, call_sid)
+
+            vr.redirect("/voice-process?step=1", method="POST")
+            return Response(str(vr), mimetype="text/xml")
+
+        # 1D) ZIP (DTMF best)
+        if not state.get("addr_zip"):
+            if not digits:
+                gather = Gather(
+                    input="dtmf",
+                    num_digits=5,
+                    action="/voice-process?step=1",
+                    method="POST",
+                    timeout=8,
+                )
+                gather.say(
+                    "Finally, enter the five digit zip code.",
+                    voice="Polly.Joanna",
+                    language="en-US",
+                )
+                vr.append(gather)
+                return Response(str(vr), mimetype="text/xml")
+
+            zip_digits = "".join([c for c in digits if c.isdigit()])
+            if len(zip_digits) != 5:
+                vr.say("Sorry, please enter a five digit zip code.", voice="Polly.Joanna", language="en-US")
+                vr.redirect("/voice-process?step=1", method="POST")
+                return Response(str(vr), mimetype="text/xml") 
+
+            state["addr_zip"] = zip_digits
+            set_state(call_sid, state)
+            if redis_client and to_number and from_number:
+                save_resume_pointer(to_number, from_number, call_sid)
+
+            vr.redirect("/voice-process?step=1", method="POST")
+            return Response(str(vr), mimetype="text/xml")
+
+        # All address parts captured -> build full address and move on
+        state["service_address"] = f"{state['addr_number']} {state['addr_street']}, {state['addr_city']} {state['addr_zip']}"
         state["step"] = 2
         state["retries"] = 0
         set_state(call_sid, state)
-        
+
         if redis_client and to_number and from_number:
             save_resume_pointer(to_number, from_number, call_sid)
-            print("RESUME PTR SAVED (after address):", to_number, from_number, call_sid, "state.step=", state["step"])
 
         gather = Gather(
             input="speech",
@@ -639,12 +998,9 @@ def voice_process():
             method="POST",
             timeout=8,
             speech_timeout="auto",
+            profanity_filter=False,
         )
-        gather.say(
-            "What service do you need today?",
-            voice="Polly.Joanna",
-            language="en-US",
-        )
+        gather.say("What service do you need today?", voice="Polly.Joanna", language="en-US")
         vr.append(gather)
         return Response(str(vr), mimetype="text/xml")
 
@@ -660,6 +1016,7 @@ def voice_process():
                     method="POST",
                     timeout=8,
                     speech_timeout="auto",
+                    profanity_filter=False,
                 )
                 gather.say(
                     "Please briefly describe the service you need.",
@@ -769,6 +1126,7 @@ def voice_process():
                 method="POST",
                 timeout=8,
                 speech_timeout="auto",
+                profanity_filter=False,
             )
             gather.say(
                 "Please tell me when you need the service.",
@@ -816,6 +1174,7 @@ def voice_process():
                 method="POST",
                 timeout=8,
                 speech_timeout="auto",
+                profanity_filter=False,
             )
             gather.say(
                 "I didn't catch that. Please say the best callback phone number.",
