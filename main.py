@@ -277,6 +277,24 @@ def test_email():
 def home():
     return jsonify({"status": "running", "message": "MME AI bot is live"})
 
+@app.get("/health")
+def health():
+    redis_ok = False
+
+    if redis_client:
+        try:
+            redis_client.ping()
+            redis_ok = True
+        except Exception as e:
+            print("Redis health check failed:", e)
+            redis_ok = False
+
+    return jsonify({
+        "status": "ok",
+        "redis_connected": redis_ok
+    })
+
+
 # ------------------------------
 # SMS (keep this even if A2P pending)
 # ------------------------------
