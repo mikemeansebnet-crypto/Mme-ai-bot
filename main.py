@@ -742,26 +742,26 @@ def voice_process():
 
             # After 2 repeats, continue anyway with best guess (unconfirmed)
             if state["name_attempts"] >= 2:
-            best_guess = (state.get("name_candidate") or "").strip()
-            state["name"] = best_guess
-            state["name_confirmed"] = False
-            state["name_attempts"] = 0
-            state.pop("name_candidate", None) 
+                best_guess = (state.get("name_candidate") or "").strip()
+                state["name"] = best_guess
+                state["name_confirmed"] = False
+                state["name_attempts"] = 0
+                state.pop("name_candidate", None) 
 
-            state["step"] = 1
-            state["retries"] = 0
-            set_state(call_sid, state)
+                state["step"] = 1
+                state["retries"] = 0
+                set_state(call_sid, state)
 
-            if redis_client and to_number and from_number:
-                save_resume_pointer(to_number, from_number, call_sid)
+                if redis_client and to_number and from_number: 
+                    save_resume_pointer(to_number, from_number, call_sid)
 
-            vr.say(
-                "Thanks. We'll continue and we can confirm spelling later.",
-                voice="Polly.Joanna",
-                language="en-US",
-            )
-            vr.redirect("/voice-process?step=1", method="POST")
-            return Response(str(vr), mimetype="text/xml")
+                vr.say(
+                    "Thanks. We'll continue and we can confirm spelling later.",
+                    voice="Polly.Joanna",
+                    language="en-US",
+                )
+                vr.redirect("/voice-process?step=1", method="POST")
+                return Response(str(vr), mimetype="text/xml")
 
         # Normal repeat (under the cap)
         state.pop("name_candidate", None)
