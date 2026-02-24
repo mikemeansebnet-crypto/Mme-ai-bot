@@ -776,6 +776,7 @@ def voice_process():
             state["name_attempts"] = 0
             state.pop("name_candidate", None)
             state["retries"] = 0
+            state["step"] = 1
             set_state(call_sid, state)
 
             if redis_client and to_number and from_number:
