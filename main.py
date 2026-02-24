@@ -817,28 +817,28 @@ def voice_process():
 
     # STEP 1: Service address (split into parts)
     if step == 1:
-        # 1A) Street number (DTMF preferred)
+
+        # 1A) Street number (DTMF best)
         if not state.get("addr_number"):
-            if not (digits or speech):
+            if not digits:
                 gather = Gather(
-                    input="dtmf speech",
-                    num_digits=6,  # enough for most house numbers; user can speak if they want
+                    input="dtmf",
                     action="/voice-process?step=1",
                     method="POST",
                     timeout=8,
-                    speech_timeout="auto",
-                    profanity_filter=False,
+                    finishOnKey="#",
                 )
                 gather.say(
-                    "Please enter or say the street number only. For example, 1 2 3 4.",
+                    "Please enter the street number, then press pound.",
                     voice="Polly.Joanna",
                     language="en-US",
                 )
                 vr.append(gather)
                 return Response(str(vr), mimetype="text/xml")
 
-            street_num = "".join([c for c in (digits or speech) if c.isdigit()]).strip()
+            street_num = "".join([c for c in digits if c.isdigit()]).strip()
             if len(street_num) < 1:
+                vr.say("Sorry, I didn't get the street number.", voice="Polly.Joanna", language="en-US")
                 vr.redirect("/voice-process?step=1", method="POST")
                 return Response(str(vr), mimetype="text/xml")
 
