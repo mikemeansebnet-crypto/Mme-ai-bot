@@ -361,6 +361,9 @@ def sms():
 
 @app.route("/voice", methods=["POST", "GET"])
 def voice():
+
+    print("DEBUG INCOMING WEBHOOK:", dict(request.values))
+
     vr = VoiceResponse()
 
     to_number = request.values.get("To", "")
