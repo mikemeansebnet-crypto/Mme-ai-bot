@@ -1,21 +1,29 @@
-from flask import Flask, request, jsonify, Response 
 import os
 import requests
-
+import json
+import time
+import redis
+import re
+from flask import Flask, request, jsonify, Response 
 from twilio.twiml.voice_response import VoiceResponse, Gather
-
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
 
 app = Flask(__name__)
 
-import json
-import time
-import redis
 
+# Gather all environment variables 
 REDIS_URL = os.getenv("REDIS_URL")
 REDIS_PREFIX = os.getenv("REDIS_PREFIX", "mmeai:call:")
 REDIS_TTL_SECONDS = int(os.getenv("REDIS_TTL_SECONDS", "7200"))
+airtable_token = os.getenv("AIRTABLE_TOKEN")
+airtable_base_id = os.getenv("AIRTABLE_BASE_ID")
+air_table_name = os.getenv("AIRTABLE_TABLE_NAME")
+email_api_key = os.environ.get("SENDGRID_API_KEY")
+from_email = os.environ.get("FROM_EMAIL")
+to_email = os.environ.get("TO_EMAIL")
+
+
 
 redis_client = redis.from_url(REDIS_URL, decode_responses=True) if REDIS_URL else None
 
@@ -117,16 +125,14 @@ def list_live_calls(contractor_key: str) -> list[str]:
     return list(redis_client.smembers(k))
 
 def airtable_create_record(fields: dict):
-    token = os.getenv("AIRTABLE_TOKEN")
-    base_id = os.getenv("AIRTABLE_BASE_ID")
-    table_name = os.getenv("AIRTABLE_TABLE_NAME")
+    
 
-    if not token or not base_id or not table_name:
+    if not airtable_token or not airtable_base_id or not air_table_name:
         return {"ok": False, "error": "Missing AIRTABLE_TOKEN / AIRTABLE_BASE_ID / AIRTABLE_TABLE_NAME env vars"}
 
-    url = f"https://api.airtable.com/v0/{base_id}/{table_name}"
+    url = f"https://api.airtable.com/v0/{airtable_base_id}/{air_table_name}"
     headers = {
-        "Authorization": f"Bearer {token}",
+        "Authorization": f"Bearer {airtable_token}",
         "Content-Type": "application/json",
     }
     payload = {"fields": fields}
@@ -140,6 +146,12 @@ def airtable_create_record(fields: dict):
     return {"ok": True, "status": r.status_code, "data": r.json()}
     
 def get_contractor_by_twilio_number(to_number: str) -> dict:
+    if not to_number:
+        return {}
+
+    # 1. Define a unique Cache Key
+    # Using a specific prefix like 'mmeai:contractor_cache:' is a Redis best practice
+    cache_key = f"mmeai:contractor_cache:{to_number}"
     """
     Lookup contractor config by the Twilio number (To).
     Uses Redis cache to reduce Airtable calls and speed up call flow.
@@ -170,12 +182,48 @@ def get_contractor_by_twilio_number(to_number: str) -> dict:
     url = f"https://api.airtable.com/v0/{base_id}/{contractors_table}"
     headers = {"Authorization": f"Bearer {token}"}
 
-    # Airtable formula: match Twilio Number AND Active is true
+    # 2. Attempt to fetch from Redis first
+    if redis_client:
+        cached_raw = redis_client.get(cache_key)
+        if cached_raw:
+            print(f"Redis Cache Hit for {to_number}")
+            return json.loads(cached_raw)
+
+    # 3. If not found in Redis, proceed to Airtable
+    print(f"Redis Cache Miss. Fetching {to_number} from Airtable...")
+    
+    contractors_table = os.getenv("AIRTABLE_CONTRACTORS_TABLE", "Contractors")
+
+    if not airtable_token or not airtable_base_id:
+        return {}
+
+    url = f"https://api.airtable.com/v0/{airtable_base_id}/{contractors_table}"
+    headers = {"Authorization": f"Bearer {airtable_token}"}
     formula = f"AND({{Twilio Number}}='{to_number}', {{Active}}=TRUE())"
     params = {"filterByFormula": formula, "maxRecords": 1}
 
     try:
         r = requests.get(url, headers=headers, params=params, timeout=10)
+        r.raise_for_status()
+        data = r.json()
+        records = data.get("records", [])
+        
+        if not records:
+            return {}
+
+        contractor_fields = records[0].get("fields", {})
+
+        # 4. Store the result in Redis for future calls
+        # We set an expiration (TTL) so if business info changes in Airtable, 
+        # Redis will eventually refresh. 3600 seconds = 1 hour.
+        if redis_client and contractor_fields:
+            redis_client.setex(cache_key, 3600, json.dumps(contractor_fields))
+            print(f"Cached contractor data for {to_number}")
+
+        return contractor_fields
+
+    except Exception as e:
+        print(f"Contractor lookup error: {e}")
         if r.status_code >= 400:
             print("Contractor lookup error:", r.status_code, r.text)
             return {}
@@ -198,11 +246,7 @@ def get_contractor_by_twilio_number(to_number: str) -> dict:
 
 def send_email(subject: str, body: str):
     
-    api_key = os.environ.get("SENDGRID_API_KEY")
-    from_email = os.environ.get("FROM_EMAIL")
-    to_email = os.environ.get("TO_EMAIL")
-
-    if not api_key:
+    if not email_api_key:
         raise Exception("Missing SENDGRID_API_KEY env var")
     if not from_email:
         raise Exception("Missing FROM_EMAIL env var")
@@ -216,7 +260,7 @@ def send_email(subject: str, body: str):
         plain_text_content=body
     )
 
-    sg = SendGridAPIClient(api_key)
+    sg = SendGridAPIClient(email_api_key)
     response = sg.send(message)
     
 def send_intake_summary(state: dict):
@@ -451,7 +495,7 @@ def twilio_voicemail():
     recording_url = request.values.get("RecordingUrl", "")
     recording_duration = request.values.get("RecordingDuration", "")
 
-    print("📞 Voicemail received:", call_sid, from_number, recording_url, recording_duration)
+    print("Voicemail received:", call_sid, from_number, recording_url, recording_duration)
 
     # OPTIONAL: save to Airtable (add fields that exist in your Airtable table)
     try:
