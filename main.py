@@ -861,58 +861,68 @@ def voice_process():
         return Response(str(vr), mimetype="text/xml")
 
     
-    # STEP 1: Service address (collected in parts)
+    # STEP 1: Service address (The "Site Blueprint" — intro once, then collect in parts)
     if step == 1:
-
-        # Intro message (only once)
+        # Intro: Say ONE time only
         if not state.get("address_intro_played"):
             state["address_intro_played"] = True
+            state["retries"] = 0
             set_state(call_sid, state)
 
             vr.say(
-                "Now I’ll collect the service address. I’ll guide you step by step.",
+                "Alright — let’s get the service address step by step. "
+                "I’ll ask for the house number, then the street name, then the city, and finally the zip code.",
                 voice="Polly.Joanna",
                 language="en-US",
             )
+
+            # If they hang up mid-address, resume should still work
+            if redis_client and to_number and from_number:
+                save_resume_pointer(to_number, from_number, call_sid)
+
             vr.redirect("/voice-process?step=1", method="POST")
             return Response(str(vr), mimetype="text/xml")
 
-        # 1A) Street number (DTMF only)
+        # 1A) House / Building number (DTMF best, end with #)
         if not state.get("addr_number"):
             if not digits:
                 gather = Gather(
                     input="dtmf",
-                    finishOnKey="#",
                     action="/voice-process?step=1",
                     method="POST",
-                    timeout=8,
+                    timeout=10,
+                    finishOnKey="#",
                 )
                 gather.say(
-                    "Please enter the street number using your keypad, then press pound.",
+                    "First, please enter the house or building number, then press pound. "
+                    "For example: 4 5 1 5, then pound.",
                     voice="Polly.Joanna",
                     language="en-US",
                 )
                 vr.append(gather)
                 return Response(str(vr), mimetype="text/xml")
 
-            street_num = "".join([c for c in digits if c.isdigit()]).strip()
-            if len(street_num) < 1:
+            house_num = "".join([c for c in digits if c.isdigit()]).strip()
+            if len(house_num) < 1:
                 vr.say(
-                    "Sorry, I didn't catch that. Please enter the street number.",
+                    "Sorry, I didn’t get the house number. Please try again, then press pound.",
                     voice="Polly.Joanna",
                     language="en-US",
                 )
                 vr.redirect("/voice-process?step=1", method="POST")
                 return Response(str(vr), mimetype="text/xml")
 
-            state["addr_number"] = street_num
+            state["addr_number"] = house_num
+            state["retries"] = 0
             set_state(call_sid, state)
 
-            vr.say("Thank you.", voice="Polly.Joanna", language="en-US")
+            if redis_client and to_number and from_number:
+                save_resume_pointer(to_number, from_number, call_sid)
+
             vr.redirect("/voice-process?step=1", method="POST")
             return Response(str(vr), mimetype="text/xml")
 
-        # 1B) Street name (Speech)
+        # 1B) Street name (speech)
         if not state.get("addr_street"):
             if not speech:
                 gather = Gather(
@@ -922,9 +932,11 @@ def voice_process():
                     timeout=8,
                     speech_timeout="auto",
                     profanity_filter=False,
+                    hints="Main Street, Oak Street, Pine Avenue, Court, Road, Drive, Lane",
                 )
                 gather.say(
-                    "Please say the street name.",
+                    "Great. Now please say the street name. "
+                    "For example: Main Street, Oak Street, or Pine Avenue.",
                     voice="Polly.Joanna",
                     language="en-US",
                 )
@@ -932,13 +944,16 @@ def voice_process():
                 return Response(str(vr), mimetype="text/xml")
 
             state["addr_street"] = speech.strip()
+            state["retries"] = 0
             set_state(call_sid, state)
 
-            vr.say("Thank you.", voice="Polly.Joanna", language="en-US")
+            if redis_client and to_number and from_number:
+                save_resume_pointer(to_number, from_number, call_sid)
+
             vr.redirect("/voice-process?step=1", method="POST")
             return Response(str(vr), mimetype="text/xml")
 
-        # 1C) City (Speech)
+        # 1C) City (speech)
         if not state.get("addr_city"):
             if not speech:
                 gather = Gather(
@@ -948,9 +963,10 @@ def voice_process():
                     timeout=8,
                     speech_timeout="auto",
                     profanity_filter=False,
+                    hints="Bowie, Upper Marlboro, Lanham, Crofton, Washington, Baltimore",  
                 )
                 gather.say(
-                    "Please say the city.",
+                    "Thanks. Now please say the city.",
                     voice="Polly.Joanna",
                     language="en-US",
                 )
@@ -958,13 +974,16 @@ def voice_process():
                 return Response(str(vr), mimetype="text/xml")
 
             state["addr_city"] = speech.strip()
+            state["retries"] = 0
             set_state(call_sid, state)
 
-            vr.say("Thank you.", voice="Polly.Joanna", language="en-US")
+            if redis_client and to_number and from_number:
+                save_resume_pointer(to_number, from_number, call_sid)
+
             vr.redirect("/voice-process?step=1", method="POST")
             return Response(str(vr), mimetype="text/xml")
 
-        # 1D) ZIP Code (DTMF)
+        # 1D) ZIP (DTMF)
         if not state.get("addr_zip"):
             if not digits:
                 gather = Gather(
@@ -972,10 +991,10 @@ def voice_process():
                     num_digits=5,
                     action="/voice-process?step=1",
                     method="POST",
-                    timeout=8,
+                    timeout=10,
                 )
                 gather.say(
-                    "Lastly, please enter the five digit zip code.",
+                    "Finally, please enter the five digit zip code.",
                     voice="Polly.Joanna",
                     language="en-US",
                 )
@@ -993,18 +1012,23 @@ def voice_process():
                 return Response(str(vr), mimetype="text/xml")
 
             state["addr_zip"] = zip_digits
+            state["retries"] = 0
             set_state(call_sid, state)
 
-        # Finalize full address
-        state["service_address"] = (
-            f"{state['addr_number']} "
-            f"{state['addr_street']}, "
-            f"{state['addr_city']} "
-            f"{state['addr_zip']}"
-        )
+            if redis_client and to_number and from_number:
+                save_resume_pointer(to_number, from_number, call_sid)
 
+            vr.redirect("/voice-process?step=1", method="POST")
+            return Response(str(vr), mimetype="text/xml")
+
+        # Done -> build full address and move to step 2
+        state["service_address"] = f"{state['addr_number']} {state['addr_street']}, {state['addr_city']} {state['addr_zip']}"
         state["step"] = 2
+        state["retries"] = 0
         set_state(call_sid, state)
+
+        if redis_client and to_number and from_number:
+            save_resume_pointer(to_number, from_number, call_sid)
 
         gather = Gather(
             input="speech",
@@ -1012,14 +1036,16 @@ def voice_process():
             method="POST",
             timeout=8,
             speech_timeout="auto",
+            profanity_filter=False,
         )
         gather.say(
-            "Thank you. What service do you need today?",
+            "Perfect. What service do you need today?",
             voice="Polly.Joanna",
             language="en-US",
         )
         vr.append(gather)
         return Response(str(vr), mimetype="text/xml")
+
 
 
     # STEP 2: Job description + confirm/repeat
