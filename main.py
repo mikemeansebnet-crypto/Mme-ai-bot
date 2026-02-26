@@ -1243,10 +1243,12 @@ def voice_process():
         clear_state(call_sid)
 
         vr.say(
-            "Thank you. We received your request and will follow up shortly.",
+            "All set. We’ve received your request and our team will follow up shortly. Thanks for choosing us. Goodbye.",
             voice="Polly.Joanna",
-            language="en-US"
-        )
+            language="en-US",
+            )
+        
+        vr.pause(length=1)
         vr.hangup()
         return Response(str(vr), mimetype="text/xml")
 
