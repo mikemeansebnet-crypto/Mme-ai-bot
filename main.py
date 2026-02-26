@@ -651,6 +651,14 @@ def voice_process():
         or ""
     ).strip()
 
+    print(
+        "STEP DEBUG |",
+        "CallSid:", call_sid,
+        "| Step:", step,
+        "| Digits:", digits,   
+        "| Speech:", speech
+    ) 
+
     to_number = (request.values.get("To") or "").strip()
     from_number = (request.values.get("From") or "").strip()
 
