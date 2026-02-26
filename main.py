@@ -1261,6 +1261,16 @@ def voice_process():
             clear_resume_pointer(to_number, from_number)
             print("RESUME PTR CLEARED:", to_number, from_number)
 
+        print(
+            "CALL COMPLETE|",
+            "CallSid:", call_sid,
+            "| Name:", state.get("name"),
+            "| Address:", state.get("service_address"),
+            "| City:", state.get("city"),
+            "| State:", state.get("state"),
+            "| Zip:", state.get("zip")
+        )
+
         unregister_live_call(state.get("contractor_key", "unknown"), call_sid)
         clear_state(call_sid)
 
