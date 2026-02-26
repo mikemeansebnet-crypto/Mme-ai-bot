@@ -366,9 +366,21 @@ def voice():
 
     vr = VoiceResponse()
 
+    # Prevent first-word clipping on some carriers
+    vr.pause(length=1)
+
     to_number = request.values.get("To", "")
     contractor = get_contractor_by_twilio_number(to_number)
     business_name = contractor.get("Business Name", "our office")
+
+    # Say business name first (sounds more premium)
+    vr.say(
+        f"Thank you for calling {business_name}.",
+        voice="Polly.Joanna",
+        language="en-US",
+    )
+
+    vr.pause(length=0.5)
 
     gather = Gather(
         num_digits=1,
@@ -376,15 +388,17 @@ def voice():
         method="POST",
         timeout=6
     )
+
     gather.say(
-        f"Thanks for calling {business_name}. "
         "If this is an emergency, press 1. "
         "To leave details for an estimate, press 2.",
         voice="Polly.Joanna",
-        language="en-US"
+        language="en-US",
     )
 
     vr.append(gather)
+
+    return Response(str(vr), mimetype="text/xml")
 
     # If they press nothing, treat it like estimate flow (go to voice_menu so resume logic can run)
     vr.redirect("/voice-menu", method="POST")
