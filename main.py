@@ -829,19 +829,8 @@ def voice_process():
             if redis_client and to_number and from_number:
                 save_resume_pointer(to_number, from_number, call_sid)
 
-            gather = Gather(
-                input="speech",
-                action="/voice-process?step=1",
-                method="POST",
-                timeout=8,
-                speech_timeout="auto",
-            )
-            gather.say(
-                "Thanks. Please say the service address now.",
-                voice="Polly.Joanna",
-                language="en-US",
-            )
-            vr.append(gather)
+            vr.say("Thanks.", voice="Polly.Joanna", language="en-US")
+            vr.redirect("/voice-process?step=1", method="POST")
             return Response(str(vr), mimetype="text/xml")
 
         # Any other key => reprompt
