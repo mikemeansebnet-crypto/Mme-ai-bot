@@ -373,7 +373,7 @@ def voice():
     vr = VoiceResponse()
 
     # Prevent first-word clipping on some carriers
-    vr.pause(length=1)
+    vr.pause(length=2)
 
     to_number = request.values.get("To", "")
     contractor = get_contractor_by_twilio_number(to_number)
@@ -386,7 +386,7 @@ def voice():
         language="en-US",
     )
 
-    vr.pause(length=0.5)
+    vr.pause(length=2)
 
     gather = Gather(
         num_digits=1,
