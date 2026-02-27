@@ -245,8 +245,12 @@ def get_contractor_by_twilio_number(to_number: str) -> dict:
         return {}
 
 def send_email(subject: str, body: str):
-    
-    if not email_api_key:
+    # Pull fresh every time (prevents refactor breakage)
+    api_key = os.getenv("SENDGRID_API_KEY")
+    from_email = os.getenv("FROM_EMAIL")
+    to_email = os.getenv("TO_EMAIL")
+
+    if not api_key:
         raise Exception("Missing SENDGRID_API_KEY env var")
     if not from_email:
         raise Exception("Missing FROM_EMAIL env var")
@@ -260,8 +264,10 @@ def send_email(subject: str, body: str):
         plain_text_content=body
     )
 
-    sg = SendGridAPIClient(email_api_key)
+    sg = SendGridAPIClient(api_key)
     response = sg.send(message)
+
+    print("EMAIL SENT:", response.status_code)
     
 def send_intake_summary(state: dict):
     subject = "New MME AI Bot Intake"
