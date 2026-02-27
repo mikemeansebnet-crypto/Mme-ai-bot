@@ -504,8 +504,8 @@ def resume_prompt():
 def resume_choice():
     new_call_sid = request.values.get("CallSid", "unknown")
     digits = (request.values.get("Digits") or "").strip()
-    if digits == "":
-    digits = "1"   # treat silence as resume
+        if digits == "":
+        digits = "1"   # treat silence as resume
 
     to_number = (request.values.get("To") or "").strip()
     from_number = (request.values.get("From") or "").strip()
