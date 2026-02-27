@@ -454,6 +454,7 @@ def voice_menu():
             timeout=3,
             action=f"/resume-choice?old={old_call_sid}&step={inferred_step}",
             method="POST",
+            actionOnEmptyResult=True,
         )
         g.say(
             "Looks like we were in the middle of a request. "
@@ -471,10 +472,40 @@ def voice_menu():
     vr.redirect("/voice-intake", method="POST")
     return Response(str(vr), mimetype="text/xml")
 
+@app.route("/resume-prompt", methods=["POST"])
+def resume_prompt():
+    vr = VoiceResponse()
+
+    # carry forward what /resume-choice needs
+    old_call_sid = request.values.get("old", "") or request.args.get("old", "")
+    step = request.values.get("step", "0") or request.args.get("step", "0")
+
+    gather = Gather(
+        num_digits=1,
+        action=f"/resume-choice?old={old_call_sid}&step={step}",
+        method="POST",
+        timeout=6,
+        actionOnEmptyResult=True,   # ✅ KEY FIX (so it won’t hang up on silence)
+    )
+    gather.say(
+        "I see we got disconnected. "
+        "Press 1 to resume where you left off, "
+        "or press 2 to start over.",
+        voice="Polly.Joanna",
+        language="en-US",
+    )
+    vr.append(gather)
+
+    # Fallback: if Twilio still doesn't send digits, force it to hit resume-choice
+    vr.redirect(f"/resume-choice?old={old_call_sid}&step={step}", method="POST")
+    return Response(str(vr), mimetype="text/xml")
+
 @app.route("/resume-choice", methods=["POST"])
 def resume_choice():
     new_call_sid = request.values.get("CallSid", "unknown")
     digits = (request.values.get("Digits") or "").strip()
+    if digits == "":
+    digits = "1"   # treat silence as resume
 
     to_number = (request.values.get("To") or "").strip()
     from_number = (request.values.get("From") or "").strip()
