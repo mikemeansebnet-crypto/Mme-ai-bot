@@ -285,11 +285,12 @@ def voice():
 
     to_number = request.values.get("To", "")
     contractor = get_contractor_by_twilio_number(to_number)
-    business_name = contractor.get("Business Name", "our office")
+    business_name = (contractor.get("Business Name") or "our office").strip()
+    greeting_name = (contractor.get("Greeting Name") or business_name).strip()
 
     # Say business name first (sounds more premium)
     vr.say(
-        f"Thank you for calling {business_name}.",
+        f"Thank you for calling {greeting_name}.",
         voice="Polly.Joanna",
         language="en-US",
     )
