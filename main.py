@@ -287,6 +287,10 @@ def voice():
     contractor = get_contractor_by_twilio_number(to_number)
     business_name = (contractor.get("Business Name") or "our office").strip()
     greeting_name = (contractor.get("Greeting Name") or business_name).strip()
+    notify_email = (contractor.get("Notify Email") or os.getenv("TO_EMAIL") or "mmelawncareandmore@gmail.com").strip()
+    reply_to_email = (contractor.get("Reply to Email") or notify_email).strip()
+    intake_url = (contractor.get("Intake URL") or contractor.get("Website") or "https://mmelawncare.com").strip()
+    sms_enabled = bool(contractor.get("SMS"))
 
     # Say business name first (sounds more premium)
     vr.say(
