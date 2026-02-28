@@ -2,7 +2,7 @@
 import json
 from typing import Optional
 
-from app.config import redis_client, REDIS_PREFIX, REDIS_TTL_SECONDS
+from .config import redis_client, REDIS_PREFIX, REDIS_TTL_SECONDS
 
 
 # ================= State (per CallSid) =================
