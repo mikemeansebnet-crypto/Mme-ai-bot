@@ -1007,9 +1007,26 @@ def voice_process():
 
     # STEP 2: Job description + confirm/repeat
     if step == 2:
+        # Pull inputs safely (Twilio uses SpeechResult / Digits)
+        speech = (request.values.get("SpeechResult") or request.values.get("speech") or "").strip()
+        digits = (request.values.get("Digits") or "").strip()
+
         # If we don't have a job description yet, ask for it
         if not state.get("job_description"):
             if not speech:
+                # retry protection for silence
+                state["retries"] = state.get("retries", 0) + 1
+                set_state(call_sid, state)
+
+                if state["retries"] >= 2:
+                    vr.say(
+                        "Sorry, I'm having trouble hearing you. We'll follow up shortly.",
+                        voice="Polly.Joanna",
+                        language="en-US",
+                    )
+                    vr.hangup()
+                    return Response(str(vr), mimetype="text/xml")
+
                 gather = Gather(
                     input="speech",
                     action="/voice-process?step=2",
@@ -1017,6 +1034,8 @@ def voice_process():
                     timeout=8,
                     speech_timeout="auto",
                     profanity_filter=False,
+                    speech_model="phone_call",
+                    hints="lawn care,mowing,cleanout,junk removal,mulch,landscaping,pressure washing,leaf cleanup,painting,drywall,plumbing,handyman"
                 )
                 gather.say(
                     "Please briefly describe the service you need.",
@@ -1027,15 +1046,16 @@ def voice_process():
                 return Response(str(vr), mimetype="text/xml")
 
             # Speech exists → save it
-            state["job_description"] = speech.strip()
-            state["step"] = 2   # stay on step 2 until confirmed 
+            state["job_description"] = speech
+            state["retries"] = 0
+            state["step"] = 2   # stay on step 2 until confirmed
             set_state(call_sid, state)
 
             if redis_client and to_number and from_number:
                 save_resume_pointer(to_number, from_number, call_sid)
                 print("RESUME PTR SAVED (after job desc):", to_number, from_number, call_sid, "state.step=", state["step"])
 
-            # Now ask for confirm via DTMF
+            # Ask for confirm via DTMF
             gather = Gather(
                 input="dtmf",
                 num_digits=1,
@@ -1049,9 +1069,12 @@ def voice_process():
                 language="en-US",
             )
             vr.append(gather)
+
+            # If they press nothing, Twilio will continue—redirect back to the same confirm menu
+            vr.redirect("/voice-process?step=2", method="POST"). 
             return Response(str(vr), mimetype="text/xml")
 
-        # We already have a job description → we are waiting on digits
+        # We already have a job description → waiting on digits
         if not digits:
             gather = Gather(
                 input="dtmf",
@@ -1061,17 +1084,20 @@ def voice_process():
                 timeout=6,
             )
             gather.say(
-                "Press 1 to confirm, or press 2 to repeat.",
+                f"I heard: {state['job_description']}. Press 1 to confirm, or press 2 to repeat.",
                 voice="Polly.Joanna",
                 language="en-US",
             )
             vr.append(gather)
+
+            # No input fallback
+            vr.redirect("/voice-process?step=2", method="POST")
             return Response(str(vr), mimetype="text/xml")
 
         if digits == "2":
             state.pop("job_description", None)
+            state["retries"] = 0
             set_state(call_sid, state)
-            digits =  ""  # prevent stuck digits looping
             vr.redirect("/voice-process?step=2", method="POST")
             return Response(str(vr), mimetype="text/xml")
 
@@ -1101,6 +1127,7 @@ def voice_process():
             language="en-US",
         )
         vr.append(gather)
+        vr.redirect("/voice-process?step=2", method="POST")
         return Response(str(vr), mimetype="text/xml")
 
 
