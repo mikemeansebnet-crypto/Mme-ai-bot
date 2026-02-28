@@ -11,6 +11,13 @@ from twilio.twiml.voice_response import VoiceResponse, Gather
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
 
+from app.state import (
+    get_state, set_state, clear_state,
+    set_call_alias, get_call_alias, clear_call_alias,
+    save_resume_pointer, get_resume_pointer, clear_resume_pointer,
+    register_live_call, unregister_live_call, list_live_calls,
+)
+
 app = Flask(__name__)
 
 
