@@ -4,7 +4,6 @@ import os
 import requests
 import json
 import time
-import redis
 import re
 from flask import Flask, request, jsonify, Response 
 from twilio.twiml.voice_response import VoiceResponse, Gather
@@ -17,7 +16,7 @@ from app.app.state import (
     save_resume_pointer, get_resume_pointer, clear_resume_pointer,
     register_live_call, unregister_live_call, list_live_calls
 )
-
+from app.app.config import redis_client
 
 
 
@@ -25,9 +24,6 @@ app = Flask(__name__)
 
 
 # Gather all environment variables 
-REDIS_URL = os.getenv("REDIS_URL")
-REDIS_PREFIX = os.getenv("REDIS_PREFIX", "mmeai:call:")
-REDIS_TTL_SECONDS = int(os.getenv("REDIS_TTL_SECONDS", "7200"))
 airtable_token = os.getenv("AIRTABLE_TOKEN")
 airtable_base_id = os.getenv("AIRTABLE_BASE_ID")
 air_table_name = os.getenv("AIRTABLE_TABLE_NAME")
