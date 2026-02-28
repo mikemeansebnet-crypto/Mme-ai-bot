@@ -1,3 +1,5 @@
+# CHECKPOINT: state.py integrated and fully tested before removing duplicate state functions
+
 import os
 import requests
 import json
