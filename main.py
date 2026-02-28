@@ -1071,7 +1071,7 @@ def voice_process():
             vr.append(gather)
 
             # If they press nothing, Twilio will continue—redirect back to the same confirm menu
-            vr.redirect("/voice-process?step=2", method="POST"). 
+            vr.redirect("/voice-process?step=2", method="POST") 
             return Response(str(vr), mimetype="text/xml")
 
         # We already have a job description → waiting on digits
