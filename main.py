@@ -1,4 +1,4 @@
-# CHECKPOINT: state.py integrated and fully tested before removing duplicate state functions
+# CHECKPOINT: state.py integrated and production verified before removing duplicates
 
 import os
 import requests
