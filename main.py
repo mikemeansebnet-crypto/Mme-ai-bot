@@ -720,6 +720,7 @@ def voice_process():
                 language="en-US",
             )
             vr.append(gather)
+            vr.redirect("/voice-process?step=0", method="POST")
             return Response(str(vr), mimetype="text/xml")
 
         # 0B) If speech just came in, store it as candidate and ask for DTMF confirm
@@ -1196,6 +1197,7 @@ def voice_process():
         )
         vr.append(gather)
         return Response(str(vr), mimetype="text/xml")
+
 
     # STEP 4: Callback number
     if step == 4:
