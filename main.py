@@ -152,11 +152,12 @@ def get_contractor_by_twilio_number(to_number: str) -> dict:
         print("Contractor lookup exception:", e)
         return {}
 
-def send_email(subject: str, body: str):
+def send_email(subject: str, body: str, to_email: str = None, reply_to: str = None):
     # Pull fresh every time (prevents refactor breakage)
     api_key = os.getenv("SENDGRID_API_KEY")
     from_email = os.getenv("FROM_EMAIL")
-    to_email = os.getenv("TO_EMAIL")
+    default_to_email = os.getenv("TO_EMAIL")
+    to_email = (to_email or default_to_email or "").strip()
 
     if not api_key:
         raise Exception("Missing SENDGRID_API_KEY env var")
@@ -172,12 +173,15 @@ def send_email(subject: str, body: str):
         plain_text_content=body
     )
 
+    if reply_to:
+        message.reply_to = reply_to
+
     sg = SendGridAPIClient(api_key)
     response = sg.send(message)
 
     print("EMAIL SENT:", response.status_code)
     
-def send_intake_summary(state: dict):
+def send_intake_summary(state: dict, notify_email: str = None, reply_to_email: str = None):
     subject = "New MME AI Bot Intake"
 
     body = (
@@ -211,7 +215,7 @@ def send_intake_summary(state: dict):
     airtable_result = airtable_create_record(airtable_fields)
     print("Airtable result:", airtable_result)
 
-    send_email(subject, body)
+    send_email(subject, body, to_email=notify_email, reply_to=reply_to_email)
     # Optional: helpful in Render logs
     
 
@@ -1229,9 +1233,15 @@ def voice_process():
         if redis_client and to_number and from_number:
             save_resume_pointer(to_number, from_number, call_sid)
             print("RESUME PTR SAVED (after callback):", to_number, from_number, call_sid, "state.step=", state.get("step"))
+            
+            # Pull per-contractor email routing (fallback to env defaults if blank)
+            contractor = get_contractor_by_twilio_number(to_number) or {}
 
+            notify_email = (contractor.get("Notify Email") or os.getenv("TO_EMAIL") or "").strip() or None
+            reply_to_email = (contractor.get("Reply to Email") or "").strip() or None
+        
         try:
-            send_intake_summary(state)
+            send_intake_summary(state, notify_email=notify_email, reply_to_email=reply_to_email)
         except Exception as e:
             print("send_intake_summary failed:", e)
 
