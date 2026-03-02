@@ -35,6 +35,46 @@ to_email = os.environ.get("TO_EMAIL")
 
 from twilio.rest import Client
 
+def twilio_client():
+    account_sid = os.getenv("TWILIO_ACCOUNT_SID")
+    auth_token = os.getenv("TWILIO_AUTH_TOKEN")
+
+    if not account_sid or not auth_token:
+        return {"ok": False, "error": "Missing TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN"}
+
+    return {"ok": True, "client": Client(account_sid, auth_token)}
+
+def record_calls_default() -> bool:
+    return os.getenv("RECORD_CALLS_DEFAULT", "false").lower() == "true"
+
+
+def start_call_recording(call_sid: str, contractor: dict) -> dict:
+    """
+    Starts a full-call recording in Twilio after consent.
+    Returns {"ok": True, "recording_sid": "..."} or {"ok": False, "error": "..."}
+    """
+    # Per-contractor override (Airtable checkbox)
+    record_calls = bool(contractor.get("RECORD_CALLS")) if contractor else False
+    if not record_calls and not record_calls_default():
+        return {"ok": False, "disabled": True}
+
+    t = twilio_client()
+    if not t.get("ok"):
+        return t
+
+    client = t["client"]
+
+    try:
+        rec = client.calls(call_sid).recordings.create(
+            recording_channels="dual",
+            recording_status_callback_event=["completed"],
+            # OPTIONAL (recommended): add a callback URL in your app later
+            # recording_status_callback=f"{os.getenv('PUBLIC_BASE_URL','')}/recording-status",
+        )
+        return {"ok": True, "recording_sid": rec.sid}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
 def sms_enabled() -> bool:
     return os.getenv("SMS_ENABLED", "false").lower() == "true"
 
@@ -243,6 +283,39 @@ def voice():
 
     vr.pause(length=2)
 
+    # -------------------------------
+    # CALL RECORDING CONSENT GATE
+    # -------------------------------
+    if bool(contractor.get("RECORD_CALLS")) or record_calls_default():
+
+        consent = Gather(
+            num_digits=1,
+            action="/recording-consent",
+            method="POST",
+            timeout=6
+        )
+
+        consent.say(
+            "For quality assurance and training purposes, this call may be recorded. "
+            "Press 1 to continue with recording. "
+            "Press 2 to continue without recording.",
+            voice="Polly.Joanna",
+            language="en-US",
+        )
+
+        vr.append(consent)
+
+        # Fallback if no key pressed
+        vr.say(
+            "No input received. Continuing without recording.",
+            voice="Polly.Joanna",
+            language="en-US",
+        )
+
+        vr.redirect("/voice-menu", method="POST")
+
+        return Response(str(vr), mimetype="text/xml")
+
     gather = Gather(
         num_digits=1,
         action="/voice-menu",
@@ -264,6 +337,70 @@ def voice():
     # If they press nothing, treat it like estimate flow (go to voice_menu so resume logic can run)
     vr.redirect("/voice-menu", method="POST")
     return Response(str(vr), mimetype="text/xml")
+
+@app.route("/recording-consent", methods=["POST"])
+def recording_consent():
+    call_sid = request.values.get("CallSid", "unknown")
+    digits = (request.values.get("Digits") or "").strip()
+
+    vr = VoiceResponse()
+
+    # Safety: if they didn't press anything, continue without recording
+    if digits not in ("1", "2"):
+        vr.say(
+            "No valid input received. Continuing without recording.",
+            voice="Polly.Joanna",
+            language="en-US",
+        )
+        vr.redirect("/voice-menu", method="POST")
+        return Response(str(vr), mimetype="text/xml")
+
+    # If they choose "continue without recording"
+    if digits == "2":
+        vr.say(
+            "Okay. Continuing without recording.",
+            voice="Polly.Joanna",
+            language="en-US",
+        )
+        vr.redirect("/voice-menu", method="POST")
+        return Response(str(vr), mimetype="text/xml")
+
+    # digits == "1" -> start recording
+    try:
+        tc = twilio_client()
+        if not tc.get("ok"):
+            print("RECORDING ERROR | Twilio client missing:", tc.get("error"))
+            vr.say(
+                "Recording is currently unavailable. Continuing without recording.",
+                voice="Polly.Joanna",
+                language="en-US",
+            )
+            vr.redirect("/voice-menu", method="POST")
+            return Response(str(vr), mimetype="text/xml")
+
+        client = tc["client"]
+
+        # Start recording from THIS point forward
+        client.calls(call_sid).update(record=True)
+        print("RECORDING STARTED | CallSid:", call_sid)
+
+        vr.say(
+            "Thank you. Recording is now on.",
+            voice="Polly.Joanna",
+            language="en-US",
+        )
+        vr.redirect("/voice-menu", method="POST")
+        return Response(str(vr), mimetype="text/xml")
+
+    except Exception as e:
+        print("RECORDING EXCEPTION |", e)
+        vr.say(
+            "Recording is currently unavailable. Continuing without recording.",
+            voice="Polly.Joanna",
+            language="en-US",
+        )
+        vr.redirect("/voice-menu", method="POST")
+        return Response(str(vr), mimetype="text/xml")
 
 
 @app.route("/voice-menu", methods=["POST", "GET"])
