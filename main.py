@@ -18,6 +18,7 @@ from app.app.state import (
 )
 from app.app.config import redis_client
 from app.app.airtable_service import airtable_create_record, get_contractor_by_twilio_number
+from app.app.cal_service import build_cal_booking_link
 
 
 
@@ -31,6 +32,37 @@ air_table_name = os.getenv("AIRTABLE_TABLE_NAME")
 email_api_key = os.environ.get("SENDGRID_API_KEY")
 from_email = os.environ.get("FROM_EMAIL")
 to_email = os.environ.get("TO_EMAIL")
+
+from twilio.rest import Client
+
+def sms_enabled() -> bool:
+    return os.getenv("SMS_ENABLED", "false").lower() == "true"
+
+def send_sms(to_number: str, body: str, from_number: str) -> dict:
+    """
+    Outbound SMS sender (feature-flagged).
+    """
+    if not sms_enabled():
+        print("SMS_DISABLED | Would have sent:", to_number, "|", body)
+        return {"ok": False, "disabled": True}
+
+    account_sid = os.getenv("TWILIO_ACCOUNT_SID")
+    auth_token = os.getenv("TWILIO_AUTH_TOKEN")
+
+    if not account_sid or not auth_token:
+        print("Missing Twilio credentials")
+        return {"ok": False, "error": "missing_credentials"}
+
+    client = Client(account_sid, auth_token)
+
+    msg = client.messages.create(
+        to=to_number,
+        from_=from_number,  # <-- important
+        body=body
+    )
+
+    print("SMS_SENT:", msg.sid)
+    return {"ok": True, "sid": msg.sid}
 
 
 
@@ -99,6 +131,22 @@ def send_intake_summary(state: dict, notify_email: str = None, reply_to_email: s
 
     send_email(subject, body, to_email=notify_email, reply_to=reply_to_email)
     # Optional: helpful in Render logs
+
+    # Send booking link via SMS (if contractor has one)
+    contractor = get_contractor_by_twilio_number(state.get("to_number"))
+
+    from_number = state.get("from_number")
+    to_number = state.get("to_number")
+
+    booking_link = (contractor.get("CAL Booking URL") or "").strip()
+
+    if booking_link and from_number and to_number:
+        sms_body = f"Thanks for contacting us! Choose a date and time here: {booking_link}"
+        send_sms(
+            to_number=from_number,
+            body=sms_body,
+            from_number=to_number
+        )
     
 
 
@@ -170,6 +218,14 @@ def voice():
     vr.pause(length=2)
 
     to_number = request.values.get("To", "")
+    from_number = request.values.get("From", "")
+    # store for later (email + SMS)
+    call_sid = request.values.get("CallSid", "unknown")
+
+    state = get_state(call_sid) or {}
+    state["to_number"] = to_number
+    state["from_number"] = from_number
+    set_state(call_sid, state)
     contractor = get_contractor_by_twilio_number(to_number)
     business_name = (contractor.get("Business Name") or "our office").strip()
     greeting_name = (contractor.get("Greeting Name") or business_name).strip()
@@ -1128,6 +1184,15 @@ def voice_process():
             send_intake_summary(state, notify_email=notify_email, reply_to_email=reply_to_email)
         except Exception as e:
             print("send_intake_summary failed:", e)
+
+        # Build Cal booking link
+        booking_link = build_cal_booking_link(
+            contractor,
+            customer_name=state.get("name", ""),
+            customer_phone=state.get("callback", "") or from_number,
+        )
+
+        print("CAL BOOKING LINK:", booking_link)
 
         if redis_client and to_number and from_number:
             clear_resume_pointer(to_number, from_number)
