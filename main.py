@@ -17,6 +17,7 @@ from app.app.state import (
     register_live_call, unregister_live_call, list_live_calls
 )
 from app.app.config import redis_client
+from app.app.airtable_service import airtable_create_record, get_contractor_by_twilio_number
 
 
 
