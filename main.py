@@ -285,69 +285,74 @@ def voice():
     return Response(str(vr), mimetype="text/xml")
         
 
-@app.route("/recording-consent", methods=["POST"])
+@app.route("/recording-consent", methods=["POST", "GET"])
 def recording_consent():
-    call_sid = request.values.get("CallSid", "unknown")
-    digits = (request.values.get("Digits") or "").strip()
+    # where to go next after consent decision
+    next_url = request.args.get("next", "/resume-check")
 
+    call_sid = request.values.get("CallSid", "unknown")
+    to_number = (request.values.get("To") or "").strip()
+
+    contractor = get_contractor_by_twilio_number(to_number)
+
+    # If recording not enabled for this contractor, skip gate
+    if not (bool(contractor.get("RECORD_CALLS")) or record_calls_default()):
+        vr = VoiceResponse()
+        vr.redirect(next_url, method="POST")
+        return Response(str(vr), mimetype="text/xml")
+
+    digits = (request.values.get("Digits") or "").strip()
     vr = VoiceResponse()
 
-    # Safety: if they didn't press anything, continue without recording
-    if digits not in ("1", "2"):
-        vr.say(
-            "No valid input received. Continuing without recording.",
+    # If no digits yet, ASK the question
+    if digits == "":
+        g = Gather(
+            num_digits=1,
+            action=f"/recording-consent?next={next_url}",
+            method="POST",
+            timeout=6,
+            actionOnEmptyResult=True,
+        )
+        g.say(
+            "For quality assurance and training purposes, this call may be recorded. "
+            "Press 1 to continue with recording. "
+            "Press 2 to continue without recording.",
             voice="Polly.Joanna",
             language="en-US",
         )
-        vr.redirect("/voice-menu", method="POST")
+        vr.append(g)
+        # silence = continue without recording
+        vr.redirect(next_url, method="POST")
         return Response(str(vr), mimetype="text/xml")
 
-    # If they choose "continue without recording"
+    # If they choose no recording
     if digits == "2":
-        vr.say(
-            "Okay. Continuing without recording.",
-            voice="Polly.Joanna",
-            language="en-US",
-        )
-        vr.redirect("/voice-menu", method="POST")
+        vr.say("Okay. Continuing without recording.", voice="Polly.Joanna", language="en-US")
+        vr.redirect(next_url, method="POST")
         return Response(str(vr), mimetype="text/xml")
 
-    # digits == "1" -> start recording
-    try:
-        tc = twilio_client()
-        if not tc.get("ok"):
-            print("RECORDING ERROR | Twilio client missing:", tc.get("error"))
-            vr.say(
-                "Recording is currently unavailable. Continuing without recording.",
-                voice="Polly.Joanna",
-                language="en-US",
-            )
-            vr.redirect("/voice-menu", method="POST")
-            return Response(str(vr), mimetype="text/xml")
+    # If they choose recording (digits == "1")
+    if digits == "1":
+        try:
+            tc = twilio_client()
+            if tc.get("ok"):
+                tc["client"].calls(call_sid).update(record=True)
+                print("RECORDING STARTED | CallSid:", call_sid)
+                vr.say("Thank you. Recording is now on.", voice="Polly.Joanna", language="en-US")
+            else:
+                print("RECORDING ERROR |", tc.get("error"))
+                vr.say("Recording is currently unavailable. Continuing without recording.", voice="Polly.Joanna", language="en-US")
+        except Exception as e:
+            print("RECORDING EXCEPTION |", e)
+            vr.say("Recording is currently unavailable. Continuing without recording.", voice="Polly.Joanna", language="en-US")
 
-        client = tc["client"]
-
-        # Start recording from THIS point forward
-        client.calls(call_sid).update(record=True)
-        print("RECORDING STARTED | CallSid:", call_sid)
-
-        vr.say(
-            "Thank you. Recording is now on.",
-            voice="Polly.Joanna",
-            language="en-US",
-        )
-        vr.redirect("/voice-menu", method="POST")
+        vr.redirect(next_url, method="POST")
         return Response(str(vr), mimetype="text/xml")
 
-    except Exception as e:
-        print("RECORDING EXCEPTION |", e)
-        vr.say(
-            "Recording is currently unavailable. Continuing without recording.",
-            voice="Polly.Joanna",
-            language="en-US",
-        )
-        vr.redirect("/voice-menu", method="POST")
-        return Response(str(vr), mimetype="text/xml")
+    # Any other key
+    vr.say("No valid input received. Continuing without recording.", voice="Polly.Joanna", language="en-US")
+    vr.redirect(next_url, method="POST")
+    return Response(str(vr), mimetype="text/xml")
 
 
 @app.route("/voice-menu", methods=["POST", "GET"])
