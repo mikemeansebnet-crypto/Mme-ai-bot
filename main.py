@@ -293,10 +293,10 @@ def recording_consent():
     call_sid = request.values.get("CallSid", "unknown")
     to_number = (request.values.get("To") or "").strip()
 
-    contractor = get_contractor_by_twilio_number(to_number)
+    contractor = get_contractor_by_twilio_number(to_number) or {}
 
     # If recording not enabled for this contractor, skip gate
-    contractor = get_contractor_by_twilio_number(to_number) or {}
+    if not (bool(contractor.get("RECORD_CALLS")) or record_calls_default()):
         vr = VoiceResponse()
         vr.redirect(next_url, method="POST")
         return Response(str(vr), mimetype="text/xml")
