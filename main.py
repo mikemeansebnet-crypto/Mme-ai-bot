@@ -353,8 +353,11 @@ def recording_consent():
         try:
             tc = twilio_client()
             if tc.get("ok"):
-                tc["client"].calls(call_sid).update(record=True)
-                print("RECORDING STARTED | CallSid:", call_sid)
+                rec = tc["client"].calls(call_sid).recordings.create(
+                    recording_channels="dual",
+                )    
+                print("RECORDING STARTED |", CallSid:", rec.sid)
+                    
                 vr.say("Thank you. Recording is now on.", voice="Polly.Joanna", language="en-US")
             else:
                 print("RECORDING ERROR |", tc.get("error"))
