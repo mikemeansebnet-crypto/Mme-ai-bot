@@ -296,7 +296,7 @@ def recording_consent():
     contractor = get_contractor_by_twilio_number(to_number)
 
     # If recording not enabled for this contractor, skip gate
-    contractor = get_contractor_by_twilio_number(to-number) or {}
+    contractor = get_contractor_by_twilio_number(to_number) or {}
         vr = VoiceResponse()
         vr.redirect(next_url, method="POST")
         return Response(str(vr), mimetype="text/xml")
