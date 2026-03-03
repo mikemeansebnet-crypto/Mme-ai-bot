@@ -356,8 +356,7 @@ def recording_consent():
                 rec = tc["client"].calls(call_sid).recordings.create(
                     recording_channels="dual",
                 )    
-                print("RECORDING STARTED |", CallSid:", rec.sid)
-                    
+                print("RECORDING STARTED | CallSid:", call_sid, "| RecordingSid:", rec.sid)
                 vr.say("Thank you. Recording is now on.", voice="Polly.Joanna", language="en-US")
             else:
                 print("RECORDING ERROR |", tc.get("error"))
