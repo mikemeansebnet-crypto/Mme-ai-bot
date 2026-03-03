@@ -35,6 +35,17 @@ to_email = os.environ.get("TO_EMAIL")
 
 from twilio.rest import Client
 
+@app.route("/twilio-fallback", methods=["POST", "GET"])
+def twilio_fallback():
+    vr = VoiceResponse()
+    vr.say(
+        "Sorry, an application error occurred. Please try again later. Goodbye.",
+        voice="Polly.Joanna",
+        language="en-US",
+    )
+    vr.hangup()
+    return Response(str(vr), mimetype="text/xml")
+
 def twilio_client():
     account_sid = os.getenv("TWILIO_ACCOUNT_SID")
     auth_token = os.getenv("TWILIO_AUTH_TOKEN")
@@ -241,6 +252,12 @@ def sms():
 
     reply = "✅ MME AI Bot is live! We received your message."
     return Response(f"<Response><Message>{reply}</Message></Response>", mimetype="text/xml")
+
+@app.route("/voice-entry", methods=["POST", "GET"])
+def voice_entry():
+    vr = VoiceResponse()
+    vr.redirect("/voice-menu", method="POST")
+    return Response(str(vr), mimetype="text/xml")
 
 # ------------------------------
 # VOICE: 4-question intake
