@@ -247,96 +247,43 @@ def sms():
 # ------------------------------
 
 
-@app.route("/voice", methods=["POST", "GET"])
+@app.route("/voice", methods=["POST","GET"])
 def voice():
-
-    print("DEBUG INCOMING WEBHOOK:", dict(request.values))
-
     vr = VoiceResponse()
-
-    # Prevent first-word clipping on some carriers
     vr.pause(length=2)
 
-    to_number = request.values.get("To", "")
-    from_number = request.values.get("From", "")
-    # store for later (email + SMS)
-    call_sid = request.values.get("CallSid", "unknown")
+    to_number = (request.values.get("To") or "").strip()
+    contractor = {}
+    try:
+        contractor = get_contractor_by_twilio_number(to_number) or {}
+    except Exception as e:
+        print("CONTRACTOR LOOKUP FAILED:", e)
 
-    state = get_state(call_sid) or {}
-    state["to_number"] = to_number
-    state["from_number"] = from_number
-    set_state(call_sid, state)
-    contractor = get_contractor_by_twilio_number(to_number)
     business_name = (contractor.get("Business Name") or "our office").strip()
     greeting_name = (contractor.get("Greeting Name") or business_name).strip()
-    notify_email = (contractor.get("Notify Email") or os.getenv("TO_EMAIL") or "mmelawncareandmore@gmail.com").strip()
-    reply_to_email = (contractor.get("Reply to Email") or notify_email).strip()
-    intake_url = (contractor.get("Intake URL") or contractor.get("Website") or "https://mmelawncare.com").strip()
-    sms_enabled = bool(contractor.get("SMS"))
 
-    # Say business name first (sounds more premium)
-    vr.say(
-        f"Thank you for calling {greeting_name}.",
-        voice="Polly.Joanna",
-        language="en-US",
-    )
+    vr.say(f"Thank you for calling {greeting_name}.", voice="Polly.Joanna", language="en-US")
+    vr.pause(length=1)
 
-    vr.pause(length=2)
-
-    # -------------------------------
-    # CALL RECORDING CONSENT GATE
-    # -------------------------------
-    if bool(contractor.get("RECORD_CALLS")) or record_calls_default():
-
-        consent = Gather(
-            num_digits=1,
-            action="/recording-consent",
-            method="POST",
-            timeout=6
-        )
-
-        consent.say(
-            "For quality assurance and training purposes, this call may be recorded. "
-            "Press 1 to continue with recording. "
-            "Press 2 to continue without recording.",
-            voice="Polly.Joanna",
-            language="en-US",
-        )
-
-        vr.append(consent)
-
-        # Fallback if no key pressed
-        vr.say(
-            "No input received. Continuing without recording.",
-            voice="Polly.Joanna",
-            language="en-US",
-        )
-
-        vr.redirect("/voice-menu", method="POST")
-
-        return Response(str(vr), mimetype="text/xml")
-
-    gather = Gather(
+    g = Gather(
         num_digits=1,
-        action="/voice-menu",
+        action="/voice-entry",
         method="POST",
-        timeout=6
+        timeout=6,
+        actionOnEmptyResult=True,
     )
-
-    gather.say(
+    g.say(
         "If this is an emergency, press 1. "
         "To leave details for an estimate, press 2.",
         voice="Polly.Joanna",
         language="en-US",
     )
+    vr.append(g)
 
-    vr.append(gather)
-
+    # If silence, treat as estimate path
+    vr.redirect("/voice-entry", method="POST")
     return Response(str(vr), mimetype="text/xml")
-
-    # If they press nothing, treat it like estimate flow (go to voice_menu so resume logic can run)
-    vr.redirect("/voice-menu", method="POST")
-    return Response(str(vr), mimetype="text/xml")
+        
 
 @app.route("/recording-consent", methods=["POST"])
 def recording_consent():
