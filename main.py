@@ -267,7 +267,7 @@ def voice():
 
     g = Gather(
         num_digits=1,
-        action="/voice-entry",
+        action="/voice-menu"
         method="POST",
         timeout=6,
         actionOnEmptyResult=True,
@@ -281,7 +281,7 @@ def voice():
     vr.append(g)
 
     # If silence, treat as estimate path
-    vr.redirect("/voice-entry", method="POST")
+    vr.redirect("/voice-menu", method="POST")
     return Response(str(vr), mimetype="text/xml")
         
 
@@ -296,7 +296,7 @@ def recording_consent():
     contractor = get_contractor_by_twilio_number(to_number)
 
     # If recording not enabled for this contractor, skip gate
-    if not (bool(contractor.get("RECORD_CALLS")) or record_calls_default()):
+    contractor = get_contractor_by_twilio_number(to-number) or {}
         vr = VoiceResponse()
         vr.redirect(next_url, method="POST")
         return Response(str(vr), mimetype="text/xml")
@@ -672,7 +672,7 @@ def voice_process():
         print("DEBUG swapped call_sid to OLD:", call_sid)
 
     # Now load state for the FINAL chosen call_sid
-    state = get_state(call_sid)
+    state = get_state(call_sid) or {}
 
 
     # Always store CallSid
@@ -1261,13 +1261,12 @@ def voice_process():
         
         if redis_client and to_number and from_number:
             save_resume_pointer(to_number, from_number, call_sid)
-            print("RESUME PTR SAVED (after callback):", to_number, from_number, call_sid, "state.step=", state.get("step"))
-            
-            # Pull per-contractor email routing (fallback to env defaults if blank)
-            contractor = get_contractor_by_twilio_number(to_number) or {}
 
-            notify_email = (contractor.get("Notify Email") or os.getenv("TO_EMAIL") or "").strip() or None
-            reply_to_email = (contractor.get("Reply to Email") or "").strip() or None
+        # Pull per-contractor email routing (fallback safe)
+        contractor = get_contractor_by_twilio_number(to_number) or {}
+
+        notify_email = (contractor.get("Notify Email") or os.getenv("TO_EMAIL") or "").strip() or None
+        reply_to_email = (contractor.get("Reply to Email") or "").strip() or None
         
         try:
             send_intake_summary(state, notify_email=notify_email, reply_to_email=reply_to_email)
