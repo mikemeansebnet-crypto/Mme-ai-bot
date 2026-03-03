@@ -267,7 +267,7 @@ def voice():
 
     g = Gather(
         num_digits=1,
-        action="/voice-menu"
+        action="/voice-menu",
         method="POST",
         timeout=6,
         actionOnEmptyResult=True,
