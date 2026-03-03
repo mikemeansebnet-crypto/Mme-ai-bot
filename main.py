@@ -430,7 +430,7 @@ def voice_menu():
         return Response(str(vr), mimetype="text/xml")
 
     # No resume progress -> start fresh
-    vr.redirect("/voice-intake", method="POST")
+    vr.redirect("/recording-consent?next=/voice-intake", method="POST")
     return Response(str(vr), mimetype="text/xml")
 
 @app.route("/resume-prompt", methods=["POST"])
@@ -484,7 +484,7 @@ def resume_choice():
             print("RESUME PTR CLEARED (restart):", to_number, from_number)
 
         vr.say("No problem. We'll start over.", voice="Polly.Joanna", language="en-US")
-        vr.redirect("/voice-intake", method="POST")
+        vr.redirect("/recording-consent?next=voice-intake", method="POST")
         return Response(str(vr), mimetype="text/xml")
 
     # Default => resume
@@ -500,7 +500,7 @@ def resume_choice():
         vr.redirect(f"/voice-process?step={inferred_step}", method="POST")
         return Response(str(vr), mimetype="text/xml")
 
-    vr.redirect("/voice-intake", method="POST")
+    vr.redirect("/recording-consent?next=/voice-intake", method="POST")
     return Response(str(vr), mimetype="text/xml")
 
 
