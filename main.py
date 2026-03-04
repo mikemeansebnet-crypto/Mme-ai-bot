@@ -366,7 +366,7 @@ def recording_consent():
                 "Great. I’ll collect a few quick details, then we’ll text you a secure booking link to schedule a time.",
                 voice="Polly.Joanna",
                 language="en-US",
-            )
+                )
             else:
                 print("RECORDING ERROR |", tc.get("error"))
                 vr.say("Recording is currently unavailable. Continuing without recording.", voice="Polly.Joanna", language="en-US")
