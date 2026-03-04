@@ -19,6 +19,7 @@ from app.app.state import (
 from app.app.config import redis_client
 from app.app.airtable_service import airtable_create_record, get_contractor_by_twilio_number
 from app.app.cal_service import build_cal_booking_link
+from app.app.mapbox_service import mapbox_address_candidates
 
 
 
@@ -1049,11 +1050,89 @@ def voice_process():
             vr.redirect("/voice-process?step=1", method="POST")
             return Response(str(vr), mimetype="text/xml")
 
-        # Done -> build full address and move to step 2
-        state["service_address"] = f"{state['addr_number']} {state['addr_street']}, {state['addr_city']} {state['addr_zip']}"
+
+         # 1E) Mapbox resolve + confirm (DTMF)
+        if not state.get("addr_confirmed"):
+            # If we don't have candidates yet, fetch them once
+            if not state.get("addr_candidates"):
+                # Build query in US recommended format (include state if you want; MD helps)
+                q = f"{state['addr_number']} {state['addr_street']} {state['addr_city']} MD {state['addr_zip']}"
+                candidates = mapbox_address_candidates(q, limit=3, country="US")
+
+                # Store only strings in state (safer for redis/json)
+                state["addr_candidates"] = [c["full_address"] for c in candidates][:3]
+                set_state(call_sid, state)
+
+                # If none returned, fall back to your original behavior
+                if not state["addr_candidates"]:
+                    state["service_address"] = f"{state['addr_number']} {state['addr_street']}, {state['addr_city']} {state['addr_zip']}"
+                    state["addr_confirmed"] = True
+                    set_state(call_sid, state)
+                    vr.redirect("/voice-process?step=1", method="POST")
+                    return Response(str(vr), mimetype="text/xml")
+
+                vr.redirect("/voice-process?step=1", method="POST")
+                return Response(str(vr), mimetype="text/xml")
+
+            # We have candidates; ask user to pick
+            if not digits:
+                opts = state["addr_candidates"]
+                gather = Gather(
+                    input="dtmf",
+                    num_digits=1,
+                    action="/voice-process?step=1",
+                    method="POST",
+                    timeout=10,
+                )
+
+                # Read top options
+                prompt = "I found a few possible matches. "
+                for i, a in enumerate(opts, start=1):
+                    prompt += f"Press {i} for {a}. "
+                prompt += "Or press 9 if none of these are correct."
+
+                gather.say(prompt, voice="Polly.Joanna", language="en-US")
+                vr.append(gather)
+                return Response(str(vr), mimetype="text/xml")
+
+            choice = "".join([c for c in digits if c.isdigit()]).strip()
+
+            if choice == "9":
+                # None match: fall back to what they said
+                state["service_address"] = f"{state['addr_number']} {state['addr_street']}, {state['addr_city']} {state['addr_zip']}"
+                state["addr_confirmed"] = True
+                set_state(call_sid, state)
+                vr.redirect("/voice-process?step=1", method="POST")
+                return Response(str(vr), mimetype="text/xml")
+
+            try:
+                idx = int(choice) - 1
+            except ValueError:
+                idx = -1
+
+            opts = state.get("addr_candidates") or []
+            if idx < 0 or idx >= len(opts):
+                vr.say("Sorry, I didn’t get that. Please press 1, 2, or 3. Or 9 for none.", voice="Polly.Joanna", language="en-US")
+                vr.redirect("/voice-process?step=1", method="POST")
+                return Response(str(vr), mimetype="text/xml")
+
+            # Selected candidate becomes the canonical service_address
+            state["service_address"] = opts[idx]
+            state["addr_confirmed"] = True
+            set_state(call_sid, state)
+
+            if redis_client and to_number and from_number:
+                save_resume_pointer(to_number, from_number, call_sid)
+
+            vr.redirect("/voice-process?step=1", method="POST")
+            return Response(str(vr), mimetype="text/xml")
+
+        # Done -> move to step 2
         state["step"] = 2
         state["retries"] = 0
         set_state(call_sid, state)
+
+        
 
         if redis_client and to_number and from_number:
             save_resume_pointer(to_number, from_number, call_sid)
