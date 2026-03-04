@@ -1334,12 +1334,14 @@ def voice_process():
 
         unregister_live_call(state.get("contractor_key", "unknown"), call_sid)
         clear_state(call_sid)
-
+        
+        # Refined version with better spacing for the TTS engine
         vr.say(
-            "All set. We’ve received your request and our team will follow up shortly. Thanks for choosing us. Goodbye.",
+            "Perfect. I've recorded all those details. Keep an eye out for a text message " 
+            "shortly with your secure booking link. Thanks for choosing [Business Name]. Goodbye!",
             voice="Polly.Joanna",
             language="en-US",
-            )
+        )     
         
         vr.pause(length=1)
         vr.hangup()
