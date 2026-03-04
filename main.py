@@ -584,7 +584,7 @@ def voice_intake():
         speech_timeout="auto",
     )
     gather.say(
-        "First, please say your full name.",
+        "whats your name?",
         voice="Polly.Joanna",
         language="en-US",
     )
