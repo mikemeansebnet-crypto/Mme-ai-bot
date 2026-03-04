@@ -331,12 +331,13 @@ def recording_consent():
             actionOnEmptyResult=True,
         )
         g.say(
-            "For quality assurance and training purposes, this call may be recorded. "
-            "Press 1 to continue with recording. "
-            "Press 2 to continue without recording.",
+            "This call may be recorded. "
+            "Press 1 to continue with recording, or press 2 to continue without recording.",
             voice="Polly.Joanna",
             language="en-US",
+
         )
+            
         vr.append(g)
         # silence = continue without recording
         vr.redirect(next_url, method="POST")
@@ -344,7 +345,11 @@ def recording_consent():
 
     # If they choose no recording
     if digits == "2":
-        vr.say("Okay. Continuing without recording.", voice="Polly.Joanna", language="en-US")
+        vr.say(
+            "Great. I’ll collect a few quick details, then we’ll text you a secure booking link to schedule a time.",
+            voice="Polly.Joanna",
+            language="en-US",
+        )
         vr.redirect(next_url, method="POST")
         return Response(str(vr), mimetype="text/xml")
 
@@ -357,7 +362,12 @@ def recording_consent():
                     recording_channels="dual",
                 )    
                 print("RECORDING STARTED | CallSid:", call_sid, "| RecordingSid:", rec.sid)
-                vr.say("Thank you. Recording is now on.", voice="Polly.Joanna", language="en-US")
+        vr.say(
+            "Great. I’ll collect a few quick details, then we’ll text you a secure booking link to schedule a time.",
+            
+            voice="Polly.Joanna",
+            language="en-US",
+            )
             else:
                 print("RECORDING ERROR |", tc.get("error"))
                 vr.say("Recording is currently unavailable. Continuing without recording.", voice="Polly.Joanna", language="en-US")
