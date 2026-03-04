@@ -357,15 +357,16 @@ def recording_consent():
     if digits == "1":
         try:
             tc = twilio_client()
+            
             if tc.get("ok"):
                 rec = tc["client"].calls(call_sid).recordings.create(
                     recording_channels="dual",
                 )    
-            print("RECORDING STARTED | CallSid:", call_sid, "| RecordingSid:", rec.sid)
-            vr.say(
-                "Great. I’ll collect a few quick details, then we’ll text you a secure booking link to schedule a time.",
-                voice="Polly.Joanna",
-                language="en-US",
+                print("RECORDING STARTED | CallSid:", call_sid, "| RecordingSid:", rec.sid)
+                vr.say(
+                    "Great. I’ll collect a few quick details, then we’ll text you a secure booking link to schedule a time.",
+                    voice="Polly.Joanna",
+                    language="en-US",
                 )
             else:
                 print("RECORDING ERROR |", tc.get("error"))
