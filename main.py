@@ -918,7 +918,7 @@ def voice_process():
                     actionOnEmptyResult=True,   # don't stall on silence 
                 )
                 gather.say(
-                    "Whats the house number? Enter it, then press pound., "
+                    "Whats the house number? Enter it, then press pound.",
                     voice="Polly.Joanna",
                     language="en-US",
                 )
