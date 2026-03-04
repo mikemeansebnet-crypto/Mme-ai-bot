@@ -884,17 +884,16 @@ def voice_process():
         return Response(str(vr), mimetype="text/xml")
 
     
-    # STEP 1: Service address (The "Site Blueprint" — intro once, then collect in parts)
+    # STEP 1: Service address (fast + momentum)
     if step == 1:
-        # Intro: Say ONE time only
+        # Optional: very short intro ONCE (keeps your "intro once" behavior but removes narration)
         if not state.get("address_intro_played"):
             state["address_intro_played"] = True
             state["retries"] = 0
             set_state(call_sid, state)
 
             vr.say(
-                "Alright — let’s get the service address step by step. "
-                "I’ll ask for the house number, then the street name, then the city, and finally the zip code.",
+                "Alright — let’s get the service address.",
                 voice="Polly.Joanna",
                 language="en-US",
             )
@@ -913,12 +912,13 @@ def voice_process():
                     input="dtmf",
                     action="/voice-process?step=1",
                     method="POST",
-                    timeout=10,
-                    finishOnKey="#",
+                    timeout=5,                  # was 10
+                    finishOnKey="#",            
+                    barge_in=True,              # feels faster 
+                    actionOnEmptyResult=True,   # don't stall on silence 
                 )
                 gather.say(
-                    "First, please enter the house or building number, then press pound. "
-                    "For example: 4 5 1 5, then pound.",
+                    "Whats the house number? Enter it, then press pound. "
                     voice="Polly.Joanna",
                     language="en-US",
                 )
@@ -928,7 +928,7 @@ def voice_process():
             house_num = "".join([c for c in digits if c.isdigit()]).strip()
             if len(house_num) < 1:
                 vr.say(
-                    "Sorry, I didn’t get the house number. Please try again, then press pound.",
+                    "Sorry - house number only. Enter it, then press pound.",
                     voice="Polly.Joanna",
                     language="en-US",
                 )
@@ -952,14 +952,15 @@ def voice_process():
                     input="speech",
                     action="/voice-process?step=1",
                     method="POST",
-                    timeout=8,
+                    timeout=6,                  # was 8
                     speech_timeout="auto",
+                    barge_in=True,              # feels faster             
+                    actionOnEmptyResult=True,
                     profanity_filter=False,
-                    hints="Main Street, Oak Street, Pine Avenue, Court, Road, Drive, Lane",
+                    
                 )
                 gather.say(
-                    "Great. Now please say the street name. "
-                    "For example: Main Street, Oak Street, or Pine Avenue.",
+                    "Great. Now please say the street name?",
                     voice="Polly.Joanna",
                     language="en-US",
                 )
@@ -983,13 +984,15 @@ def voice_process():
                     input="speech",
                     action="/voice-process?step=1",
                     method="POST",
-                    timeout=8,
+                    timeout=6,                 # was 8
                     speech_timeout="auto",
+                    barge_in=True,              # feels faster
+                    actionOnEmptyResults=True,
                     profanity_filter=False,
                     hints="Bowie, Upper Marlboro, Lanham, Crofton, Washington, Baltimore",  
                 )
                 gather.say(
-                    "Thanks. Now please say the city.",
+                    "Perfect. What city is that in?",
                     voice="Polly.Joanna",
                     language="en-US",
                 )
@@ -1014,10 +1017,12 @@ def voice_process():
                     num_digits=5,
                     action="/voice-process?step=1",
                     method="POST",
-                    timeout=10,
+                    timeout=5,                 # was 10
+                    barge_in=True,             # feels faster
+                    actionOnEmptyResult=True,
                 )
                 gather.say(
-                    "Finally, please enter the five digit zip code.",
+                    "Got it, please enter the five digit zip code.",
                     voice="Polly.Joanna",
                     language="en-US",
                 )
@@ -1057,8 +1062,10 @@ def voice_process():
             input="speech",
             action="/voice-process?step=2",
             method="POST",
-            timeout=8,
+            timeout=6,                 # was 8
             speech_timeout="auto",
+            barge_in=True,             # feels faster 
+            actionOnEmptyResult=True,
             profanity_filter=False,
         )
         gather.say(
