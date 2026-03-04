@@ -492,12 +492,21 @@ def resume_choice():
 
     # Press 2 => start over fresh
     if digits == "2":
+        # Clear resume pointer 
         if redis_client and to_number and from_number:
             clear_resume_pointer(to_number, from_number)
             print("RESUME PTR CLEARED (restart):", to_number, from_number)
 
+        # Clear any alias mapping for this new call
+        clear_call_alias(new_call_sid)
+
+        # If we know the old call, wipe its state too (prevents stale resume + stale Mapbox candidates)
+        if old_call_sid:
+            clear_state(old_call_sid)
+            clear_call_alias(old_call_sid)
+
         vr.say("No problem. We'll start over.", voice="Polly.Joanna", language="en-US")
-        vr.redirect("/recording-consent?next=voice-intake", method="POST")
+        vr.redirect("/recording-consent?next=/voice-intake", method="POST")
         return Response(str(vr), mimetype="text/xml")
 
     # Default => resume
