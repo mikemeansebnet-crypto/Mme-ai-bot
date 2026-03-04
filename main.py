@@ -1338,7 +1338,7 @@ def voice_process():
         # Refined version with better spacing for the TTS engine
         vr.say(
             "Perfect. I've recorded all those details. Keep an eye out for a text message " 
-            "shortly with your secure booking link. Thanks for choosing [Business Name]. Goodbye!",
+            "shortly with your secure booking link. Thanks for choosing us. Goodbye!",
             voice="Polly.Joanna",
             language="en-US",
         )     
