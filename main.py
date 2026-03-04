@@ -1066,12 +1066,12 @@ def voice_process():
             if not state.get("addr_candidates"):
                 # Build query in US recommended format (include state if you want; MD helps)
                 q = f"{state['addr_number']} {state['addr_street']} {state['addr_city']} MD {state['addr_zip']}"
-                print(MAPBOX LOOKUP |", q)
+                print("MAPBOX LOOKUP |", q)
                 candidates = mapbox_address_candidates(q, limit=3, country="US")
 
                 # Store only strings in state (safer for redis/json)
                 state["addr_candidates"] = [c["full_address"] for c in candidates][:3]
-                print(MAPBOX CANDIDATES |", state["addr_candidates"])
+                print("MAPBOX CANDIDATES |", state["addr_candidates"])
                 set_state(call_sid, state)
 
                 # If none returned, fall back to your original behavior
