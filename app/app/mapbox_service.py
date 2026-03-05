@@ -2,10 +2,11 @@
 import os
 import requests
 from urllib.parse import quote_plus
+rom typing import Optional 
 
 MAPBOX_TOKEN = os.getenv("MAPBOX_ACCESS_TOKEN", "").strip()
 
-def mapbox_address_candidates(query: str, limit: int = 3, country: str = "US"):
+def mapbox_address_candidates(query: str, limit: int = 3, country: str = "US", proximity: Optional[str] = None):
     """
     Uses Mapbox Geocoding v6 forward endpoint to return top address candidates.
     Returns: list of dicts: {"full_address": str, "confidence": float|None}
@@ -22,6 +23,10 @@ def mapbox_address_candidates(query: str, limit: int = 3, country: str = "US"):
         f"&limit={limit}"
         f"&access_token={MAPBOX_TOKEN}"
     )
+
+    # Add proximity bias if provided 
+    if proximity:
+        url += f"&proximity={proximity}"
 
     try:
         r = requests.get(url, timeout=8)
