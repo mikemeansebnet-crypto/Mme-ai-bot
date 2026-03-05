@@ -28,6 +28,51 @@ def airtable_create_record(fields: dict) -> dict:
 
     return {"ok": True, "status": r.status_code, "data": r.json()}
 
+def airtable_get_city_corrections() -> dict:
+    """
+    Returns dictionary like:
+    {"bully": "Bowie", "laham": "Lanham"}
+    """
+
+    airtable_token = os.getenv("AIRTABLE_TOKEN")
+    airtable_base_id = os.getenv("AIRTABLE_BASE_ID")
+
+    if not airtable_token or not airtable_base_id:
+        return {}
+
+    url = f"https://api.airtable.com/v0/{airtable_base_id}/City%20Corrections"
+
+    headers = {
+        "Authorization": f"Bearer {airtable_token}",
+        "Content-Type": "application/json"
+    }
+
+    try:
+        r = requests.get(url, headers=headers, timeout=20)
+
+        if r.status_code >= 400:
+            print("CITY CORRECTIONS ERROR:", r.text)
+            return {}
+
+        data = r.json()
+
+        corrections = {}
+
+        for rec in data.get("records", []):
+            f = rec.get("fields", {})
+
+            misheard = (f.get("Misheard") or "").strip().lower()
+            correct = (f.get("Correct") or "").strip()
+
+            if misheard and correct:
+                corrections[misheard] = correct
+
+        return corrections
+
+    except Exception as e:
+        print("CITY CORRECTIONS EXCEPTION:", e)
+        return {}
+
 
 def get_contractor_by_twilio_number(to_number: str) -> dict:
     """
