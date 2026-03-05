@@ -1109,10 +1109,17 @@ def voice_process():
             choice = "".join([c for c in digits if c.isdigit()]).strip()
 
             if choice == "9":
-                # None match: fall back to what they said
-                state["service_address"] = f"{state['addr_number']} {state['addr_street']}, {state['addr_city']} {state['addr_zip']}"
-                state["addr_confirmed"] = True
+                # They said none match -> try again (do NOT confirm)
+                state.pop("addr_candidates", None)
+                state.pop("addr_confirmed", None)
+
+                # re-ask street (best) - keep house number & zip since those are solid
+                state.pop("addr_street", None)
+
+                state["retries"] = 0
                 set_state(call_sid, state)
+
+                vr.say("No problem. Let's try the street name again.", voice="Polly.Joanna", language="en-US")
                 vr.redirect("/voice-process?step=1", method="POST")
                 return Response(str(vr), mimetype="text/xml")
 
