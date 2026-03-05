@@ -2,7 +2,7 @@
 import os
 import requests
 from urllib.parse import quote_plus
-rom typing import Optional 
+from typing import Optional 
 
 MAPBOX_TOKEN = os.getenv("MAPBOX_ACCESS_TOKEN", "").strip()
 
