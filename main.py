@@ -5,6 +5,7 @@ import requests
 import json
 import time
 import re
+import math
 from flask import Flask, request, jsonify, Response 
 from twilio.twiml.voice_response import VoiceResponse, Gather
 from sendgrid import SendGridAPIClient
@@ -40,6 +41,43 @@ from_email = os.environ.get("FROM_EMAIL")
 to_email = os.environ.get("TO_EMAIL")
 
 from twilio.rest import Client
+
+# imports
+import os
+import requests
+import json
+import time
+import re
+import math
+
+from flask import Flask, request, jsonify, Response
+from twilio.twiml.voice_response import VoiceResponse, Gather
+
+# other imports here...
+
+
+app = Flask(__name__)
+
+
+# helper functions
+def haversine_miles(lat1, lon1, lat2, lon2) -> float:
+    r = 3958.7613
+    phi1 = math.radians(float(lat1))
+    phi2 = math.radians(float(lat2))
+    dphi = math.radians(float(lat2) - float(lat1))
+    dlambda = math.radians(float(lon2) - float(lon1))
+
+    a = (
+        math.sin(dphi / 2) ** 2
+        + math.cos(phi1) * math.cos(phi2) * math.sin(dlambda / 2) ** 2
+    )
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    return r * c
+
+
+# routes start here
+@app.route("/voice", methods=["POST"])
+def voice():
 
 @app.route("/twilio-fallback", methods=["POST", "GET"])
 def twilio_fallback():
