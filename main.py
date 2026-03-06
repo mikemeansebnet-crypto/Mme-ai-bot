@@ -1242,8 +1242,40 @@ def voice_process():
                 vr.redirect("/voice-process?step=1", method="POST")
                 return Response(str(vr), mimetype="text/xml")
 
-            # Selected candidate becomes the canonical service_address
-            state["service_address"] = opts[idx]
+            selected = opts[idx]
+
+            geo = mapbox_geocode_one(selected, country="US")
+            print("MAPBOX GEO ONE |", geo)
+
+            if geo.get("ok") and geo.get("feature"):
+                feature = geo["feature"]
+
+                contractor = get_contractor_by_twilio_number(to_number) or {}
+                allowed, reason = address_in_service_area(
+                    contractor,
+                    feature.get("lat"),
+                    feature.get("lon"),
+                )
+
+                print("SERVICE AREA CHECK |", allowed, "|", reason)
+
+                if not allowed:
+                    vr.say(
+                        "Sorry, that address appears to be outside our normal service area.",
+                        voice="Polly.Joanna",
+                        language="en-US",
+                    )
+
+                    state.pop("addr_candidates", None)
+                    state.pop("addr_confirmed", None)
+                    state.pop("addr_street", None)
+                    state["retries"] = 0
+                    set_state(call_sid, state)
+
+                    vr.redirect("/voice-process?step=1", method="POST")
+                    return Response(str(vr), mimetype="text/xml")
+
+            state["service_address"] = selected
             state["addr_confirmed"] = True
             set_state(call_sid, state)
 
