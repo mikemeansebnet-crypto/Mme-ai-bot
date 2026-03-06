@@ -17,9 +17,14 @@ from app.app.state import (
     register_live_call, unregister_live_call, list_live_calls
 )
 from app.app.config import redis_client
-from app.app.airtable_service import airtable_create_record, get_contractor_by_twilio_number
 from app.app.cal_service import build_cal_booking_link
 from app.app.mapbox_service import mapbox_address_candidates
+from app.app.airtable_service import (
+    airtable_create_record,
+    get_contractor_by_twilio_number,
+    airtable_get_city_corrections,
+    normalize_city,
+)
 
 
 
@@ -1010,6 +1015,11 @@ def voice_process():
                 return Response(str(vr), mimetype="text/xml")
 
             state["addr_city"] = speech.strip()
+
+            corrections = airtable_get_city_corrections()
+            state["addr_city"] = normalize_city(state["addr_city"], corrections)
+            print("CITY NORMALIZED |", state["addr_city"])
+            
             state["retries"] = 0
             set_state(call_sid, state)
 
