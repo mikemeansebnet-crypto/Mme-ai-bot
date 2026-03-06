@@ -80,16 +80,20 @@ def address_in_service_area(contractor: dict, lat: float, lon: float) -> tuple[b
     Uses Home Base Lat/Lon + Max Radius Miles / Hard Max Miles.
     """
     try:
-        home_lat = contractor.get("Home Base Lat")
-        home_lon = contractor.get("Home Base Lon")
+        normalized = {str(k).strip(): v for k, v in contractor.items()}
+
+        home_lat = normalized.get("Home Base Lat")
+        home_lon = normalized.get("Home Base Lon")
+        max_radius = normalized.get("Max Radius Miles")
+        hard_max = normalized.get("Hard Max Miles")
 
         print(
             "SERVICE CONFIG |",
             "home_lat=", home_lat,
             "| home_lon=", home_lon,
-            "| max_radius=", contractor.get("Max Radius Miles"),
-            "| hard_max=", contractor.get("Hard Max Miles"),
-            "| contractor_keys=", list(contractor.keys())
+            "| max_radius=", max_radius,
+            "| hard_max=", hard_max,
+            "| contractor_keys=", [repr(k) for k in contractor.keys()]
         )
 
         if home_lat in (None, "") or home_lon in (None, ""):
@@ -97,20 +101,17 @@ def address_in_service_area(contractor: dict, lat: float, lon: float) -> tuple[b
 
         miles = haversine_miles(home_lat, home_lon, lat, lon)
 
-        max_radius = contractor.get("Max Radius Miles")
-        hard_max = contractor.get("Hard Max Miles")
-
         limit = None
-        if hard_max not in (None, ""):
-            limit = float(hard_max)
-        elif max_radius not in (None, ""):
+        if max_radius not in (None, ""):
             limit = float(max_radius)
+        elif hard_max not in (None, ""):
+            limit = float(hard_max)
 
         if limit is None:
             return True, f"no_radius_limit miles={miles:.2f}"
 
         allowed = miles <= limit
-        return allowed, f"distance={miles:.2f} limit={limit:.2f}"
+        return allowed, f"miles={miles:.2f} limit={limit:.2f}"
 
     except Exception as e:
         print("SERVICE AREA CHECK ERROR |", e)
