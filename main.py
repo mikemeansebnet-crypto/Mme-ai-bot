@@ -74,6 +74,39 @@ def haversine_miles(lat1, lon1, lat2, lon2) -> float:
     c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
     return r * c
 
+def address_in_service_area(contractor: dict, lat: float, lon: float) -> tuple[bool, str]:
+    """
+    Returns (is_allowed, reason)
+    Uses Home Base Lat/Lon + Max Radius Miles / Hard Max Miles.
+    """
+    try:
+        home_lat = contractor.get("Home Base Lat")
+        home_lon = contractor.get("Home Base Lon")
+
+        if home_lat in (None, "") or home_lon in (None, ""):
+            return True, "no_home_base_config"
+
+        miles = haversine_miles(home_lat, home_lon, lat, lon)
+
+        max_radius = contractor.get("Max Radius Miles")
+        hard_max = contractor.get("Hard Max Miles")
+
+        limit = None
+        if hard_max not in (None, ""):
+            limit = float(hard_max)
+        elif max_radius not in (None, ""):
+            limit = float(max_radius)
+
+        if limit is None:
+            return True, f"no_radius_limit miles={miles:.2f}"
+
+        allowed = miles <= limit
+        return allowed, f"distance={miles:.2f} limit={limit:.2f}"
+
+    except Exception as e:
+        print("SERVICE AREA CHECK ERROR |", e)
+        return True, "service_check_error"
+
 
 # routes start here
 
@@ -1113,10 +1146,39 @@ def voice_process():
                 # Build query in US recommended format (include state if you want; MD helps)
                 q = f"{state['addr_number']} {state['addr_street']} {state['addr_city']} MD {state['addr_zip']}"
                 print("MAPBOX LOOKUP |", q)
-                candidates = mapbox_address_candidates(q, limit=3, country="US")
 
-                # Store only strings in state (safer for redis/json)
-                state["addr_candidates"] = [c["full_address"] for c in candidates][:3]
+                geo = mapbox_geocode_one(q, country="US")
+                print("MAPBOX GEO ONE |", geo)
+
+                state["addr_candidates"] = []
+
+                if geo.get("ok") and geo.get("feature"):
+                    feature = geo["feature"]
+
+                    contractor = get_contractor_by_twilio_number(to_number) or {}
+                    allowed, reason = address_in_service_area(
+                        contractor,
+                        feature.get("lat"),
+                        feature.get("lon"),
+                    )
+                    print("SERVICE AREA CHECK |", allowed, "|", reason)
+
+                    if allowed:
+                        state["addr_candidates"] = [feature["place_name"]]
+                    else:
+                        vr.say(
+                            "Sorry, that address appears to be outside our normal service area.",
+                            voice="Polly.Joanna",
+                            language="en-US",
+                        )
+                        state.pop("addr_candidates", None)
+                        state.pop("addr_confirmed", None)
+                        state.pop("addr_street", None)
+                        state["retries"] = 0
+                        set_state(call_sid, state)
+                        vr.redirect("/voice-process?step=1", method="POST")
+                        return Response(str(vr), mimetype="text/xml")
+
                 print("MAPBOX CANDIDATES |", state["addr_candidates"])
                 set_state(call_sid, state)
 
