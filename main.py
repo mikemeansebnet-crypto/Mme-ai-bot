@@ -76,8 +76,6 @@ def haversine_miles(lat1, lon1, lat2, lon2) -> float:
 
 
 # routes start here
-@app.route("/voice", methods=["POST"])
-def voice():
 
 @app.route("/twilio-fallback", methods=["POST", "GET"])
 def twilio_fallback():
