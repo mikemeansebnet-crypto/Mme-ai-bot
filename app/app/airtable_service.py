@@ -28,6 +28,7 @@ def airtable_create_record(fields: dict) -> dict:
 
     return {"ok": True, "status": r.status_code, "data": r.json()}
 
+
 def airtable_get_city_corrections() -> dict:
     """
     Returns dictionary like:
@@ -55,12 +56,10 @@ def airtable_get_city_corrections() -> dict:
             return {}
 
         data = r.json()
-
         corrections = {}
 
         for rec in data.get("records", []):
             f = rec.get("fields", {})
-
             misheard = (f.get("Misheard") or "").strip().lower()
             correct = (f.get("Correct") or "").strip()
 
@@ -72,6 +71,24 @@ def airtable_get_city_corrections() -> dict:
     except Exception as e:
         print("CITY CORRECTIONS EXCEPTION:", e)
         return {}
+
+
+def normalize_city(city: str, corrections: dict | None = None) -> str:
+    """
+    Normalize city input and apply Airtable City Corrections mapping.
+    Example: bully -> Bowie
+    """
+    if not city:
+        return ""
+
+    raw = city.strip().lower()
+    raw = raw.replace(".", " ").replace(",", " ")
+    raw = " ".join(raw.split())
+
+    if corrections and raw in corrections:
+        return corrections[raw]
+
+    return " ".join(word.capitalize() for word in raw.split())
 
 
 def get_contractor_by_twilio_number(to_number: str) -> dict:
