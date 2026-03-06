@@ -18,7 +18,7 @@ from app.app.state import (
 )
 from app.app.config import redis_client
 from app.app.cal_service import build_cal_booking_link
-from app.app.mapbox_service import mapbox_address_candidates
+from app.app.mapbox_service import mapbox_address_candidates, mapbox_geocode_one
 from app.app.airtable_service import (
     airtable_create_record,
     get_contractor_by_twilio_number,
