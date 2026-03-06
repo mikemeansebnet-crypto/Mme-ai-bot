@@ -83,6 +83,15 @@ def address_in_service_area(contractor: dict, lat: float, lon: float) -> tuple[b
         home_lat = contractor.get("Home Base Lat")
         home_lon = contractor.get("Home Base Lon")
 
+        print(
+            "SERVICE CONFIG |",
+            "home_lat=", home_lat,
+            "| home_lon=", home_lon,
+            "| max_radius=", contractor.get("Max Radius Miles"),
+            "| hard_max=", contractor.get("Hard Max Miles"),
+            "| contractor_keys=", list(contractor.keys())
+        )
+
         if home_lat in (None, "") or home_lon in (None, ""):
             return True, "no_home_base_config"
 
