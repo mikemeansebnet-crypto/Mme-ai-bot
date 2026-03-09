@@ -42,22 +42,6 @@ to_email = os.environ.get("TO_EMAIL")
 
 from twilio.rest import Client
 
-# imports
-import os
-import requests
-import json
-import time
-import re
-import math
-
-from flask import Flask, request, jsonify, Response
-from twilio.twiml.voice_response import VoiceResponse, Gather
-
-# other imports here...
-
-
-app = Flask(__name__)
-
 
 # helper functions
 def haversine_miles(lat1, lon1, lat2, lon2) -> float:
