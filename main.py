@@ -374,6 +374,7 @@ def connect_google():
             }
         },
         scopes=[
+            "openid",
             "https://www.googleapis.com/auth/calendar.events",
             "https://www.googleapis.com/auth/calendar.readonly",
             "https://www.googleapis.com/auth/userinfo.email",
@@ -409,6 +410,7 @@ def google_callback():
             }
         },
         scopes=[
+            "openid",
             "https://www.googleapis.com/auth/calendar.events",
             "https://www.googleapis.com/auth/calendar.readonly",
             "https://www.googleapis.com/auth/userinfo.email",
