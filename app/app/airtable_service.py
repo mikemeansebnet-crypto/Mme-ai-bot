@@ -28,6 +28,30 @@ def airtable_create_record(fields: dict) -> dict:
 
     return {"ok": True, "status": r.status_code, "data": r.json()}
 
+def airtable_update_record(record_id: str, fields: dict) -> dict:
+    airtable_token = os.getenv("AIRTABLE_TOKEN")
+    airtable_base_id = os.getenv("AIRTABLE_BASE_ID")
+    air_table_name = os.getenv("AIRTABLE_TABLE_NAME")
+
+    if not airtable_token or not airtable_base_id or not air_table_name:
+        return {"ok": False, "error": "Missing Airtable env vars"}
+
+    url = f"https://api.airtable.com/v0/{airtable_base_id}/{air_table_name}/{record_id}"
+
+    headers = {
+        "Authorization": f"Bearer {airtable_token}",
+        "Content-Type": "application/json",
+    }
+
+    payload = {"fields": fields}
+
+    r = requests.patch(url, headers=headers, json=payload, timeout=20)
+
+    if r.status_code >= 400:
+        return {"ok": False, "status": r.status_code, "airtable_error": r.text}
+
+    return {"ok": True, "status": r.status_code, "data": r.json()}
+
 
 def airtable_get_city_corrections() -> dict:
     """
