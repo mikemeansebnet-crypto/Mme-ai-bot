@@ -388,8 +388,6 @@ def connect_google():
     )
 
     session["oauth_state"] = state
-    session["oauth_contractor_key"] = "mme_test_account"
-
     return redirect(authorization_url)
 
 
