@@ -376,6 +376,7 @@ def connect_google():
     )
 
     session["oauth_state"] = state
+    session["oauth_contractor_key"] = "mme_test_account"
 
     return redirect(authorization_url)
 
@@ -384,6 +385,7 @@ def connect_google():
 def google_callback():
 
     state = session.get("oauth_state")
+    contractor_key = session.get("oauth_contractor_key")
 
     flow = Flow.from_client_config(
         {
@@ -408,6 +410,7 @@ def google_callback():
     credentials = flow.credentials
 
     session["google_connected"] = True
+    
 
     return redirect("/dashboard")
 
