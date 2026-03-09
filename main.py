@@ -316,23 +316,36 @@ def health():
 
 @app.route("/dashboard")
 def dashboard():
-    google_connected = session.get("google_connected", False)
 
-    if google_connected:
-        return """
-        <h1>ContractorOS Dashboard</h1>
-        <p>Google Calendar Connected ✅</p>
+    calendar_connected = session.get("google_connected", False)
+
+    if calendar_connected:
+        status_html = """
+        <p><strong>Google Calendar Connected</strong> ✅</p>
         <p>Your booking system is active.</p>
         """
+    else:
+        status_html = """
+        <p>Connect your Google Calendar to start receiving bookings.</p>
+        <a href="/connect-google">
+            <button>Connect Google Calendar</button>
+        </a>
+        """
 
-    return """
-    <h1>ContractorOS Dashboard</h1>
-    <p>Connect your Google Calendar to start receiving bookings.</p>
-    <a href="/connect-google">
-        <button style="padding:10px 20px;font-size:16px;">
-        Connect Google Calendar
-        </button>
-    </a>
+    return f"""
+    <html>
+        <head>
+            <title>ContractorOS Dashboard</title>
+        </head>
+
+        <body style="font-family: Arial; padding:40px">
+
+            <h1>ContractorOS Dashboard</h1>
+
+            {status_html}
+
+        </body>
+    </html>
     """
 
 
@@ -359,6 +372,7 @@ def connect_google():
     authorization_url, state = flow.authorization_url(
         access_type="offline",
         include_granted_scopes="true",
+        prompt="consent",
     )
 
     session["oauth_state"] = state
