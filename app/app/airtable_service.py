@@ -31,7 +31,7 @@ def airtable_create_record(fields: dict) -> dict:
 def airtable_update_record(record_id: str, fields: dict) -> dict:
     airtable_token = os.getenv("AIRTABLE_TOKEN")
     airtable_base_id = os.getenv("AIRTABLE_BASE_ID")
-    air_table_name = os.getenv("AIRTABLE_TABLE_NAME")
+    air_table_name = "Contractors"
 
     if not airtable_token or not airtable_base_id or not air_table_name:
         return {"ok": False, "error": "Missing Airtable env vars"}
