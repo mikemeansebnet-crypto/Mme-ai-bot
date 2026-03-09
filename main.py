@@ -421,7 +421,23 @@ def google_callback():
 
     credentials = flow.credentials
 
+    refresh_token = credentials.refresh_token
+    calendar_id = "primary"
+
+    # mark session as connected
     session["google_connected"] = True
+
+    # save connection to Airtable
+    if contractor_key:
+        result = airtable_update_record(
+            contractor_key,
+            {
+                "Google Connected": True,
+                "Google Refresh Token": refresh_token or "",
+                "Google Calendar ID": calendar_id
+            }
+        )
+        print("GOOGLE OAUTH AIRTABLE UPDATE:", result)
     
 
     return redirect("/dashboard")
