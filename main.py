@@ -27,6 +27,7 @@ from app.app.airtable_service import (
     get_contractor_by_twilio_number,
     airtable_get_city_corrections,
     normalize_city,
+    airtable_update_record,
 )
 
 
