@@ -431,6 +431,9 @@ def google_callback():
     ).json()
 
     google_email = profile.get("email", "")
+
+    print("GOOGLE PROFILE:", profile)
+    print("GOOGLE EMAIL:", google_email)
     
 
     refresh_token = credentials.refresh_token
