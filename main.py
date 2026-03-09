@@ -348,6 +348,17 @@ def dashboard():
     </html>
     """
 
+@app.route("/onboard/<contractor_id>")
+def onboard(contractor_id):
+
+    # store contractor id in session
+    session["oauth_contractor_key"] = contractor_id
+
+    # send user to dashboard
+    return redirect("/dashboard")
+
+
+
 
 @app.route("/connect-google")
 def connect_google():
