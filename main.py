@@ -310,6 +310,93 @@ def health():
         "redis_connected": redis_ok
     }), status_code
 
+# ------------------------------
+# CONTRACTOR DASHBOARD
+# ------------------------------
+
+@app.route("/dashboard")
+def dashboard():
+    google_connected = session.get("google_connected", False)
+
+    if google_connected:
+        return """
+        <h1>ContractorOS Dashboard</h1>
+        <p>Google Calendar Connected ✅</p>
+        <p>Your booking system is active.</p>
+        """
+
+    return """
+    <h1>ContractorOS Dashboard</h1>
+    <p>Connect your Google Calendar to start receiving bookings.</p>
+    <a href="/connect-google">
+        <button style="padding:10px 20px;font-size:16px;">
+        Connect Google Calendar
+        </button>
+    </a>
+    """
+
+
+@app.route("/connect-google")
+def connect_google():
+
+    flow = Flow.from_client_config(
+        {
+            "web": {
+                "client_id": os.getenv("GOOGLE_CLIENT_ID"),
+                "client_secret": os.getenv("GOOGLE_CLIENT_SECRET"),
+                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                "token_uri": "https://oauth2.googleapis.com/token",
+            }
+        },
+        scopes=[
+            "https://www.googleapis.com/auth/calendar.events",
+            "https://www.googleapis.com/auth/calendar.readonly",
+        ],
+    )
+
+    flow.redirect_uri = os.getenv("GOOGLE_REDIRECT_URI")
+
+    authorization_url, state = flow.authorization_url(
+        access_type="offline",
+        include_granted_scopes="true",
+    )
+
+    session["oauth_state"] = state
+
+    return redirect(authorization_url)
+
+
+@app.route("/oauth/google/callback")
+def google_callback():
+
+    state = session.get("oauth_state")
+
+    flow = Flow.from_client_config(
+        {
+            "web": {
+                "client_id": os.getenv("GOOGLE_CLIENT_ID"),
+                "client_secret": os.getenv("GOOGLE_CLIENT_SECRET"),
+                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                "token_uri": "https://oauth2.googleapis.com/token",
+            }
+        },
+        scopes=[
+            "https://www.googleapis.com/auth/calendar.events",
+            "https://www.googleapis.com/auth/calendar.readonly",
+        ],
+        state=state,
+    )
+
+    flow.redirect_uri = os.getenv("GOOGLE_REDIRECT_URI")
+
+    flow.fetch_token(authorization_response=request.url)
+
+    credentials = flow.credentials
+
+    session["google_connected"] = True
+
+    return redirect("/dashboard")
+
 
 # ------------------------------
 # SMS (keep this even if A2P pending)
