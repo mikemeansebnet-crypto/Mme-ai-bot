@@ -311,9 +311,7 @@ def health():
         "redis_connected": redis_ok
     }), status_code
 
-# ------------------------------
-# CONTRACTOR DASHBOARD
-# ------------------------------
+
 
 # -------------------------
 # TEST GOOGLE EVENT
@@ -340,8 +338,6 @@ def test_google_event():
 # CONTRACTOR DASHBOARD
 # -------------------------
 
-@app.route("/dashboard")
-def dashboard():
 
 @app.route("/dashboard")
 def dashboard():
