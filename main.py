@@ -376,6 +376,8 @@ def connect_google():
         scopes=[
             "https://www.googleapis.com/auth/calendar.events",
             "https://www.googleapis.com/auth/calendar.readonly",
+            "https://www.googleapis.com/auth/userinfo.email",
+            
         ],
     )
 
@@ -409,6 +411,7 @@ def google_callback():
         scopes=[
             "https://www.googleapis.com/auth/calendar.events",
             "https://www.googleapis.com/auth/calendar.readonly",
+            "https://www.googleapis.com/auth/userinfo.email",
         ],
         state=state,
     )
@@ -418,6 +421,17 @@ def google_callback():
     flow.fetch_token(authorization_response=request.url)
 
     credentials = flow.credentials
+
+    access_token = credentials.token
+
+    profile = requests.get(
+        "https://www.googleapis.com/oauth2/v2/userinfo",
+        headers={"Authorization": f"Bearer {access_token}"},
+        timeout=20
+    ).json()
+
+    google_email = profile.get("email", "")
+    
 
     refresh_token = credentials.refresh_token
     calendar_id = "primary"
