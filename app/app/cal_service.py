@@ -47,7 +47,19 @@ def create_google_calendar_event(
 
     refresh_token = (contractor.get("Google Refresh Token") or "").strip()
     calendar_id = (contractor.get("Google Calendar ID") or "primary").strip() or "primary"
-    timezone = (contractor.get("Timezone") or "America/New_York").strip()
+    
+    raw_timezone = contractor.get("Timezone")
+
+    if isinstance(raw_timezone, dict):
+        timezone = (raw_timezone.get("name") or "").strip()
+    else:
+        timezone = str(raw_timezone or "").strip()
+
+    print("RAW TIMEZONE:", raw_timezone)
+    print("NORMALIZED TIMEZONE:", timezone)
+
+    if timezone != "America/New_York":
+        timezone = "America/New_York"
 
     if not refresh_token:
         return {"ok": False, "error": "missing_google_refresh_token"}
