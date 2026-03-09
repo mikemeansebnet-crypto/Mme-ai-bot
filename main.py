@@ -20,7 +20,7 @@ from app.app.state import (
     register_live_call, unregister_live_call, list_live_calls
 )
 from app.app.config import redis_client
-from app.app.cal_service import build_cal_booking_link
+from app.app.cal_service import build_cal_booking_link, create_google_calendar_event
 from app.app.mapbox_service import mapbox_address_candidates, mapbox_geocode_one
 from app.app.airtable_service import (
     airtable_create_record,
@@ -314,6 +314,34 @@ def health():
 # ------------------------------
 # CONTRACTOR DASHBOARD
 # ------------------------------
+
+# -------------------------
+# TEST GOOGLE EVENT
+# -------------------------
+
+@app.route("/test-google-event")
+def test_google_event():
+
+    contractor = get_contractor_by_twilio_number("+12408686702") or {}
+
+    result = create_google_calendar_event(
+        contractor=contractor,
+        summary="ContractorOS Test Booking",
+        start_time="2026-03-09T16:00:00-04:00",
+        end_time="2026-03-09T16:30:00-04:00",
+        description="Test event created by ContractorOS",
+        location="Bowie, MD",
+    )
+
+    return jsonify(result)
+
+
+# -------------------------
+# CONTRACTOR DASHBOARD
+# -------------------------
+
+@app.route("/dashboard")
+def dashboard():
 
 @app.route("/dashboard")
 def dashboard():
