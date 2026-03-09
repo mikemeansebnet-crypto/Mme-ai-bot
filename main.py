@@ -445,6 +445,7 @@ def google_callback():
             contractor_key,
             {
                 "Google Connected": True,
+                "Google Email": google_email,
                 "Google Refresh Token": refresh_token or "",
                 "Google Calendar ID": calendar_id
             }
