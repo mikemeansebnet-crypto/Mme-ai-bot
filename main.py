@@ -6,10 +6,12 @@ import json
 import time
 import re
 import math
-from flask import Flask, request, jsonify, Response 
+from flask import Flask, request, jsonify, Response, session, redirect, url_for 
 from twilio.twiml.voice_response import VoiceResponse, Gather
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
+from twilio.rest import Client 
+from google_auth_oauthlib.flow import Flow
 
 from app.app.state import (
     get_state, set_state, clear_state,
@@ -30,6 +32,7 @@ from app.app.airtable_service import (
 
 
 app = Flask(__name__)
+app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "dev-secret-change-me")
 
 
 # Gather all environment variables 
@@ -40,7 +43,6 @@ email_api_key = os.environ.get("SENDGRID_API_KEY")
 from_email = os.environ.get("FROM_EMAIL")
 to_email = os.environ.get("TO_EMAIL")
 
-from twilio.rest import Client
 
 
 # helper functions
