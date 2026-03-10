@@ -1354,16 +1354,22 @@ def voice_process():
                 print("MAPBOX CANDIDATES |", state["addr_candidates"])
                 set_state(call_sid, state)
 
-                # If none returned, fall back to your original behavior
+                # If none returned, do NOT auto-confirm 
                 if not state["addr_candidates"]:
-                    state["service_address"] = f"{state['addr_number']} {state['addr_street']}, {state['addr_city']} {state['addr_zip']}"
-                    state["addr_confirmed"] = True
+                    vr.say(
+                        "Sorry, I could not confirm that address. Let's try the street name again.",
+                        voice="Polly.Joanna",
+                        language="en-US",
+                    )
+
+                    state.pop("addr_candidates", None)
+                    state.pop("addr_confirmed", None)
+                    state.pop("addr_street", None)
+                    state["retries"] = 0
                     set_state(call_sid, state)
+                    
                     vr.redirect("/voice-process?step=1", method="POST")
                     return Response(str(vr), mimetype="text/xml")
-
-                vr.redirect("/voice-process?step=1", method="POST")
-                return Response(str(vr), mimetype="text/xml")
 
             # We have candidates; ask user to pick
             if not digits:
