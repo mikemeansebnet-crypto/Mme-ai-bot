@@ -28,7 +28,7 @@ def build_cal_booking_link(contractor: dict, customer_name: str = "", customer_p
 import os
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
-from app.app.crypto_service import decrypt_text
+from app.app.crypto_service import decrypt_text, looks_encrypted 
 
 
 def create_google_calendar_event(
@@ -47,7 +47,14 @@ def create_google_calendar_event(
     """
 
     encrypted_refresh_token = (contractor.get("Google Refresh Token") or "").strip()
-    refresh_token = decrpyted_text(encrypted_refresh_token) if encrypted_refresh_token else ""
+
+    if not encrypted_refresh_token:
+        refresh_token = ""
+    elif looks_encrypted(encrypted_refresh_token):
+        refresh_token = decrypt_text(encrypted_refresh_token)
+    else:
+        refresh_token = encrypted_refresh_token
+        
     calendar_id = (contractor.get("Google Calendar ID") or "primary").strip() or "primary"
     
     raw_timezone = contractor.get("Timezone")
