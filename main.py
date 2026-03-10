@@ -1759,7 +1759,7 @@ def voice_process():
                         sms_body = (
                             "Thanks for contacting MME Lawn Care & More. "
                             "We received your request. "
-                            f"Use this secure booking link to choose a time: {booking_link} "
+                            f"Use this secure booking link to choose a time for your estimate: {booking_link} "
                             "Reply STOP to opt out."
                         )
                     else:
