@@ -13,6 +13,7 @@ from sendgrid.helpers.mail import Mail
 from twilio.rest import Client 
 from google_auth_oauthlib.flow import Flow
 
+
 from app.app.state import (
     get_state, set_state, clear_state,
     set_call_alias, get_call_alias, clear_call_alias,
@@ -22,6 +23,7 @@ from app.app.state import (
 from app.app.config import redis_client
 from app.app.cal_service import build_cal_booking_link, create_google_calendar_event
 from app.app.mapbox_service import mapbox_address_candidates, mapbox_geocode_one
+from app.app.crypto_service import encrypt_text
 from app.app.airtable_service import (
     airtable_create_record,
     get_contractor_by_twilio_number,
@@ -462,7 +464,7 @@ def google_callback():
     print("GOOGLE EMAIL:", google_email)
     
 
-    refresh_token = credentials.refresh_token
+    refresh_token = encrypt_text(credentials.refresh_token or "")
     calendar_id = "primary"
 
     # mark session as connected
