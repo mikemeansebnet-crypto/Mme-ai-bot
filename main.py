@@ -669,7 +669,7 @@ def voice():
     )
     gather.pause(length=1)
     gather.say(
-        "How can I help you today? You can tell me what kind of work you need, or say you want to leave a message.",
+        "I'd be happy to help you get scheduled or get get some details down for your project. How can I help today.?",
         voice="Polly.Joanna",
         language="en-US",
     )
