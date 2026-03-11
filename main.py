@@ -125,6 +125,10 @@ EMERGENCY_KEYWORDS = [
     "burst pipe",
     "pipe burst",
     "sewer backup",
+    "danger",
+    "help",
+    "hazard",
+    "blocked".
 ]
 
 VOICEMAIL_KEYWORDS = [
@@ -137,6 +141,9 @@ VOICEMAIL_KEYWORDS = [
     "speak to mike",
     "someone call me",
     "return my call",
+    "busy",
+    "not available",
+    "reachout."
 ]
 
 ESTIMATE_KEYWORDS = [
