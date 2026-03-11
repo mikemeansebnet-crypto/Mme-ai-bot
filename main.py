@@ -283,6 +283,32 @@ def send_sms(to_number: str, body: str, from_number: str) -> dict:
     print("SMS_SENT:", msg.sid)
     return {"ok": True, "sid": msg.sid}
 
+def send_fallback_sms(to_number: str, body: str) -> dict:
+    """
+    Uses the same SMS engine as the rest of the system.
+    """
+    try:
+        from_number = os.getenv("TWILIO_PHONE_NUMBER") or os.getenv("TWILIO_FROM_NUMBER")
+
+        if not from_number:
+            print("FALLBACK SMS ERROR | missing_twilio_from_number")
+            return {"ok": False, "error": "missing_twilio_from_number"}
+
+        print("FALLBACK SMS DEBUG | sending from", from_number, "to", to_number)
+
+        result = send_sms(
+            to_number=to_number,
+            body=body,
+            from_number=from_number
+        )
+
+        print("FALLBACK SMS RESULT |", result)
+        return result
+
+    except Exception as e:
+        print("FALLBACK SMS ERROR |", str(e))
+        return {"ok": False, "error": str(e)}
+
 
 
 def send_email(subject: str, body: str, to_email: str = None, reply_to: str = None):
