@@ -799,11 +799,17 @@ def voice_intent():
 
     # If caller sounds like emergency, still use your existing emergency route
     if intent == "emergency":
+        # 1. The Humanized Acknowledgement
         vr.say(
-            "I’m sorry to hear that. Let me try to connect you now.",
+            "I’m very sorry to hear that. I'm going to get you connected to our on-call contractor immediately so they can assist you.",
             voice="Polly.Joanna",
             language="en-US",
         )
+
+        # 2. The "Safety" Pause (reduces the jarring transition)
+        vr.pause(length=1)
+
+        # 3. The redirect to the actual dialing logic 
         vr.redirect("/voice-emergency", method="POST")
         return Response(str(vr), mimetype="text/xml")
 
