@@ -128,7 +128,7 @@ EMERGENCY_KEYWORDS = [
     "danger",
     "help",
     "hazard",
-    "blocked".
+    "blocked."
 ]
 
 VOICEMAIL_KEYWORDS = [
