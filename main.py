@@ -652,8 +652,10 @@ def voice():
         method="POST",
         timeout=6,
         speech_timeout="auto",
-        profanity_filter=False,
+        profanity_filter=False
+
     )
+    
 
     gather.say(
         f"Hi thanks for calling {greeting_name}. How can I help you today? "
