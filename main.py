@@ -605,7 +605,7 @@ def voice_entry():
 # ------------------------------
 
 
-@app.route("/voice", methods=["POST","GET"])
+@app.route("/voice", methods=["POST", "GET"])
 def voice():
     vr = VoiceResponse()
     vr.pause(length=2)
@@ -620,26 +620,180 @@ def voice():
     business_name = (contractor.get("Business Name") or "our office").strip()
     greeting_name = (contractor.get("Greeting Name") or business_name).strip()
 
-    vr.say(f"Thank you for calling {greeting_name}.", voice="Polly.Joanna", language="en-US")
-    vr.pause(length=1)
-
-    g = Gather(
-        num_digits=1,
-        action="/voice-menu",
+    gather = Gather(
+        input="speech",
+        action="/voice-intent",
         method="POST",
         timeout=6,
-        actionOnEmptyResult=True,
+        speech_timeout="auto",
+        profanity_filter=False,
     )
-    g.say(
-        "If this is an emergency, press 1. "
-        "To leave details for an estimate, press 2.",
+
+    gather.say(
+        f"Thank you for calling {greeting_name}. How can I help you today? "
+        "You can tell me what kind of work you need, or say you want to leave a message.",
         voice="Polly.Joanna",
         language="en-US",
     )
-    vr.append(g)
 
-    # If silence, treat as estimate path
-    vr.redirect("/voice-menu", method="POST")
+    vr.append(gather)
+
+    # If silence / no speech result, still send to intent handler
+    vr.redirect("/voice-intent", method="POST")
+    return Response(str(vr), mimetype="text/xml")
+
+@app.route("/voice-intent", methods=["POST", "GET"])
+def voice_intent():
+    vr = VoiceResponse()
+
+    speech = (
+        request.values.get("SpeechResult")
+        or request.values.get("UnstableSpeechResult")
+        or ""
+    ).strip()
+
+    confidence = (request.values.get("Confidence") or "").strip()
+    to_number = (request.values.get("To") or "").strip()
+    from_number = (request.values.get("From") or "").strip()
+
+    # Keep your existing contractor lookup
+    contractor = {}
+    try:
+        contractor = get_contractor_by_twilio_number(to_number) or {}
+    except Exception as e:
+        print("CONTRACTOR LOOKUP FAILED IN INTENT:", e)
+
+    # Use caller number as resume lookup key
+    old_call_sid = None
+    inferred_step = 0
+
+    def _resume_step_from_fields(s: dict) -> int:
+        if not (s.get("name") or "").strip():
+            return 0
+        if not (s.get("service_address") or "").strip():
+            return 1
+        if not (s.get("job_description") or "").strip():
+            return 2
+        if not (s.get("timing") or "").strip():
+            return 3
+        return 4
+
+    if redis_client and to_number and from_number:
+        old_call_sid = get_resume_pointer(to_number, from_number)
+        if old_call_sid:
+            old_state = get_state(old_call_sid) or {}
+            inferred_step = _resume_step_from_fields(old_state)
+
+    # Determine low-confidence speech
+    low_confidence = False
+    try:
+        if confidence:
+            low_confidence = float(confidence) < 0.45
+    except Exception:
+        low_confidence = False
+
+    text = normalize_text(speech)
+    intent = detect_call_intent(text)
+
+    print(
+        "VOICE INTENT DEBUG |",
+        "Speech:", speech,
+        "| Confidence:", confidence,
+        "| Low confidence:", low_confidence,
+        "| Intent:", intent,
+        "| Resume old_call_sid:", old_call_sid,
+        "| Resume step:", inferred_step
+    )
+
+    # If no usable speech, send to voicemail fallback
+    if not text or low_confidence:
+        try:
+            send_fallback_sms(
+                to_number=from_number,
+                body=(
+                    f"Thanks for calling {greeting_name}. "
+                    "We had trouble capturing your request by phone. "
+                    "Reply with your name, address, and a brief description of the work needed, "
+                    "or leave a voicemail when prompted."
+                )
+            )
+        except Exception as e:
+            print("FALLBACK SMS ERROR |", e)
+
+        vr.say(
+            "I’m sorry, I had trouble understanding. "
+            "Please leave a detailed message after the tone, and we will follow up shortly.",
+            voice="Polly.Joanna",
+            language="en-US",
+        )
+
+        vr.record(
+            maxLength=120,
+            playBeep=True,
+            action="/twilio/voicemail",
+            method="POST"
+        )
+
+        vr.hangup()
+        return Response(str(vr), mimetype="text/xml")
+
+    # If caller clearly wants voicemail
+    if intent == "voicemail":
+        vr.say(
+            "No problem. Please leave your name, phone number, address if applicable, "
+            "and a brief message after the tone.",
+            voice="Polly.Joanna",
+            language="en-US",
+        )
+
+        vr.record(
+            maxLength=120,
+            playBeep=True,
+            action="/twilio/voicemail",
+            method="POST"
+        )
+
+        vr.hangup()
+        return Response(str(vr), mimetype="text/xml")
+
+    # If caller sounds like emergency, still use your existing emergency route
+    if intent == "emergency":
+        vr.say(
+            "I’m sorry to hear that. Let me try to connect you now.",
+            voice="Polly.Joanna",
+            language="en-US",
+        )
+        vr.redirect("/voice-emergency", method="POST")
+        return Response(str(vr), mimetype="text/xml")
+
+    # Otherwise this is a normal estimate / service request
+    # Keep your existing resume logic
+    if old_call_sid and inferred_step > 0:
+        g = Gather(
+            input="dtmf",
+            num_digits=1,
+            timeout=3,
+            action=f"/resume-choice?old={old_call_sid}&step={inferred_step}",
+            method="POST",
+            actionOnEmptyResult=True,
+        )
+        g.say(
+            "Looks like we were in the middle of a request. "
+            "I will resume where we left off. "
+            "Press 2 to start over.",
+            voice="Polly.Joanna",
+            language="en-US",
+        )
+        vr.append(g)
+        return Response(str(vr), mimetype="text/xml")
+
+    # No resume progress -> continue into recording consent then intake
+    vr.say(
+        "Absolutely. I’ll collect a few quick details.",
+        voice="Polly.Joanna",
+        language="en-US",
+    )
+    vr.redirect("/recording-consent?next=/voice-intake", method="POST")
     return Response(str(vr), mimetype="text/xml")
         
 
