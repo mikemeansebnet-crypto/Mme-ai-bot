@@ -106,6 +106,100 @@ def address_in_service_area(contractor: dict, lat: float, lon: float) -> tuple[b
         print("SERVICE AREA CHECK ERROR |", e)
         return True, "service_check_error"
 
+# -------------------------
+# INTENT HELPERS
+# -------------------------
+
+EMERGENCY_KEYWORDS = [
+    "emergency",
+    "urgent",
+    "right away",
+    "asap",
+    "immediately",
+    "tree fell",
+    "tree down",
+    "flood",
+    "flooding",
+    "water coming in",
+    "storm damage",
+    "burst pipe",
+    "pipe burst",
+    "sewer backup",
+]
+
+VOICEMAIL_KEYWORDS = [
+    "leave a message",
+    "voicemail",
+    "call me back",
+    "callback",
+    "have mike call me",
+    "talk to mike",
+    "speak to mike",
+    "someone call me",
+    "return my call",
+]
+
+ESTIMATE_KEYWORDS = [
+    "estimate",
+    "quote",
+    "pricing",
+    "price",
+]
+
+
+def normalize_text(text: str) -> str:
+    return (text or "").strip().lower()
+
+
+def detect_call_intent(text: str) -> str:
+    t = normalize_text(text)
+
+    if not t:
+        return "unknown"
+
+    for kw in EMERGENCY_KEYWORDS:
+        if kw in t:
+            return "emergency"
+
+    for kw in VOICEMAIL_KEYWORDS:
+        if kw in t:
+            return "voicemail"
+
+    for kw in ESTIMATE_KEYWORDS:
+        if kw in t:
+            return "estimate"
+
+    # Default normal service requests to estimate
+    return "estimate"
+
+
+def send_fallback_sms(to_number: str, body: str) -> dict:
+    """
+    Optional SMS fallback using your existing twilio_client() helper.
+    """
+    try:
+        from helpers import twilio_client
+
+        tc = twilio_client()
+        if not tc.get("ok"):
+            return {"ok": False, "error": tc.get("error", "twilio_client_failed")}
+
+        client = tc["client"]
+        from_number = os.getenv("TWILIO_PHONE_NUMBER") or os.getenv("TWILIO_FROM_NUMBER")
+
+        if not from_number:
+            return {"ok": False, "error": "missing_twilio_from_number"}
+
+        msg = client.messages.create(
+            body=body,
+            from_=from_number,
+            to=to_number
+        )
+        return {"ok": True, "sid": msg.sid}
+
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
 
 # routes start here
 
