@@ -696,6 +696,9 @@ def voice_intent():
     except Exception as e:
         print("CONTRACTOR LOOKUP FAILED IN INTENT:", e)
 
+    business_name = (contractor.get("Business Name") or "our office").strip()
+    greeting_name = (contractor.get("Greeting Name") or business_name).strip()
+
     # Use caller number as resume lookup key
     old_call_sid = None
     inferred_step = 0
