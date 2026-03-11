@@ -1054,6 +1054,26 @@ def twilio_voicemail():
     recording_duration = request.values.get("RecordingDuration", "")
 
     print("Voicemail received:", call_sid, from_number, recording_url, recording_duration)
+        
+    #SEND CONFIRMATION TEXT
+    try:
+        to_number = (request.values.get("To") or "").strip()
+        contractor = get_contractor_by_twilio_number(to_number) or {}
+        
+        business_name = (contractor.get("Business Name") or "our office").strip()
+        greeting_name = (contractor.get("Greeting Name") or business_name).strip()
+
+        sms_result = send_fallback_sms(
+            to_number=from_number,
+            body=(
+                f"Thanks for calling {greeting_name}. "
+                "We received your voicemail and will follow up as soon as possible."
+            )
+        )
+        print("VOICEMAIL SMS RESULT |", sms_result)
+
+    except Exception as e:
+        print("VOICEMAIL SMS ERROR |", e)
 
     # OPTIONAL: save to Airtable (add fields that exist in your Airtable table)
     try:
