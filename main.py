@@ -1194,6 +1194,14 @@ def voice_emergency():
             language="en-US"
         )
 
+        whisper_url = (
+            request.url_root.rstrip("/")
+            + "/emergency-whisper?biz="
+            + urllib.parse.quote(business_name)
+        )
+
+        print("DEBUG whisper_url:", whisper_url)
+
         dial = vr.dial(
             timeout=20,
             caller_id=to_number,
@@ -1202,7 +1210,7 @@ def voice_emergency():
 
         dial.number(
             emergency_phone,
-            url=f"/emergency-whisper?biz={business_name}"
+            url=whisper_url
         )
 
         return Response(str(vr), mimetype="text/xml")
@@ -1222,8 +1230,9 @@ def voice_emergency():
     )
 
     vr.hangup()
-    return Response(str(vr), mimetype="text/xml")@app.route("/emergency-whisper", methods=["POST", "GET"])
+    return Response(str(vr), mimetype="text/xml")
     
+@app.route("/emergency-whisper", methods=["POST", "GET"])
 def emergency_whisper():
     vr = VoiceResponse()
 
@@ -1232,7 +1241,9 @@ def emergency_whisper():
     gather = Gather(
         input="dtmf",
         num_digits=1,
-        timeout=5
+        timeout=5,
+        action="/emergency-whisper-connect",
+        method="POST"
     )
     gather.say(
         f"Emergency call for {biz_name}. Press any key to connect.",
@@ -1241,7 +1252,17 @@ def emergency_whisper():
     )
     vr.append(gather)
 
+    vr.say(
+        "No input received. Goodbye.",
+        voice="Polly.Joanna",
+        language="en-US"
+    )
     vr.hangup()
+    return Response(str(vr), mimetype="text/xml")
+
+@app.route("/emergency-whisper-connect", methods=["POST"])
+def emergency_whisper_connect():
+    vr = VoiceResponse()
     return Response(str(vr), mimetype="text/xml")
 
 
