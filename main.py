@@ -1176,14 +1176,17 @@ def voice_intake():
 def voice_emergency():
     vr = VoiceResponse()
 
-    to_number = request.values.get("To", "")
-    contractor = get_contractor_by_twilio_number(to_number)
-    emergency_phone = contractor.get("Emergency Phone")
-    
+    to_number = (request.values.get("To") or "").strip()
+    contractor = get_contractor_by_twilio_number(to_number) or {}
+
+    emergency_phone = (contractor.get("Emergency Phone") or "").strip()
+    business_name = (contractor.get("Business Name") or "your business").strip()
+
     print("DEBUG To number:", to_number)
     print("DEBUG contractor:", contractor)
     print("DEBUG emergency_phone:", emergency_phone)
-    
+    print("DEBUG business_name:", business_name)
+
     if emergency_phone:
         vr.say(
             "Okay. Connecting you now.",
@@ -1193,14 +1196,17 @@ def voice_emergency():
 
         dial = vr.dial(
             timeout=20,
-            callerId=to_number
+            caller_id=to_number,
+            answer_on_bridge=True
         )
-        dial.number(emergency_phone)
 
-        # IMPORTANT: return immediately after dial
+        dial.number(
+            emergency_phone,
+            url=f"/emergency-whisper?biz={business_name}"
+        )
+
         return Response(str(vr), mimetype="text/xml")
 
-    # ---- FALLBACK ONLY IF NO EMERGENCY PHONE ----
     vr.say(
         "We're unable to connect you right now. "
         "Please leave your name, address, and details after the beep.",
@@ -1209,15 +1215,34 @@ def voice_emergency():
     )
 
     vr.record(
-        maxLength=120,
-        playBeep=True,
+        max_length=120,
+        play_beep=True,
         action="/twilio/voicemail",
         method="POST"
     )
 
     vr.hangup()
-    return Response(str(vr), mimetype="text/xml")
+    return Response(str(vr), mimetype="text/xml")@app.route("/emergency-whisper", methods=["POST", "GET"])
+    
+def emergency_whisper():
+    vr = VoiceResponse()
 
+    biz_name = request.args.get("biz", "your business")
+
+    gather = Gather(
+        input="dtmf",
+        num_digits=1,
+        timeout=5
+    )
+    gather.say(
+        f"Emergency call for {biz_name}. Press any key to connect.",
+        voice="Polly.Joanna",
+        language="en-US"
+    )
+    vr.append(gather)
+
+    vr.hangup()
+    return Response(str(vr), mimetype="text/xml")
 
 
 @app.route("/voice-process", methods=["POST"])
