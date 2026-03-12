@@ -20,7 +20,15 @@ def build_cal_booking_link(contractor: dict, state: dict) -> str:
         return ""
 
     name = (state.get("name") or "").strip()
-    callback = (state.get("callback") or "").strip()
+
+    callback = "".join(c for c in (state.get("callback") or "") if c.isdigit())
+    if len(callback) == 10:
+        callback = f"+1{callback}"
+    elif len(callback) == 11 and callback.startswith("1"):
+        callback = f"+{callback}"
+    elif callback:
+        callback = f"+{callback}"
+
     service_address = (state.get("service_address") or "").strip()
     job_description = (state.get("job_description") or "").strip()
 
