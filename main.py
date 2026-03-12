@@ -1208,8 +1208,8 @@ def voice_emergency():
         return Response(str(vr), mimetype="text/xml")
 
     vr.say(
-        "We're unable to connect you right now. "
-        "Please leave your name, address, and details after the beep.",
+        "I am sorry we couldn't reach the on-call team. "
+        "Please leave your name, address, and the nature of the emergency after the beep.",
         voice="Polly.Joanna",
         language="en-US"
     )
