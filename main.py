@@ -2064,12 +2064,11 @@ def voice_process():
         except Exception as e:
             print("send_intake_summary failed:", e)
 
-        # Build Cal booking link
-        booking_link = build_cal_booking_link(
-            contractor,
-            customer_name=state.get("name", ""),
-            customer_phone=state.get("callback", "") or from_number,
-        )
+        # Build Cal booking link with prefilled customer details 
+        if not state.get("callback") and from_number:
+            state["callback"] = from_number
+            
+        booking_link = build_cal_booking_link(contractor. state)
 
         print("CAL BOOKING LINK:", booking_link)
 
@@ -2098,8 +2097,8 @@ def voice_process():
                     if booking_link:
                         sms_body = (
                             "Thanks for contacting MME Lawn Care & More. "
-                            "We received your request. "
-                            f"Use this secure booking link to choose a time for your estimate: {booking_link} "
+                            "We've got your project details. "
+                            f"Use this secure booking link to review your information, make any corrections, and choose a time for your estimate: {booking_link} "
                             "Reply STOP to opt out."
                         )
                     else:
