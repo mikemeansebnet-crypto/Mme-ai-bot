@@ -2068,7 +2068,7 @@ def voice_process():
         if not state.get("callback") and from_number:
             state["callback"] = from_number
             
-        booking_link = build_cal_booking_link(contractor. state)
+        booking_link = build_cal_booking_link(contractor, state)
 
         print("CAL BOOKING LINK:", booking_link)
 
