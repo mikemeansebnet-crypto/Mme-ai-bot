@@ -1855,16 +1855,17 @@ def voice_process():
         service_hint = (state.get("service_hint") or "").strip()
 
         if service_hint:
-            prompt = f"Got it - {service_hint}. Can you tell me a little more about your project?"
+            prompt = f"Got it - you mentioned {service_hint}. Can you tell me a little more about your project?"
         else:
             prompt = "Perfect. Can you briefly describe the service you need?"
             
 
-            gather.say
+            gather.say(
             prompt,
             voice="Polly.Joanna",
             language="en-US",
         )
+            
         vr.append(gather)
         return Response(str(vr), mimetype="text/xml")
 
