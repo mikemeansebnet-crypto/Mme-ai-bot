@@ -695,6 +695,8 @@ def voice_intent():
     to_number = (request.values.get("To") or "").strip()
     from_number = (request.values.get("From") or "").strip()
 
+    call_sid = (request.values.get("CallSid") or "").strip()
+
     # Keep your existing contractor lookup
     contractor = {}
     try:
@@ -743,7 +745,7 @@ def voice_intent():
     set_state(call_sid, state) 
 
     # --- Early parsing block (lightweight slot detection) ---
-    text_lower = speech.lower()
+    text_lower = text.lower()
 
     # detect simple timing phrases 
     if "today" in text_lower:
@@ -753,7 +755,7 @@ def voice_intent():
         state["timing_hint"] = "tomorrow"
 
     elif "this weekend" in text_lower:
-        state["timimg_hint"] = "this weekend"
+        state["timing_hint"] = "this weekend"
 
     # save back to state if detected
     if state.get("timimg_hint"):
