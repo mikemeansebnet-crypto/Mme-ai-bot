@@ -739,8 +739,27 @@ def voice_intent():
 
     # Save what the caller initially asked for 
     state = get_state(call_sid) or {}
-    state["service_hint"] = speech 
-    set_state(call_sid, state)
+    state["service_hint"] = text 
+    set_state(call_sid, state) 
+
+    # --- Early parsing block (lightweight slot detection) ---
+    text_lower = speech.lower()
+
+    # detect simple timing phrases 
+    if "today" in text_lower:
+        state["timing_hint"] = "today"
+
+    elif "tomorrow" in text_lower:
+        state["timing_hint"] = "tomorrow"
+
+    elif "this weekend" in text_lower:
+        state["timimg_hint"] = "this weekend"
+
+    # save back to state if detected
+    if state.get("timimg_hint"):
+        set_state(call_sid, state)
+
+    # ---------------------------------------------------------
 
     print(
         "VOICE INTENT DEBUG |",
