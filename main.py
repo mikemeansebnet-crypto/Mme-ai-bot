@@ -1922,8 +1922,17 @@ def voice_process():
                     speech_model="phone_call",
                     hints="lawn care,mowing,cleanout,junk removal,mulch,landscaping,pressure washing,leaf cleanup,painting,drywall,plumbing,handyman"
                 )
+
+                # Use the service hint if we captured it earlier
+                service_hint = (state.get("service_hint") or "").strip()
+
+                if service_hint:
+                    prompt = f"Just to confirm, you mentioned {service_hint}. Can you tell me a little more about your project?"
+                else:
+                    prompt = "Please briefly describe the service you need ."
+                    
                 gather.say(
-                    "Please briefly describe the service you need.",
+                    prompt,
                     voice="Polly.Joanna",
                     language="en-US",
                 )
