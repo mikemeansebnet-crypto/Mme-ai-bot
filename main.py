@@ -737,6 +737,11 @@ def voice_intent():
     text = normalize_text(speech)
     intent = detect_call_intent(text)
 
+    # Save what the caller initially asked for 
+    state = get_state(call_sid) or {}
+    state["service_hint"] = speech 
+    set_state(call_sid, state)
+
     print(
         "VOICE INTENT DEBUG |",
         "Speech:", speech,
@@ -1844,9 +1849,19 @@ def voice_process():
             barge_in=True,             # feels faster 
             actionOnEmptyResult=True,
             profanity_filter=False,
+
         )
-        gather.say(
-            "Perfect. What service do you need today?",
+
+        service_hint = (state.get("service_hint") or "").strip()
+
+        if service_hint:
+            prompt = f"Got it - {service_hint}. Can you tell me a little more about your project?"
+        else:
+            prompt = "Perfect. Can you briefly describe the service you need?"
+            
+
+            gather.say
+            prompt,
             voice="Polly.Joanna",
             language="en-US",
         )
