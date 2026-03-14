@@ -758,7 +758,7 @@ def voice_intent():
         state["timing_hint"] = "this weekend"
 
     # save back to state if detected
-    if state.get("timimg_hint"):
+    if state.get("timing_hint"):
         set_state(call_sid, state)
 
     # ---------------------------------------------------------
@@ -1918,8 +1918,10 @@ def voice_process():
                     input="speech",
                     action="/voice-process?step=2",
                     method="POST",
-                    timeout=8,
+                    timeout=6,
                     speech_timeout="auto",
+                    barge_in=True,
+                    actionOnEmptyResult=True,
                     profanity_filter=False,
                     speech_model="phone_call",
                     hints="lawn care,mowing,cleanout,junk removal,mulch,landscaping,pressure washing,leaf cleanup,painting,drywall,plumbing,handyman"
@@ -1931,7 +1933,7 @@ def voice_process():
                 if service_hint:
                     prompt = f"Just to confirm, you mentioned {service_hint}. Can you tell me a little more about your project?"
                 else:
-                    prompt = "Please briefly describe the service you need ."
+                    prompt = "Perfect. Can you briefly describe the service you need?."
                     
                 gather.say(
                     prompt,
