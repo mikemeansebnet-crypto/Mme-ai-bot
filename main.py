@@ -1461,7 +1461,24 @@ def voice_process():
 
     # STEP 0: Client name (speech -> DTMF confirm)
     if step == 0:
-        # If we are waiting for DTMF confirm, Digits will be present
+
+        # Check if we already captured the caller's name earlier
+        state = init_conversation_data(state)
+        conversation_data = state.get("conversation_data", {})
+
+        saved_name = (conversation_data.get("name") or "").strip()
+
+        if saved_name:
+            state["name"] = saved_name
+            set_state(call_sid, state)
+            vr.say(
+                f"Thanks {saved_name}. Let's get the service address.",
+                voice="Polly,Joanna",
+                language="en-US",
+                
+            vr.redirect("/voice-process?step=1", method="POST")
+            return Response(str(vr), mimetype="text/xml")
+
         name_candidate = (state.get("name_candidate") or "").strip()
 
         # 0A) If we don't yet have a candidate name, ask for speech
