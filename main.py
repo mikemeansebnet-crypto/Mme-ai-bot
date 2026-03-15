@@ -1665,7 +1665,7 @@ def voice_process():
                     
                 )
                 gather.say(
-                    "Great. Now please say the street name?",
+                    "Okay, please say the street name?",
                     voice="Polly.Joanna",
                     language="en-US",
                 )
