@@ -1963,11 +1963,18 @@ def voice_process():
                     hints="lawn care,mowing,cleanout,junk removal,mulch,landscaping,pressure washing,leaf cleanup,painting,drywall,plumbing,handyman"
                 )
 
+                # Ensure conversation memory exists 
+                state = get_state(call_sid) or {}
+                state = init_conversation_data(state)
+                conversation_data = state.get("conversation_data", {})
+
                 # Use the service hint if we captured it earlier
                 service_hint = (state.get("service_hint") or "").strip()
+                saved_service = (conversation_data.get("service") or "").strip()
+                known_service = service_hint or saved_service 
 
-                if service_hint:
-                    prompt = f"You mentioned {service_hint}. Can you tell me a little more about your project?"
+                if  known_service:
+                    prompt = "Got it. Can you tell me a little more about your project?"
                 else:
                     prompt = "Can you briefly describe the service you need?."
                     
