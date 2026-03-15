@@ -1998,10 +1998,67 @@ def voice_process():
                 saved_service = (conversation_data.get("service") or "").strip()
                 known_service = service_hint or saved_service 
 
-                if  known_service:
-                    prompt = "Got it. Can you tell me a little more about your project?"
+                timing_hint = (state.get("timing_hint") or "").strip()
+                saved_timing = (conversation_data.get("timing") or "").strip()
+                known_timing = timing_hint or saved_timing
+
+                if known_service and known_timing:
+                    gather = Gather(
+                        input="speech",
+                        action="/voice-process?step=4",
+                        method="POST",
+                        timeout=8,
+                        speech_timeout="auto",
+                        barge_in=True,
+                        actionOnEmptyResult=True,
+                        profanity_filter=False,
+                        speech_model="phone_call",
+                    )
+                    gather.say(
+                         "Got it. What is the best callback number in case we get disconnected?",
+                         voice="Polly.Joanna",
+                         language="en-US",
+                    )
+                    vr.append(gather)
+                    return Response(str(vr), mimetype="text/xml")
+
+                elif known_service:
+                    gather = Gather(
+                        input="speech",
+                        action="/voice-process?step=3",
+                        method="POST",
+                        timeout=6,
+                        speech_timeout="auto",
+                        barge_in=True,
+                        actionOnEmptyResult=True,
+                        profanity_filter=False,
+                        speech_model="phone_call",
+                    )
+                    gather.say(
+                        "Got it. When would you like the service done?",
+                        voice="Polly.Joanna",
+                        language="en-US",
+                    )
+                    vr.append(gather)
+                    return Response(str(vr), mimetype="text/xml")
+
                 else:
-                    prompt = "Can you briefly describe the service you need?."
+                    prompt = "Can you briefly describe the service you need?"
+                    gather.say(
+                        prompt,
+                        voice="Polly.Joanna",
+                        language="en-US",
+                    )
+                    vr.append(gather)
+                    return Response(str(vr), mimetype="text/xml")
+
+                if  known_service and known_timing:
+                    prompt = "Got it. Can you tell me a little more about your project?"
+                elif known_service:
+                    prompt = "Got it. When would you like the service done?"
+                else:
+                    prompt = "Can you briefly describe the service you need?"
+                    
                     
                 gather.say(
                     prompt,
