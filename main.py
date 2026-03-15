@@ -752,31 +752,44 @@ def voice_intent():
     text = normalize_text(speech)
     intent = detect_call_intent(text)
 
-    # Save what the caller initially asked for 
+    # Save what the caller initially asked for
     state = get_state(call_sid) or {}
 
-    state= init_conversation_data(state)
+    state = init_conversation_data(state)
     conversation_data = state["conversation_data"]
-    
-    state["service_hint"] = text 
-    set_state(call_sid, state) 
+
+    state["service_hint"] = text
+
+    # Save likely service from the caller's first request
+    if text and not conversation_data.get("service"):
+        conversation_data["service"] = text
 
     # --- Early parsing block (lightweight slot detection) ---
     text_lower = text.lower()
 
-    # detect simple timing phrases 
+    # detect simple timing phrases
     if "today" in text_lower:
         state["timing_hint"] = "today"
+        if not conversation_data.get("timing"):
+            conversation_data["timing"] = "today"
 
     elif "tomorrow" in text_lower:
         state["timing_hint"] = "tomorrow"
+        if not conversation_data.get("timing"):
+            conversation_data["timing"] = "tomorrow"
 
-    elif "this weekend" in text_lower:
-        state["timing_hint"] = "this weekend"
+    elif "this week" in text_lower:
+        state["timing_hint"] = "this week"
+        if not conversation_data.get("timing"):
+            conversation_data["timing"] = "this week"
 
-    # save back to state if detected
-    if state.get("timing_hint"):
-        set_state(call_sid, state)
+    elif "next week" in text_lower:
+        state["timing_hint"] = "next week"
+        if not conversation_data.get("timing"):
+            conversation_data["timing"] = "next week"
+
+    state["conversation_data"] = conversation_data
+    set_state(call_sid, state)
 
     # ---------------------------------------------------------
 
