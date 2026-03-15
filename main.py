@@ -50,6 +50,19 @@ to_email = os.environ.get("TO_EMAIL")
 
 
 # helper functions
+
+def init_conversation_data(state):
+    if "conversation_data" not in state:
+        state["conversation_data"] = {
+            "name": None,
+            "service": None,
+            "address": None,
+            "timing": None,
+            "callback": None,
+            "is_emergency": False,
+        }
+    return state
+    
 def haversine_miles(lat1, lon1, lat2, lon2) -> float:
     r = 3958.7613
     phi1 = math.radians(float(lat1))
@@ -741,6 +754,10 @@ def voice_intent():
 
     # Save what the caller initially asked for 
     state = get_state(call_sid) or {}
+
+    state= init_conversation_data(state)
+    conversation_data = state["conversation_data"]
+    
     state["service_hint"] = text 
     set_state(call_sid, state) 
 
