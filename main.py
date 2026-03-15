@@ -1149,24 +1149,28 @@ def voice_intake():
 
     call_sid = request.values.get("CallSid", "unknown")
 
-    # Normalize To/From (Twilio sometimes uses Called/Caller depending on webhook)
+    # Normalize To/From
     to_number = (request.values.get("To") or request.values.get("Called") or "").strip()
     from_number = (request.values.get("From") or request.values.get("Caller") or "").strip()
 
     contractor_key = to_number or "unknown"
 
+    # IMPORTANT: preserve anything already saved in /voice-intent
+    existing_state = get_state(call_sid) or {}
+
     state = {
+        **existing_state,
         "step": 0,
-        "callback": from_number,
+        "callback": existing_state.get("callback") or from_number,
         "retries": 0,
-        "name": "",
-        "service_address": "",
-        "job_description": "",
-        "timing": "",
+        "name": existing_state.get("name", ""),
+        "service_address": existing_state.get("service_address", ""),
+        "job_description": existing_state.get("job_description", ""),
+        "timing": existing_state.get("timing", ""),
         "call_sid": call_sid,
         "to_number": to_number,
         "contractor_key": contractor_key,
-        "started_at": int(time.time()),
+        "started_at": existing_state.get("started_at") or int(time.time()),
     }
 
     set_state(call_sid, state)
@@ -1182,7 +1186,7 @@ def voice_intake():
         speech_timeout="auto",
     )
     gather.say(
-        "whats your name?",
+        "What's your name?",
         voice="Polly.Joanna",
         language="en-US",
     )
@@ -1197,6 +1201,8 @@ def voice_intake():
 
     vr.hangup()
     return Response(str(vr), mimetype="text/xml")
+
+
 
 
 @app.route("/voice-emergency", methods=["POST", "GET"])
@@ -1631,7 +1637,7 @@ def voice_process():
                     timeout=6,                 # was 8
                     speech_timeout="auto",
                     barge_in=True,              # feels faster
-                    actionOnEmptyResults=True,
+                    actionOnEmptyResult=True,
                     profanity_filter=False,
                     hints="Bowie, Upper Marlboro, Lanham, Crofton, Washington, Baltimore",  
                 )
@@ -1931,9 +1937,9 @@ def voice_process():
                 service_hint = (state.get("service_hint") or "").strip()
 
                 if service_hint:
-                    prompt = f"Just to confirm, you mentioned {service_hint}. Can you tell me a little more about your project?"
+                    prompt = f"You mentioned {service_hint}. Can you tell me a little more about your project?"
                 else:
-                    prompt = "Perfect. Can you briefly describe the service you need?."
+                    prompt = "Can you briefly describe the service you need?."
                     
                 gather.say(
                     prompt,
