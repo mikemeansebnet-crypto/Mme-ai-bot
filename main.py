@@ -62,6 +62,26 @@ def init_conversation_data(state):
             "is_emergency": False,
         }
     return state
+
+def extract_name_from_text(text):
+    if not text:
+        return None
+
+    t = text.strip()
+
+    patterns = [
+        r"(?:this is|it's|it is|i am|i'm|my name is)\s+([A-Za-z]+(?:\s+[A-Za-z]+){0,2})",
+        r"^([A-Za-z]+(?:\s+[A-Za-z]+){0,2})\s+here\b",
+    ]
+
+    for pattern in patterns:
+        m = re.search(pattern, t, re.IGNORECASE)
+        if m:
+            name = m.group(1).strip(" .,!?")
+            if name:
+                return name
+
+    return None
     
 def haversine_miles(lat1, lon1, lat2, lon2) -> float:
     r = 3958.7613
@@ -759,6 +779,11 @@ def voice_intent():
     conversation_data = state["conversation_data"]
 
     state["service_hint"] = text
+
+    # Try to extract caller name from the first sentence
+    extracted_name = extract_name_from_text(text)
+    if extracted_name and not conversation_data.get("name"):
+        conversation_data["name"] = extracted_name
 
     # Save likely service from the caller's first request
     if text and not conversation_data.get("service"):
