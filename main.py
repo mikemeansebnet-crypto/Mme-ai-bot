@@ -1473,8 +1473,9 @@ def voice_process():
             set_state(call_sid, state)
             vr.say(
                 f"Thanks {saved_name}. Let's get the service address.",
-                voice="Polly,Joanna",
+                voice="Polly.Joanna",
                 language="en-US",
+            )
                 
             vr.redirect("/voice-process?step=1", method="POST")
             return Response(str(vr), mimetype="text/xml")
