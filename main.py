@@ -702,7 +702,9 @@ def voice():
         action="/voice-intent",
         method="POST",
         timeout=6,
-        speech_timeout="auto",
+        speech_timeout="3",
+        speech_model="phone_call",
+        enhanced=True
         profanity_filter=False
 
     )
@@ -1250,7 +1252,9 @@ def voice_intake():
         action="/voice-process?step=0",
         method="POST",
         timeout=6,
-        speech_timeout="auto",
+        speech_timeout="3",
+        speech_model="phone_call",
+        enhanced=True
     )
     gather.say(
         "What's your name?",
@@ -1420,6 +1424,19 @@ def voice_process():
     # Now load state for the FINAL chosen call_sid
     state = get_state(call_sid) or {}
 
+    print(
+        "STATE SNAPSHOT |",
+        "step:", step,
+        "| name:", repr(state.get("name")),
+        "| service_address:", repr(state.get("service_address")),
+        "| job_description:", repr(state.get("job_description")),
+        "| timing:", repr(state.get("timing")),
+        "| callback:", repr(state.get("callback")),
+        "| service_hint:", repr(state.get("service_hint")),
+    )
+    actual_step = get_next_missing_step(state)
+    print("NEXT MISSING STEP | requested:", step, "| actual:", actual_step)
+
 
     # Always store CallSid
     state["call_sid"] = call_sid
@@ -1497,6 +1514,11 @@ def voice_process():
             state["address_intro_played"] = True
             set_state(call_sid, state)
 
+            next_step = get_next_missing_step(state)
+            state["step"] = next_step
+            set_state(call_sid, state)
+            
+
             if redis_client and to_number and from_number:
                 save_resume_pointer(to_number, from_number, call_sid)
 
@@ -1506,7 +1528,7 @@ def voice_process():
                 language="en-US",
             )
 
-            vr.redirect("/voice-process?step=1", method="POST")
+            vr.redirect(f"/voice-process?step={next_step}", method="POST")
             return Response(str(vr), mimetype="text/xml")
 
         name_candidate = (state.get("name_candidate") or "").strip()
@@ -1518,7 +1540,9 @@ def voice_process():
                 action="/voice-process?step=0",
                 method="POST",
                 timeout=8,
-                speech_timeout="auto",
+                speech_timeout="3",
+                speech_model="phone_call
+                enhanced=True
                 profanity_filter=False,
                 hints="first name last name full name",
             )
@@ -1705,7 +1729,9 @@ def voice_process():
                     action="/voice-process?step=1",
                     method="POST",
                     timeout=6,                  # was 8
-                    speech_timeout="auto",
+                    speech_timeout="3",
+                    speech_model="phone_call"
+                    enhanced=True
                     barge_in=True,              # feels faster             
                     actionOnEmptyResult=True,
                     profanity_filter=False,
@@ -1737,7 +1763,9 @@ def voice_process():
                     action="/voice-process?step=1",
                     method="POST",
                     timeout=6,                 # was 8
-                    speech_timeout="auto",
+                    speech_timeout="3",
+                    speech_model="phone_call"
+                    enhanced=True
                     barge_in=True,              # feels faster
                     actionOnEmptyResult=True,
                     profanity_filter=False,
@@ -1972,7 +2000,9 @@ def voice_process():
                     action="/voice-process?step=2",
                     method="POST",
                     timeout=6,
-                    speech_timeout="auto",
+                    speech_timeout="3",
+                    speech_model="phone_call",
+                    enhanced=True
                     barge_in=True,
                     actionOnEmptyResult=True,
                     profanity_filter=False,
@@ -1994,7 +2024,9 @@ def voice_process():
                     action="/voice-process?step=3",
                     method="POST",
                     timeout=6,
-                    speech_timeout="auto",
+                    speech_timeout="3",
+                    speech_model="phone_call"
+                    enhanced=True
                     barge_in=True,
                     actionOnEmptyResult=True,
                     profanity_filter=False,
@@ -2070,11 +2102,12 @@ def voice_process():
                     action="/voice-process?step=2",
                     method="POST",
                     timeout=6,
-                    speech_timeout="auto",
+                    speech_timeout="3",
+                    speech_model="phone_call"
+                    enhanced=True
                     barge_in=True,
                     actionOnEmptyResult=True,
                     profanity_filter=False,
-                    speech_model="phone_call",
                     hints="lawn care,mowing,cleanout,junk removal,mulch,landscaping,pressure washing,leaf cleanup,painting,drywall,plumbing,handyman",
                 )
                 gather.say(
@@ -2187,7 +2220,9 @@ def voice_process():
                 action="/voice-process?step=3",
                 method="POST",
                 timeout=8,
-                speech_timeout="auto",
+                speech_timeout="3",
+                speech_model="phone_call",
+                enhanced=True
                 profanity_filter=False,
             )
 
