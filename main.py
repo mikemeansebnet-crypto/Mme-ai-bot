@@ -1542,7 +1542,7 @@ def voice_process():
                 timeout=8,
                 speech_timeout="3",
                 speech_model="phone_call",
-                enhanced=True
+                enhanced=True,
                 profanity_filter=False,
                 hints="first name last name full name",
             )
@@ -1730,8 +1730,8 @@ def voice_process():
                     method="POST",
                     timeout=6,                  # was 8
                     speech_timeout="3",
-                    speech_model="phone_call"
-                    enhanced=True
+                    speech_model="phone_call",
+                    enhanced=True,
                     barge_in=True,              # feels faster             
                     actionOnEmptyResult=True,
                     profanity_filter=False,
@@ -1764,8 +1764,8 @@ def voice_process():
                     method="POST",
                     timeout=6,                 # was 8
                     speech_timeout="3",
-                    speech_model="phone_call"
-                    enhanced=True
+                    speech_model="phone_call",
+                    enhanced=True,
                     barge_in=True,              # feels faster
                     actionOnEmptyResult=True,
                     profanity_filter=False,
@@ -2002,7 +2002,7 @@ def voice_process():
                     timeout=6,
                     speech_timeout="3",
                     speech_model="phone_call",
-                    enhanced=True
+                    enhanced=True,
                     barge_in=True,
                     actionOnEmptyResult=True,
                     profanity_filter=False,
@@ -2025,8 +2025,8 @@ def voice_process():
                     method="POST",
                     timeout=6,
                     speech_timeout="3",
-                    speech_model="phone_call"
-                    enhanced=True
+                    speech_model="phone_call",
+                    enhanced=True,
                     barge_in=True,
                     actionOnEmptyResult=True,
                     profanity_filter=False,
@@ -2103,8 +2103,8 @@ def voice_process():
                     method="POST",
                     timeout=6,
                     speech_timeout="3",
-                    speech_model="phone_call"
-                    enhanced=True
+                    speech_model="phone_call",
+                    enhanced=True,
                     barge_in=True,
                     actionOnEmptyResult=True,
                     profanity_filter=False,
@@ -2222,7 +2222,7 @@ def voice_process():
                 timeout=8,
                 speech_timeout="3",
                 speech_model="phone_call",
-                enhanced=True
+                enhanced=True,
                 profanity_filter=False,
             )
 
