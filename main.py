@@ -704,7 +704,7 @@ def voice():
         timeout=6,
         speech_timeout="3",
         speech_model="phone_call",
-        enhanced=True
+        enhanced=True,
         profanity_filter=False
 
     )
