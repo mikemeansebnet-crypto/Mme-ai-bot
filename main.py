@@ -1473,13 +1473,14 @@ def voice_process():
             state["name_confirmed"] = True
             state["step"] = 1
             state["retries"] = 0
+            state["address_intro_played"] = True
             set_state(call_sid, state)
 
             if redis_client and to_number and from_number:
                 save_resume_pointer(to_number, from_number, call_sid)
 
             vr.say(
-                f"Thanks {saved_name}. Let's get the service address.",
+                f"Thanks {saved_name}.",
                 voice="Polly.Joanna",
                 language="en-US",
             )
@@ -1938,7 +1939,7 @@ def voice_process():
 
             service_hint = (state.get("service_hint") or "").strip()
             timing_hint = (state.get("timing") or "").strip()
-            callback_hint = (state.get("callback_number") or "").strip()
+            callback_hint = (state.get("callback") or "").strip()
 
             # Address confirmed -> ask the next missing thing immediately
             if not service_hint:
@@ -2087,7 +2088,6 @@ def voice_process():
                 language="en-US",
             )
             vr.append(gather)
-            vr.redirect("/voice-process?step=2", method="POST")
             return Response(str(vr), mimetype="text/xml")
 
         # We already have a job description -> waiting for DTMF confirm
@@ -2105,7 +2105,6 @@ def voice_process():
                 language="en-US",
             )    
             vr.append(gather)
-            vr.redirect("/voice-process?step=2", method="POST")
             return Response(str(vr), mimetype="text/xml")
 
         if digits == "2":
@@ -2142,7 +2141,6 @@ def voice_process():
             language="en-US",
         )
         vr.append(gather)
-        vr.redirect("/voice-process?step=2", method="POST")
         return Response(str(vr), mimetype="text/xml")
         
 
