@@ -2016,113 +2016,58 @@ def voice_process():
 
 
 
-        # STEP 2: Job description + confirm/repeat
-        if step == 2:
-            # Pull inputs safely
-            speech = (request.values.get("SpeechResult") or request.values.get("speech") or "").strip()
-            digits = (request.values.get("Digits") or "").strip()
+    # STEP 2: Job description + confirm/repeat
+    if step == 2:
+        # Pull inputs safely
+        speech = (request.values.get("SpeechResult") or request.values.get("speech") or "").strip()
+        digits = (request.values.get("Digits") or "").strip()
 
-            # If we don't have a job description yet, ask for it
-            if not state.get("job_description"):
-                if not speech:
-                    state["retries"] = state.get("retries", 0) + 1
-                    set_state(call_sid, state)
+        # If we don't have a job description yet, ask for it
+        if not state.get("job_description"):
+            if not speech:
+                state["retries"] = state.get("retries", 0) + 1
+                set_state(call_sid, state)
 
-                    if state["retries"] >= 2:
-                        vr.say(
-                            "Sorry, I'm having trouble hearing you. We'll follow up shortly.",
-                            voice="Polly.Joanna",
-                            language="en-US",
-                        )
-                        vr.hangup()
-                        return Response(str(vr), mimetype="text/xml")
-
-                    gather = Gather(
-                        input="speech",
-                        action="/voice-process?step=2",
-                        method="POST",
-                        timeout=6,
-                        speech_timeout="auto",
-                        barge_in=True,
-                        actionOnEmptyResult=True,
-                        profanity_filter=False,
-                        speech_model="phone_call",
-                        hints="lawn care,mowing,cleanout,junk removal,mulch,landscaping,pressure washing,leaf cleanup,painting,drywall,plumbing,handyman",
-                    )
-                    gather.say(
-                        "Can you briefly describe the service you need?",
+                if state["retries"] >= 2:
+                    vr.say(
+                        "Sorry, I'm having trouble hearing you. We'll follow up shortly.",
                         voice="Polly.Joanna",
                         language="en-US",
                     )
-                    vr.append(gather)
+                    vr.hangup()
                     return Response(str(vr), mimetype="text/xml")
 
-                # Speech exists -> save it and confirm by DTMF
-                state["job_description"] = speech
-                state["service_hint"] = speech
-                state["retries"] = 0
-                state["step"] = 2
-                set_state(call_sid, state)
-
-                if redis_client and to_number and from_number:
-                    save_resume_pointer(to_number, from_number, call_sid)
-                    print("RESUME PTR SAVED (after job desc):", to_number, from_number, call_sid, "state.step=", state["step"])
-
                 gather = Gather(
-                    input="dtmf",
-                    num_digits=1,
+                    input="speech",
                     action="/voice-process?step=2",
                     method="POST",
                     timeout=6,
+                    speech_timeout="auto",
+                    barge_in=True,
+                    actionOnEmptyResult=True,
+                    profanity_filter=False,
+                    speech_model="phone_call",
+                    hints="lawn care,mowing,cleanout,junk removal,mulch,landscaping,pressure washing,leaf cleanup,painting,drywall,plumbing,handyman",
                 )
                 gather.say(
-                    f"I heard: {state['job_description']}. Press 1 to confirm, or press 2 to repeat.",
+                    "Can you briefly describe the service you need?",
                     voice="Polly.Joanna",
                     language="en-US",
                 )
                 vr.append(gather)
-                vr.redirect("/voice-process?step=2", method="POST")
                 return Response(str(vr), mimetype="text/xml")
 
-            # We already have a job description -> waiting for DTMF confirm
-            if not digits:
-                gather = Gather(
-                    input="dtmf",
-                    num_digits=1,
-                    action="/voice-process?step=2",
-                    method="POST",
-                    timeout=6,
-                )
-                gather.say(
-                    f"I heard: {state['job_description']}. Press 1 to confirm, or press 2 to repeat.",
-                    voice="Polly.Joanna",
-                    language="en-US",
-                )    
-                vr.append(gather)
-                vr.redirect("/voice-process?step=2", method="POST")
-                return Response(str(vr), mimetype="text/xml")
+            # Speech exists -> save it and confirm by DTMF
+            state["job_description"] = speech
+            state["service_hint"] = speech
+            state["retries"] = 0
+            state["step"] = 2
+            set_state(call_sid, state)
 
-            if digits == "2":
-                state.pop("job_description", None)
-                state.pop("service_hint", None)
-                state["retries"] = 0
-                set_state(call_sid, state)
-                vr.redirect("/voice-process?step=2", method="POST")
-                return Response(str(vr), mimetype="text/xml")
+            if redis_client and to_number and from_number:
+                save_resume_pointer(to_number, from_number, call_sid)
+                print("RESUME PTR SAVED (after job desc):", to_number, from_number, call_sid, "state.step=", state["step"])
 
-            if digits == "1":
-                state["step"] = 3
-                state["retries"] = 0
-                set_state(call_sid, state)
-
-                if redis_client and to_number and from_number:
-                    save_resume_pointer(to_number, from_number, call_sid)
-                    print("RESUME PTR SAVED (after confirm):", to_number, from_number, call_sid, "state.step=", state["step"])
-
-                vr.redirect("/voice-process?step=3", method="POST")
-                return Response(str(vr), mimetype="text/xml")
-
-            # Any other key -> reprompt
             gather = Gather(
                 input="dtmf",
                 num_digits=1,
@@ -2131,20 +2076,71 @@ def voice_process():
                 timeout=6,
             )
             gather.say(
-                "Please press 1 to confirm, or press 2 to repeat.",
+                f"I heard: {state['job_description']}. Press 1 to confirm, or press 2 to repeat.",
                 voice="Polly.Joanna",
                 language="en-US",
             )
             vr.append(gather)
             vr.redirect("/voice-process?step=2", method="POST")
             return Response(str(vr), mimetype="text/xml")
+
+        # We already have a job description -> waiting for DTMF confirm
+        if not digits:
+            gather = Gather(
+                input="dtmf",
+                num_digits=1,
+                action="/voice-process?step=2",
+                method="POST",
+                timeout=6,
+            )
+            gather.say(
+                f"I heard: {state['job_description']}. Press 1 to confirm, or press 2 to repeat.",
+                voice="Polly.Joanna",
+                language="en-US",
+            )    
+            vr.append(gather)
+            vr.redirect("/voice-process?step=2", method="POST")
+            return Response(str(vr), mimetype="text/xml")
+
+        if digits == "2":
+            state.pop("job_description", None)
+            state.pop("service_hint", None)
+            state["retries"] = 0
+            set_state(call_sid, state)
+            vr.redirect("/voice-process?step=2", method="POST")
+            return Response(str(vr), mimetype="text/xml")
+
+        if digits == "1":
+            state["step"] = 3
+            state["retries"] = 0
+            set_state(call_sid, state)
+
+            if redis_client and to_number and from_number:
+                save_resume_pointer(to_number, from_number, call_sid)
+                print("RESUME PTR SAVED (after confirm):", to_number, from_number, call_sid, "state.step=", state["step"])
+
+            vr.redirect("/voice-process?step=3", method="POST")
+            return Response(str(vr), mimetype="text/xml")
+
+        # Any other key -> reprompt
+        gather = Gather(
+            input="dtmf",
+            num_digits=1,
+            action="/voice-process?step=2",
+            method="POST",
+            timeout=6,
+        )
+        gather.say(
+            "Please press 1 to confirm, or press 2 to repeat.",
+            voice="Polly.Joanna",
+            language="en-US",
+        )
+        vr.append(gather)
+        vr.redirect("/voice-process?step=2", method="POST")
+        return Response(str(vr), mimetype="text/xml")
         
 
-            
-
-
-   
-    # STEP 3: Timing
+     # STEP 3: Timing
     if step == 3:
         if not speech:
             state["retries"] = state.get("retries", 0) + 1
@@ -2159,41 +2155,59 @@ def voice_process():
                 vr.hangup()
                 return Response(str(vr), mimetype="text/xml")
 
+            service_hint = (state.get("service_hint") or state.get("job_description") or "").strip()
+
             gather = Gather(
                 input="speech",
-                action="/voice-process?step=3",   # <-- FIXED
+                action="/voice-process?step=3",
                 method="POST",
                 timeout=8,
                 speech_timeout="auto",
                 profanity_filter=False,
             )
+
+            if service_hint:
+                prompt = f"Got it — you're looking for {service_hint}. When would you like that done?"
+            else:
+                prompt = "Please tell me when you need the service."
+
             gather.say(
-                "Please tell me when you need the service.",
+                prompt,
                 voice="Polly.Joanna",
                 language="en-US",
             )
             vr.append(gather)
             return Response(str(vr), mimetype="text/xml")
 
-        # Speech EXISTS -> save timing, move to step 4
+        # Speech exists -> save timing, move to step 4
         state["timing"] = speech.strip()
+        state["timing_hint"] = speech.strip()
         state["retries"] = 0
         state["step"] = 4
         set_state(call_sid, state)
 
         if redis_client and to_number and from_number:
             save_resume_pointer(to_number, from_number, call_sid)
-            print("RESUME PTR SAVED (after timing):", to_number, from_number, call_sid, "state.step=", state["step"])                  
+            print("RESUME PTR SAVED (after timing):", to_number, from_number, call_sid, "state.step=", state["step"])
+
+        service_hint = (state.get("service_hint") or state.get("job_description") or "").strip()
 
         gather = Gather(
-            input="speech",
+            input="speech dtmf",
             action="/voice-process?step=4",
             method="POST",
             timeout=8,
             speech_timeout="auto",
+            finishOnKey="#",
         )
+
+        if service_hint:
+            prompt = f"Got it — you're looking for {service_hint}, and you need it {speech.strip()}. What's the best callback phone number?"
+        else:
+            prompt = "What is the best callback phone number?"
+
         gather.say(
-            "What is the best callback phone number?",
+            prompt,
             voice="Polly.Joanna",
             language="en-US",
         )
@@ -2209,54 +2223,57 @@ def voice_process():
         # If still nothing usable, reprompt
         if not callback_val:
             gather = Gather(
-                input="speech",
+                input="speech dtmf",
                 action="/voice-process?step=4",
                 method="POST",
                 timeout=8,
                 speech_timeout="auto",
                 profanity_filter=False,
+                finishOnKey="#",
             )
             gather.say(
-                "I didn't catch that. Please say the best callback phone number.",
+                "I didn't catch that. Please say or enter the best callback phone number.",
                 voice="Polly.Joanna",
                 language="en-US",
             )
             vr.append(gather)
             return Response(str(vr), mimetype="text/xml")
 
-        # Normalize to digits only (handles 240-555-1234, etc.)
+        # Normalize to digits only
         callback_digits = "".join([c for c in callback_val if c.isdigit()])
 
-        # If caller spoke something too short, fall back to caller ID
+        # If too short, fall back to caller ID
         if len(callback_digits) < 7:
-            callback_digits = (request.values.get("From", "") or "").strip()
+            fallback_from = (request.values.get("From", "") or "").strip()
+            callback_digits = "".join([c for c in fallback_from if c.isdigit()])
 
         state["callback"] = callback_digits
+        state["callback_number"] = callback_digits
         set_state(call_sid, state)
-        
+
         if redis_client and to_number and from_number:
             save_resume_pointer(to_number, from_number, call_sid)
 
-        # Pull per-contractor email routing (fallback safe)
+        # Pull per-contractor email routing
         contractor = get_contractor_by_twilio_number(to_number) or {}
+        business_name = (contractor.get("Business Name") or "our office").strip()
 
         notify_email = (contractor.get("Notify Email") or os.getenv("TO_EMAIL") or "").strip() or None
         reply_to_email = (contractor.get("Reply to Email") or "").strip() or None
-        
+
         try:
             send_intake_summary(state, notify_email=notify_email, reply_to_email=reply_to_email)
         except Exception as e:
             print("send_intake_summary failed:", e)
 
-        # Build Cal booking link with prefilled customer details 
+        # Build booking link
         if not state.get("callback") and from_number:
             state["callback"] = from_number
-            
-        booking_link = build_cal_booking_link(contractor, state)
 
+        booking_link = build_cal_booking_link(contractor, state)
         print("CAL BOOKING LINK:", booking_link)
 
-        # Send SMS confirmation with booking link
+        # Send SMS confirmation
         try:
             sms_result = twilio_client()
 
@@ -2280,14 +2297,14 @@ def voice_process():
 
                     if booking_link:
                         sms_body = (
-                            "Thanks for contacting MME Lawn Care & More. "
+                            f"Thanks for contacting {business_name}. "
                             "We've got your project details. "
                             f"Use this secure booking link to review your information, make any corrections, and choose a time for your estimate: {booking_link} "
                             "Reply STOP to opt out."
                         )
                     else:
                         sms_body = (
-                            "Thanks for contacting MME Lawn Care & More. "
+                            f"Thanks for contacting {business_name}. "
                             "We received your request and will follow up shortly. "
                             "Reply STOP to opt out."
                         )
@@ -2313,25 +2330,25 @@ def voice_process():
             "CallSid:", call_sid,
             "| Name:", state.get("name"),
             "| Address:", state.get("service_address"),
-            "| City:", state.get("city"),
-            "| State:", state.get("state"),
-            "| Zip:", state.get("zip")
+            "| City:", state.get("addr_city"),
+            "| Zip:", state.get("addr_zip"),
+            "| Callback:", state.get("callback"),
         )
 
         unregister_live_call(state.get("contractor_key", "unknown"), call_sid)
         clear_state(call_sid)
-        
-        # Refined version with better spacing for the TTS engine
+
         vr.say(
-            "Perfect. I've recorded all those details. Keep an eye out for a text message " 
+            "Perfect. I've recorded all those details. Keep an eye out for a text message "
             "shortly with your secure booking link. Thanks for choosing us. Goodbye!",
             voice="Polly.Joanna",
             language="en-US",
-        )     
-        
+        )
+
         vr.pause(length=1)
         vr.hangup()
         return Response(str(vr), mimetype="text/xml")
+    
 
 
         
