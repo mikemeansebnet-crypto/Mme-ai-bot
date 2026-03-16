@@ -51,6 +51,7 @@ to_email = os.environ.get("TO_EMAIL")
 
 # helper functions
 
+
 def init_conversation_data(state):
     if "conversation_data" not in state:
         state["conversation_data"] = {
@@ -82,6 +83,17 @@ def extract_name_from_text(text):
                 return name
 
     return None
+
+def get_next_missing_step(state: dict) -> int:
+    if not (state.get("name") or "").strip():
+        return 0
+    if not (state.get("service_address") or "").strip():
+        return 1
+    if not (state.get("job_description") or "").strip():
+        return 2
+    if not (state.get("timing") or "").strip():
+        return 3
+    return 4
     
 def haversine_miles(lat1, lon1, lat2, lon2) -> float:
     r = 3958.7613
@@ -1423,6 +1435,15 @@ def voice_process():
 
     # Always capture caller phone number (do not overwrite if already set)
     state["callback"] = state["callback"] or request.values.get("From", "")
+
+    # NEW: slot-based step chooser for steps 0-3
+    actual_step = get_next_missing_step(state)
+
+    if step < 4 and actual_step != step:
+        print("STEP OVERRIDE | requested:", step, "| actual:", actual_step)
+        step = actual_step
+        state["step"] = actual_step
+        set_state(call_sid, state)
 
     # -------- Restore step on callback by checking which fields are already filled --------
     def _resume_step_from_fields(s: dict) -> int:
