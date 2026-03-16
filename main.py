@@ -2022,7 +2022,13 @@ def voice_process():
         speech = (request.values.get("SpeechResult") or request.values.get("speech") or "").strip()
         digits = (request.values.get("Digits") or "").strip()
 
-        # If we don't have a job description yet, ask for it
+        # If service was already detected earlier, reuse it
+        if not state.get("job_description") and state.get("service_hint"):
+            state["job_description"] = state["service_hint"]
+            state["retries"] = 0
+            set_state(call_sid, state)
+
+        # If we still don't have a job description, ask for it
         if not state.get("job_description"):
             if not speech:
                 state["retries"] = state.get("retries", 0) + 1
