@@ -1541,7 +1541,7 @@ def voice_process():
                 method="POST",
                 timeout=8,
                 speech_timeout="3",
-                speech_model="phone_call
+                speech_model="phone_call"
                 enhanced=True
                 profanity_filter=False,
                 hints="first name last name full name",
