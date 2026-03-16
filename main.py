@@ -94,6 +94,19 @@ def get_next_missing_step(state: dict) -> int:
     if not (state.get("timing") or "").strip():
         return 3
     return 4
+
+def clean_service_text(text: str) -> str:
+    t = (text or "").strip().lower()
+
+    # remove filler phrases
+    for phrase in ["any ", "uh ", "um ", "like ", "i need ", "i need a ", "i need some "]:
+        if t.startswith(phrase):
+            t = t[len(phrase):]
+
+    # remove punctuation that sometimes gets captured
+    t = t.replace("?", "").replace(".", "").strip()
+
+    return t
     
 def haversine_miles(lat1, lon1, lat2, lon2) -> float:
     r = 3958.7613
@@ -2014,14 +2027,12 @@ def voice_process():
                     method="POST",
                     timeout=6,
                     speech_timeout="3",
-                    speech_model="phone_call",
-                    enhanced=True,
                     barge_in=True,
                     actionOnEmptyResult=True,
                     profanity_filter=False,
                 )
                 gather.say(
-                    f"Thanks, I have the address as {selected}. Got it — you're looking for {service_hint}. When would you like that done?",
+                    f"Thanks, I have the address as {selected}. For the  {service_hint}. When would you like that done?",
                     voice="Polly.Joanna",
                     language="en-US",
                 )
@@ -2067,9 +2078,12 @@ def voice_process():
 
         # If service was already detected earlier, reuse it
         if not state.get("job_description") and state.get("service_hint"):
-            state["job_description"] = state["service_hint"]
+            state["job_description"] = state["service_hint"].strip()
             state["retries"] = 0
+            state["step"] = 3
             set_state(call_sid, state)
+            vr.redirect("/voice-process?=3", method="POST")
+            return Response(str(vr), mimetype="text/xml")
 
         # If we still don't have a job description, ask for it
         if not state.get("job_description"):
@@ -2105,9 +2119,11 @@ def voice_process():
                 vr.append(gather)
                 return Response(str(vr), mimetype="text/xml")
 
-            # Speech exists -> save it and confirm by DTMF
-            state["job_description"] = speech
-            state["service_hint"] = speech
+            # Speech exists -> clean it, save it, and confirm by DTMF
+            clean_service = clean_service_text(speech)
+            
+            state["job_description"] = clean_service
+            state["service_hint"] = clean_service
             state["retries"] = 0
             state["step"] = 2
             set_state(call_sid, state)
