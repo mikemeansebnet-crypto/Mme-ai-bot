@@ -660,7 +660,7 @@ def voice():
             'Hi. <break time="300ms"/>'
             f'Thanks for calling {greeting_name}. '
             '<break time="500ms"/>'
-            'Just so you know, this call may be record to help us get your project details right.'
+            'Just so you know, this call may be recorded to help us get your project details right.'
             '</speak>',
             voice="Polly.Joanna",
             language="en-US",
