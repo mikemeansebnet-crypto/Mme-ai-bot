@@ -656,7 +656,12 @@ def voice():
     # Recording announcement FIRST
     if bool(contractor.get("RECORD_CALLS")) or record_calls_default():
         vr.say(
-            "To make sure we get every detail of your project exactly right, this call is recorded.",
+            '<speak>'
+            'Hi. <break time="300ms"/>'
+            f'Thanks for calling {greeting_name}. '
+            '<break time="500ms"/>'
+            'Just so you know, this call may be record to help us get your project details right.'
+            '</speak>',
             voice="Polly.Joanna",
             language="en-US",
         )
@@ -684,11 +689,6 @@ def voice():
         profanity_filter=False
     )
 
-    gather.say(
-        f"Thanks for calling {greeting_name}.",
-        voice="Polly.Joanna",
-        language="en-US",
-    )
     gather.pause(length=1)
     gather.say(
         "I can help you get scheduled or take down some details for a project. How can I help you today?",
