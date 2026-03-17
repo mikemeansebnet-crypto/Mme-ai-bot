@@ -9,10 +9,9 @@ def build_cal_booking_link(contractor: dict, state: dict) -> str:
 
     Expected Cal.com identifiers:
     - name
-    - phone
+    - attendeePhoneNumber
     - service_address
     - service_needed
-    - notes
     """
 
     base_url = (contractor.get("CAL Booking URL") or "").strip()
@@ -41,7 +40,6 @@ def build_cal_booking_link(contractor: dict, state: dict) -> str:
         "attendeePhoneNumber": callback,
         "service_address": service_address,
         "service_needed": job_description,
-        "notes": f"Address: {service_address}\nService needed: {job_description}",
     }
 
     params = {k: v for k, v in params.items() if v}
