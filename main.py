@@ -664,13 +664,13 @@ def voice():
     
 
     gather.say(
-        f"Hi thanks for calling {greeting_name}.",
+        f"Thanks for calling! {greeting_name}.",
         voice="Polly.Joanna",
         language="en-US",
     )
     gather.pause(length=1)
     gather.say(
-        "I'd be happy to help you get scheduled or get some details down for your project. How can I help you today.?",
+        "I can help you get scheduled or take down some details for a project. How can I help you today.?",
         voice="Polly.Joanna",
         language="en-US",
     )
