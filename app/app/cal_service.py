@@ -32,9 +32,13 @@ def build_cal_booking_link(contractor: dict, state: dict) -> str:
     service_address = (state.get("service_address") or "").strip()
     job_description = (state.get("job_description") or "").strip()
 
+    # Ensure phone is in E.164 format
+    if callback and not callback.startswith("+"):
+        callback = "+1" + callback
+
     params = {
         "name": name,
-        "phone": callback,
+        "attendeePhoneNumber": callback,
         "service_address": service_address,
         "service_needed": job_description,
         "notes": f"Address: {service_address}\nService needed: {job_description}",
