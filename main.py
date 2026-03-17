@@ -1786,7 +1786,7 @@ def voice_process():
             profanity_filter=False,
         )
         gather.say(
-            "Perfect. What service do you need today?",
+            "Perfect, To make sure I have the right team for the job, can you give me a few more details on the scope of the work?", 
             voice="Polly.Joanna",
             language="en-US",
         )
