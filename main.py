@@ -2017,6 +2017,8 @@ def voice_process():
 
         # Pull per-contractor email routing (fallback safe)
         contractor = get_contractor_by_twilio_number(to_number) or {}
+        business_name = (contractor.get("Business Name") or "our office").strip()
+        
 
         notify_email = (contractor.get("Notify Email") or os.getenv("TO_EMAIL") or "").strip() or None
         reply_to_email = (contractor.get("Reply to Email") or "").strip() or None
@@ -2058,14 +2060,14 @@ def voice_process():
 
                     if booking_link:
                         sms_body = (
-                            "Thanks for contacting MME Lawn Care & More. "
+                            "Thanks for contacting {busines_name}. "
                             "We've got your project details. "
                             f"Use this secure booking link to review your information, make any corrections, and choose a time for your estimate: {booking_link} "
                             "Reply STOP to opt out."
                         )
                     else:
                         sms_body = (
-                            "Thanks for contacting MME Lawn Care & More. "
+                            "Thanks for contacting {business_name}. "
                             "We received your request and will follow up shortly. "
                             "Reply STOP to opt out."
                         )
@@ -2101,11 +2103,14 @@ def voice_process():
         
         # Refined version with better spacing for the TTS engine
         vr.say(
-            "Perfect. I've recorded all those details. Keep an eye out for a text message " 
-            "shortly with your secure booking link. Thanks for choosing us. Goodbye!",
+            f'<speak>Perfect. I\'ve recorded all those details.'
+            '<break time="600ms"/> '
+            'Keep an eye out for a text message shortly with your secure booking link.'
+            '<break time="400ms"/> '
+            f'Thanks for contacting {business_name}. Goodbye!</speak>',
             voice="Polly.Joanna",
             language="en-US",
-        )     
+        )    
         
         vr.pause(length=1)
         vr.hangup()
