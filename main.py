@@ -640,9 +640,10 @@ def voice_entry():
 @app.route("/voice", methods=["POST", "GET"])
 def voice():
     vr = VoiceResponse()
-    vr.pause(length=2)
 
     to_number = (request.values.get("To") or "").strip()
+    call_sid = request.values.get("CallSid", "unknown")
+
     contractor = {}
     try:
         contractor = get_contractor_by_twilio_number(to_number) or {}
@@ -652,6 +653,28 @@ def voice():
     business_name = (contractor.get("Business Name") or "our office").strip()
     greeting_name = (contractor.get("Greeting Name") or business_name).strip()
 
+    # Recording announcement FIRST
+    if bool(contractor.get("RECORD_CALLS")) or record_calls_default():
+        vr.say(
+            "To make sure we get every detail of your project exactly right, this call is recorded.",
+            voice="Polly.Joanna",
+            language="en-US",
+        )
+
+        try:
+            tc = twilio_client()
+            if tc.get("ok"):
+                rec = tc["client"].calls(call_sid).recordings.create(
+                    recording_channels="dual",
+                )
+                print("RECORDING STARTED | CallSid:", call_sid, "| RecordingSid:", rec.sid)
+            else:
+                print("RECORDING ERROR |", tc.get("error"))
+        except Exception as e:
+            print("RECORDING EXCEPTION |", e)
+
+        vr.pause(length=1)
+
     gather = Gather(
         input="speech",
         action="/voice-intent",
@@ -659,18 +682,16 @@ def voice():
         timeout=6,
         speech_timeout="auto",
         profanity_filter=False
-
     )
-    
 
     gather.say(
-        f"Thanks for calling! {greeting_name}.",
+        f"Thanks for calling {greeting_name}.",
         voice="Polly.Joanna",
         language="en-US",
     )
     gather.pause(length=1)
     gather.say(
-        "I can help you get scheduled or take down some details for a project. How can I help you today.?",
+        "I can help you get scheduled or take down some details for a project. How can I help you today?",
         voice="Polly.Joanna",
         language="en-US",
     )
@@ -835,95 +856,13 @@ def voice_intent():
         vr.append(g)
         return Response(str(vr), mimetype="text/xml")
 
-    # No resume progress -> continue into recording consent then intake
+    # No resume progress -> continue straight into intake
     vr.say(
         "Absolutely. I’ll collect a few quick details.",
         voice="Polly.Joanna",
         language="en-US",
     )
-    vr.redirect("/recording-consent?next=/voice-intake", method="POST")
-    return Response(str(vr), mimetype="text/xml")
-        
-
-@app.route("/recording-consent", methods=["POST", "GET"])
-def recording_consent():
-    # where to go next after consent decision
-    next_url = request.args.get("next", "/resume-check")
-
-    call_sid = request.values.get("CallSid", "unknown")
-    to_number = (request.values.get("To") or "").strip()
-
-    contractor = get_contractor_by_twilio_number(to_number) or {}
-
-    # If recording not enabled for this contractor, skip gate
-    if not (bool(contractor.get("RECORD_CALLS")) or record_calls_default()):
-        vr = VoiceResponse()
-        vr.redirect(next_url, method="POST")
-        return Response(str(vr), mimetype="text/xml")
-
-    digits = (request.values.get("Digits") or "").strip()
-    vr = VoiceResponse()
-
-    # If no digits yet, ASK the question
-    if digits == "":
-        g = Gather(
-            num_digits=1,
-            action=f"/recording-consent?next={next_url}",
-            method="POST",
-            timeout=6,
-            actionOnEmptyResult=True,
-        )
-        g.say(
-            "This call may be recorded. "
-            "Press 1 to continue with recording, or press 2 to continue without recording.",
-            voice="Polly.Joanna",
-            language="en-US",
-
-        )
-            
-        vr.append(g)
-        # silence = continue without recording
-        vr.redirect(next_url, method="POST")
-        return Response(str(vr), mimetype="text/xml")
-
-    # If they choose no recording
-    if digits == "2":
-        vr.say(
-            "Great. I’ll collect a few quick details, then we’ll text you a secure booking link to schedule a time.",
-            voice="Polly.Joanna",
-            language="en-US",
-        )
-        vr.redirect(next_url, method="POST")
-        return Response(str(vr), mimetype="text/xml")
-
-    # If they choose recording (digits == "1")
-    if digits == "1":
-        try:
-            tc = twilio_client()
-            
-            if tc.get("ok"):
-                rec = tc["client"].calls(call_sid).recordings.create(
-                    recording_channels="dual",
-                )    
-                print("RECORDING STARTED | CallSid:", call_sid, "| RecordingSid:", rec.sid)
-                vr.say(
-                    "Great. I’ll collect a few quick details, then we’ll text you a secure booking link to schedule a time.",
-                    voice="Polly.Joanna",
-                    language="en-US",
-                )
-            else:
-                print("RECORDING ERROR |", tc.get("error"))
-                vr.say("Recording is currently unavailable. Continuing without recording.", voice="Polly.Joanna", language="en-US")
-        except Exception as e:
-            print("RECORDING EXCEPTION |", e)
-            vr.say("Recording is currently unavailable. Continuing without recording.", voice="Polly.Joanna", language="en-US")
-
-        vr.redirect(next_url, method="POST")
-        return Response(str(vr), mimetype="text/xml")
-
-    # Any other key
-    vr.say("No valid input received. Continuing without recording.", voice="Polly.Joanna", language="en-US")
-    vr.redirect(next_url, method="POST")
+    vr.redirect("/voice-intake", method="POST")
     return Response(str(vr), mimetype="text/xml")
 
 
@@ -1156,7 +1095,7 @@ def voice_intake():
         speech_timeout="auto",
     )
     gather.say(
-        "whats your name?",
+        "First, what's your name?",
         voice="Polly.Joanna",
         language="en-US",
     )
@@ -1171,6 +1110,7 @@ def voice_intake():
 
     vr.hangup()
     return Response(str(vr), mimetype="text/xml")
+
 
 
 @app.route("/voice-emergency", methods=["POST", "GET"])
