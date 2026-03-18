@@ -676,7 +676,8 @@ def voice():
             else:
                 print("RECORDING ERROR |", tc.get("error"))
         except Exception as e:
-            print("RECORDING EXCEPTION |", e)
+            print("RECORDING SKIPPED |", str(e))
+            pass
 
         vr.pause(length=1)
 
