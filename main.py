@@ -1545,7 +1545,7 @@ def voice_process():
                     timeout=6,                 # was 8
                     speech_timeout="auto",
                     barge_in=True,              # feels faster
-                    actionOnEmptyResults=True,
+                    actionOnEmptyResult=True,
                     profanity_filter=False,
                     hints="Bowie, Upper Marlboro, Lanham, Crofton, Washington, Baltimore",  
                 )
