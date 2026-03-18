@@ -1220,6 +1220,19 @@ def voice_process():
         or ""
     ).strip()
 
+    confidence_raw = (request.values.get("Confidence") or "").strip()
+
+    try:
+        confidence = float(confidence_raw) if confidence_raw else 0.0
+    except Exception:
+        confidence = 0.0
+
+print(
+    "SPEECH DEBUG |",
+    "Speech:", speech,
+    "| Confidence:", confidence
+)
+
     print(
         "STEP DEBUG |",
         "CallSid:", call_sid,
