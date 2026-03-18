@@ -1341,6 +1341,7 @@ def voice_process():
                 speech_timeout="auto",
                 profanity_filter=False,
                 hints="first name last name full name",
+                speech_model="deepgram_nova-2",
             )
             gather.say(
                 "Please say your full name now.",
@@ -1554,6 +1555,8 @@ def voice_process():
                     barge_in=True,              # feels faster             
                     actionOnEmptyResult=True,
                     profanity_filter=False,
+                    speech_model="deepgram_nova-2",
+                    hints="Street, Avenue, Boulevard, Drive, Court, Lane, Terrace, Bowie, Upper Marlboro, Lanham, Crofton, Laurel, Lisborough",
                     
                 )
                 gather.say(
@@ -1586,6 +1589,7 @@ def voice_process():
                     barge_in=True,              # feels faster
                     actionOnEmptyResult=True,
                     profanity_filter=False,
+                    speech_model="deepgram_nova-2",
                     hints="Bowie, Upper Marlboro, Lanham, Crofton, Washington, Baltimore",  
                 )
                 gather.say(
