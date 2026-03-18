@@ -2060,7 +2060,7 @@ def voice_process():
 
                     if booking_link:
                         sms_body = (
-                            "Thanks for contacting {busines_name}. "
+                            "Thanks for contacting {business_name}. "
                             "We've got your project details. "
                             f"Use this secure booking link to review your information, make any corrections, and choose a time for your estimate: {booking_link} "
                             "Reply STOP to opt out."
