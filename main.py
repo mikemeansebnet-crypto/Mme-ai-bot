@@ -1227,11 +1227,11 @@ def voice_process():
     except Exception:
         confidence = 0.0
 
-print(
-    "SPEECH DEBUG |",
-    "Speech:", speech,
-    "| Confidence:", confidence
-)
+    print(
+        "SPEECH DEBUG |",
+        "Speech:", speech,
+        "| Confidence:", confidence
+    )
 
     print(
         "STEP DEBUG |",
