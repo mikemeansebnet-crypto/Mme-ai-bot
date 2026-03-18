@@ -1350,26 +1350,51 @@ def voice_process():
             vr.redirect("/voice-process?step=0", method="POST")
             return Response(str(vr), mimetype="text/xml")
 
-        # 0B) If speech just came in, store it as candidate and ask for DTMF confirm
+        # 0B) If speech just came in, evaluate confidence BEFORE saving
         if speech and not name_candidate:
-            state["name_candidate"] = speech.strip()
+            cleaned_name = speech.strip()
+
+        # If speech confidence is LOW → do NOT trust it
+        if confidence < 0.80:
+            state["name_attempts"] = int(state.get("name_attempts") or 0) + 1
             set_state(call_sid, state)
 
-            g = Gather(
-                input="dtmf",
-                num_digits=1,
+            gather = Gather(
+                input="speech",
                 action="/voice-process?step=0",
                 method="POST",
                 timeout=6,
+                speech_timeout="auto",
+                profanity_filter=False,
+                hints="first name only, for example Faye, John, Mike, Sarah",
             )
-            g.say(
-                f"I heard: {state['name_candidate']}. "
-                "Press 1 to confirm, or press 2 to say it again.",
+            gather.say(
+                "I’m sorry, I didn’t catch your name clearly. Please say just your first name.",
                 voice="Polly.Joanna",
                 language="en-US",
             )
-            vr.append(g)
+            vr.append(gather)
             return Response(str(vr), mimetype="text/xml")
+
+        # If confidence is GOOD → proceed as normal
+        state["name_candidate"] = cleaned_name
+        set_state(call_sid, state)
+
+        g = Gather(
+            input="dtmf",
+            num_digits=1,
+            action="/voice-process?step=0",
+            method="POST",
+            timeout=6,
+        )
+        g.say(
+            f"I heard: {state['name_candidate']}. "
+            "Press 1 to confirm, or press 2 to say it again.",
+            voice="Polly.Joanna",
+            language="en-US",
+        )
+        vr.append(g)
+        return Response(str(vr), mimetype="text/xml")
 
         # 0C) We have a candidate name; now we must have digits
         if not digits:
