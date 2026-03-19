@@ -742,7 +742,7 @@ def voice():
         method="POST",
         timeout=6,
         speech_timeout="auto",
-        speech_model="deepgram_nova-2"
+        speech_model="deepgram_nova-2",
         profanity_filter=False
     )
 
