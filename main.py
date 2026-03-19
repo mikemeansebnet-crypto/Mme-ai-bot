@@ -688,6 +688,16 @@ def voice():
     business_name = (contractor.get("Business Name") or "our office").strip()
     greeting_name = (contractor.get("Greeting Name") or business_name).strip()
 
+     try:
+        from_number_log = (request.values.get("From") or "").strip()
+        update_contractor_status(to_number, {
+            "Bot Status": "Active",
+            "Last Call From": from_number_log,
+            "Last Call Intent": "incoming",
+        })
+    except Exception:
+        pass
+
     # Recording announcement FIRST
     if bool(contractor.get("RECORD_CALLS")) or record_calls_default():
         vr.say(
@@ -762,6 +772,7 @@ def voice_intent():
     business_name = (contractor.get("Business Name") or "our office").strip()
     greeting_name = (contractor.get("Greeting Name") or business_name).strip()
 
+
     # Use caller number as resume lookup key
     old_call_sid = None
     inferred_step = 0
@@ -793,6 +804,15 @@ def voice_intent():
 
     text = normalize_text(speech)
     intent = detect_call_intent(text)
+
+    try:
+        update_contractor_status(to_number, {
+            "Bot Status": "Active",
+            "Last Call Intent": intent,
+            "Last Call From": from_number,
+        })
+    except Exception:
+        pass
 
     print(
         "VOICE INTENT DEBUG |",
