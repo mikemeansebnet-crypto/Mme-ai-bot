@@ -640,6 +640,7 @@ def voice_entry():
 @app.route("/voice", methods=["POST", "GET"])
 def voice():
     vr = VoiceResponse()
+    vr.pause(length=1)   # safety buffer for Airtable lookup
 
     to_number = (request.values.get("To") or "").strip()
     call_sid = request.values.get("CallSid", "unknown")
