@@ -1326,120 +1326,179 @@ def voice_process():
 
     vr = VoiceResponse()
 
-    # STEP 0: Client name (speech -> DTMF confirm)
+    
+
+    # STEP 0: Client name
     if step == 0:
-        # If we are waiting for DTMF confirm, Digits will be present
+
+        # Always reload these from state at the top — critical for persistence
         name_candidate = (state.get("name_candidate") or "").strip()
+        name_attempts  = int(state.get("name_attempts") or 0)
 
-        # 0A) If we don't yet have a candidate name, ask for speech
-        if not name_candidate and not speech:
-            gather = Gather(
-                input="speech",
-                action="/voice-process?step=0",
-                method="POST",
-                timeout=8,
-                speech_timeout="auto",
-                profanity_filter=False,
-                hints="first name last name full name",
-                speech_model="deepgram_nova-2",
-            )
-            gather.say(
-                "Please say your full name now.",
-                voice="Polly.Joanna",
-                language="en-US",
-            )
-            vr.append(gather)
-            vr.redirect("/voice-process?step=0", method="POST")
-            return Response(str(vr), mimetype="text/xml")
+        # ── 0D) Digit confirm received ────────────────────────────────────────
+        # Check digits FIRST before anything else so Press-1 always works
+        if digits and name_candidate:
 
-        # 0B) If speech just came in, evaluate confidence BEFORE saving
-        if speech and not name_candidate:
-            cleaned_name = speech.strip()
-
-        # If speech confidence is LOW → do NOT trust it
-
-        # 0C) We have a candidate name; now we must have digits
-        if not digits:
-            g = Gather(
-                input="dtmf",
-                num_digits=1,
-                action="/voice-process?step=0",
-                method="POST",
-                timeout=6,
-            )
-            g.say(
-                "Press 1 to confirm, or press 2 to repeat.",
-                voice="Polly.Joanna",
-                language="en-US",
-            )
-            vr.append(g)
-            return Response(str(vr), mimetype="text/xml")
-
-        # Press 2 => repeat name (but cap attempts to prevent infinite loops)
-        if digits == "2":
-            state["name_attempts"] = int(state.get("name_attempts") or 0) + 1
-
-            # After 2 repeats, continue anyway with best guess (unconfirmed)
-            if state["name_attempts"] >= 2:
-                best_guess = (state.get("name_candidate") or "").strip()
-                state["name"] = best_guess
-                state["name_confirmed"] = False
-                state["name_attempts"] = 0
+            if digits == "1":
+                # Commit the name and move to step 1
+                state["name"]           = name_candidate
+                state["name_confirmed"] = True
+                state["name_attempts"]  = 0
                 state.pop("name_candidate", None)
-
-                state["step"] = 1
-                state["retries"] = 0
+                state["retries"]        = 0
+                state["step"]           = 1
                 set_state(call_sid, state)
 
                 if redis_client and to_number and from_number:
                     save_resume_pointer(to_number, from_number, call_sid)
 
-                vr.say(
-                    "Thanks. We'll continue and we can confirm spelling later.",
-                    voice="Polly.Joanna",
-                    language="en-US",
-                )
+                vr.say("Thanks.", voice="Polly.Joanna", language="en-US")
                 vr.redirect("/voice-process?step=1", method="POST")
                 return Response(str(vr), mimetype="text/xml")
 
-            # Normal repeat (under the cap)
-            state.pop("name_candidate", None)
-            set_state(call_sid, state)
-            vr.redirect("/voice-process?step=0", method="POST")
+            if digits == "2":
+                # Caller wants to repeat
+                state["name_attempts"] = name_attempts + 1
+                state.pop("name_candidate", None)
+
+                # After 2 repeats just accept best guess and move on
+                if state["name_attempts"] >= 2:
+                    state["name"]           = name_candidate
+                    state["name_confirmed"] = False
+                    state["name_attempts"]  = 0
+                    state["step"]           = 1
+                    set_state(call_sid, state)
+                    vr.say(
+                        "No problem, we can confirm your name later.",
+                        voice="Polly.Joanna", language="en-US",
+                    )
+                    vr.redirect("/voice-process?step=1", method="POST")
+                    return Response(str(vr), mimetype="text/xml")
+
+                set_state(call_sid, state)
+                vr.redirect("/voice-process?step=0", method="POST")
+                return Response(str(vr), mimetype="text/xml")
+
+            # Any other digit — reprompt confirm
+            g = Gather(
+                input="dtmf", num_digits=1,
+                action="/voice-process?step=0",
+                method="POST", timeout=6,
+            )
+            g.say(
+                f"Press 1 to confirm {name_candidate}, or press 2 to say it again.",
+                voice="Polly.Joanna", language="en-US",
+            )
+            vr.append(g)
             return Response(str(vr), mimetype="text/xml")
 
-        # Press 1 => commit name and move to Step 1
-        if digits == "1":
-            state["name"] = state.get("name_candidate", "").strip()
-            state["name_confirmed"] = True
-            state["name_attempts"] = 0
-            state.pop("name_candidate", None)
-            state["retries"] = 0
-            state["step"] = 1
-            set_state(call_sid, state)
-
-            if redis_client and to_number and from_number:
-                save_resume_pointer(to_number, from_number, call_sid)
-
-            vr.say("Thanks.", voice="Polly.Joanna", language="en-US")
-            vr.redirect("/voice-process?step=1", method="POST")
+        # ── 0C) We have a candidate but no digit yet — show confirm prompt ────
+        if name_candidate and not digits:
+            g = Gather(
+                input="dtmf", num_digits=1,
+                action="/voice-process?step=0",
+                method="POST", timeout=8,
+            )
+            g.say(
+                f"I got {name_candidate}. Press 1 to confirm, or press 2 to say it again.",
+                voice="Polly.Joanna", language="en-US",
+            )
+            vr.append(g)
             return Response(str(vr), mimetype="text/xml")
 
-        # Any other key => reprompt
-        g = Gather(
-            input="dtmf",
-            num_digits=1,
+        # ── 0B) Speech just arrived — evaluate it ────────────────────────────
+        if speech:
+            # Strip common prompt bleed phrases the STT picks up
+            # e.g. "Mike means Ebnet" → "Mike"  |  "Mike Name Abnet" → "Mike"
+            bleed_patterns = [
+                r"\b(means?|named?|is|my name is|name[sd]?)\b.*$",
+                r"\b(abnet|ebnet|mnet)\b.*$",
+            ]
+            cleaned = speech.strip()
+            for pattern in bleed_patterns:
+                cleaned = re.sub(pattern, "", cleaned, flags=re.IGNORECASE).strip()
+
+            # If after cleaning we have nothing useful, reprompt
+            if not cleaned:
+                gather = Gather(
+                    input="speech",
+                    action="/voice-process?step=0",
+                    method="POST",
+                    timeout=6,
+                    speech_timeout="auto",
+                    speech_model="deepgram_nova-2",
+                    profanity_filter=False,
+                    hints="first name, last name",
+                )
+                gather.say(
+                    "Please say just your first and last name.",
+                    voice="Polly.Joanna", language="en-US",
+                )
+                vr.append(gather)
+                return Response(str(vr), mimetype="text/xml")
+
+            # Low confidence — ask again
+            if confidence < 0.45:
+                state["name_attempts"] = name_attempts + 1
+                set_state(call_sid, state)
+
+                gather = Gather(
+                    input="speech",
+                    action="/voice-process?step=0",
+                    method="POST",
+                    timeout=6,
+                    speech_timeout="auto",
+                    speech_model="deepgram_nova-2",
+                    profanity_filter=False,
+                    hints="first name, last name",
+                )
+                gather.say(
+                    "Sorry, I didn't catch that clearly. Please say your first and last name.",
+                    voice="Polly.Joanna", language="en-US",
+                )
+                vr.append(gather)
+                return Response(str(vr), mimetype="text/xml")
+
+            # Good confidence — save candidate and ask to confirm
+            state["name_candidate"] = cleaned
+            state["name_attempts"]  = name_attempts
+            set_state(call_sid, state)   # ← explicit save before returning
+            print("NAME CANDIDATE SAVED |", repr(cleaned), "| confidence:", confidence)
+
+            g = Gather(
+                input="dtmf", num_digits=1,
+                action="/voice-process?step=0",
+                method="POST", timeout=8,
+            )
+            g.say(
+                f"I got {cleaned}. Press 1 to confirm, or press 2 to say it again.",
+                voice="Polly.Joanna", language="en-US",
+            )
+            vr.append(g)
+            return Response(str(vr), mimetype="text/xml")
+
+        # ── 0A) No speech, no digits, no candidate — ask for name ─────────────
+        gather = Gather(
+            input="speech",
             action="/voice-process?step=0",
             method="POST",
-            timeout=6,
+            timeout=8,
+            speech_timeout="auto",
+            speech_model="deepgram_nova-2",
+            profanity_filter=False,
+            hints="first name, last name",
         )
-        g.say(
-            "Please press 1 to confirm, or press 2 to repeat.",
-            voice="Polly.Joanna",
-            language="en-US",
+        gather.pause(length=1)   # pause so mic opens AFTER prompt finishes — stops bleed
+        gather.say(
+            "What is your name?",
+            voice="Polly.Joanna", language="en-US",
         )
-        vr.append(g)
+        vr.append(gather)
+        vr.redirect("/voice-process?step=0", method="POST")
         return Response(str(vr), mimetype="text/xml")
+            
+
+
 
     
     # STEP 1: Service address (fast + momentum)
