@@ -677,7 +677,7 @@ def voice():
                 print("RECORDING ERROR |", tc.get("error"))
         except Exception as e:
             print("RECORDING SKIPPED |", str(e))
-            pass
+            pass   # non-fatal - call continues normally
 
         vr.pause(length=1)
 
