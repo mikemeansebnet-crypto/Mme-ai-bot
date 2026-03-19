@@ -2233,6 +2233,16 @@ def voice_process():
 
         unregister_live_call(state.get("contractor_key", "unknown"), call_sid)
         clear_state(call_sid)
+
+        try:
+            recording_on = bool(contractor.get("RECORD_CALLS")) or record_calls_default()
+            update_contractor_status(to_number, {
+                "Bot Status": "Healthy",
+                "Last Good Address": state.get("service_address", ""),
+                "Recording Status": "Active" if recording_on else "Disabled",
+            })
+        except Exception:
+            pass
         
         # Refined version with better spacing for the TTS engine
         vr.say(
