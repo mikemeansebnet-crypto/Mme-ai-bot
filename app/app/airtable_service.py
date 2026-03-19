@@ -159,11 +159,13 @@ def get_contractor_by_twilio_number(to_number: str) -> dict:
             return {}
 
         contractor_fields = records[0].get("fields", {}) or {}
-
+        
+        # Inject the Airtable record ID so update_contractor_status() can patch it
+        contractor_fields["airtable_id"] = records[0].get("id", "")
+        
         # Cache for 1 hour
         if redis_client and contractor_fields:
             redis_client.setex(cache_key, 3600, json.dumps(contractor_fields))
-
         return contractor_fields
 
     except Exception as e:
