@@ -1773,6 +1773,14 @@ def voice_process():
                 print("MAPBOX CANDIDATES |", state["addr_candidates"])
                 set_state(call_sid, state)
 
+                try:
+                    mapbox_result = state["addr_candidates"][0] if state["addr_candidates"] else "No match"
+                    update_contractor_status(to_number, {
+                        "Last Mapbox Result": mapbox_result,
+                    })
+                except Exception:
+                    pass
+
                 # If none returned, do NOT auto-confirm 
                 if not state["addr_candidates"]:
                     vr.say(
@@ -1875,6 +1883,14 @@ def voice_process():
             state["service_address"] = selected
             state["addr_confirmed"] = True
             set_state(call_sid, state)
+
+            try:
+                update_contractor_status(to_number, {
+                    "Bot Status": "Healthy",
+                    "Last Good Address": selected,
+                })
+            except Exception:
+                pass
 
             if redis_client and to_number and from_number:
                 save_resume_pointer(to_number, from_number, call_sid)
