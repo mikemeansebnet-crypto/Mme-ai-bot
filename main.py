@@ -1791,22 +1791,56 @@ def voice_process():
                 except Exception:
                     pass
 
-                # If none returned, do NOT auto-confirm 
+                # If none returned, do NOT auto-confirm
                 if not state["addr_candidates"]:
-                    vr.say(
-                        "Sorry, I could not confirm that address. Let's try the street name again.",
-                        voice="Polly.Joanna",
-                        language="en-US",
-                    )
 
+                    retry_count = int(state.get("addr_street_retries", 0))
+                    state["addr_street_retries"] = retry_count + 1
                     state.pop("addr_candidates", None)
                     state.pop("addr_confirmed", None)
                     state.pop("addr_street", None)
                     state["retries"] = 0
                     set_state(call_sid, state)
-                    
-                    vr.redirect("/voice-process?step=1", method="POST")
-                    return Response(str(vr), mimetype="text/xml")
+
+                    try:
+                        update_contractor_status(to_number, {
+                            "Bot Status": "Degraded",
+                            "Last Error": f"Mapbox no results: {state.get('addr_street', '')} {state.get('addr_city', '')}",
+                            "Last Error Time": datetime.now(timezone.utc).isoformat(),
+                            "Last Mapbox Result": "No match found",
+                        })
+                    except Exception:
+                        pass
+
+                    if retry_count >= 1:
+                        # Second failure — ask caller to spell it out
+                        gather = Gather(
+                            input="speech",
+                            action="/voice-process?step=1",
+                            method="POST",
+                            timeout=12,
+                            speech_timeout="auto",
+                            speech_model="deepgram_nova-2",
+                            profanity_filter=False,
+                        )
+                        gather.say(
+                            "No worries. Please spell out just the street name, "
+                            "one letter at a time.",
+                            voice="Polly.Joanna",
+                            language="en-US",
+                        )
+                        vr.append(gather)
+                        return Response(str(vr), mimetype="text/xml")
+                    else:
+                        # First failure — simple retry
+                        vr.say(
+                            "I couldn't find that street. "
+                            "Please say the street name again slowly.",
+                            voice="Polly.Joanna",
+                            language="en-US",
+                        )
+                        vr.redirect("/voice-process?step=1", method="POST")
+                        return Response(str(vr), mimetype="text/xml")
 
             # We have candidates; ask user to pick
             if not digits:
