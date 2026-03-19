@@ -347,6 +347,39 @@ def send_email(subject: str, body: str, to_email: str = None, reply_to: str = No
     response = sg.send(message)
 
     print("EMAIL SENT:", response.status_code)
+
+def update_contractor_status(to_number: str, fields: dict):
+    """
+    Safely update contractor status fields in Airtable.
+    Never raises — a failed status update must never affect the call.
+    Uses Contractor Record ID field first, falls back to injected airtable_id.
+    """
+    try:
+        contractor = get_contractor_by_twilio_number(to_number)
+        if not contractor:
+            print("STATUS UPDATE SKIPPED | no contractor for", to_number)
+            return
+ 
+        # Try Contractor Record ID field first, fall back to injected airtable_id
+        record_id = (
+            contractor.get("Contractor Record ID", "").strip()
+            or contractor.get("airtable_id", "").strip()
+        )
+ 
+        if not record_id:
+            print("STATUS UPDATE SKIPPED | no record_id for", to_number)
+            return
+ 
+        # Always stamp with current UTC time
+        fields["Last Call Time"] = datetime.now(timezone.utc).isoformat()
+ 
+        result = airtable_update_record(record_id, fields)
+        print("STATUS UPDATED |", to_number, "|", list(fields.keys()), "| result:", result.get("ok"))
+        return result
+ 
+    except Exception as e:
+        print("STATUS UPDATE ERROR |", str(e))
+        pass  # never fatal — call continues normally
     
 def send_intake_summary(state: dict, notify_email: str = None, reply_to_email: str = None):
     subject = "New MME AI Bot Intake"
