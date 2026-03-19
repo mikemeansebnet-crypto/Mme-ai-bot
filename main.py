@@ -688,7 +688,7 @@ def voice():
     business_name = (contractor.get("Business Name") or "our office").strip()
     greeting_name = (contractor.get("Greeting Name") or business_name).strip()
 
-     try:
+    try:
         from_number_log = (request.values.get("From") or "").strip()
         update_contractor_status(to_number, {
             "Bot Status": "Active",
