@@ -724,6 +724,16 @@ def voice():
             print("RECORDING SKIPPED |", str(e))
             pass   # non-fatal - call continues normally
 
+            try:
+                update_contractor_status(to_number, {
+                    "Bot Status": "Degraded",
+                    "Last Error": f"Recording failed: {str(e)[:120]}",
+                    "Last Error Time": datetime.now(timezone.utc).isoformat(),
+                    "Recording Status": "Error",
+                })
+            except Exception:
+                pass
+
         vr.pause(length=1)
 
     gather = Gather(
