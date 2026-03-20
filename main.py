@@ -1760,41 +1760,61 @@ def voice_process():
                         vr.redirect("/voice-process?step=1", method="POST")
                         return Response(str(vr), mimetype="text/xml")
 
-            # We have candidates; ask user to confirm via speech
-            if not speech_result:
+            # We have candidates; confirm via speech yes/no
+            if not speech:
                 opts = state["addr_candidates"]
                 gather = Gather(
                     input="speech",
                     action="/voice-process?step=1",
                     method="POST",
-                    timeout=10,
+                    timeout=8,
                     speech_timeout="auto",
                     speech_model="deepgram_nova-2",
                     profanity_filter=False,
                 )
-
-                # Read top option and ask yes/no
-                prompt = f"I found {opts[0]}. Is that correct? Say yes to confirm or no to try again."
-                gather.say(prompt, voice="Polly.Joanna", language="en-US")
+                gather.say(
+                    f"I found {opts[0]}. Is that correct? Say yes to confirm or no to try again.",
+                    voice="Polly.Joanna",
+                    language="en-US",
+                )
                 vr.append(gather)
                 return Response(str(vr), mimetype="text/xml")
 
-            # Handle speech response
-            speech_lower = (speech_result or "").lower().strip()
-            yes_words = {"yes", "yeah", "yep", "correct", "right", "that's right", "confirm", "yup"}
-            no_words = {"no", "nope", "wrong", "incorrect", "neither", "none"}
+            speech_lower = speech.lower().strip()
+            yes_words = {"yes", "yeah", "yep", "correct", "right", "that's right", "confirm", "yup", "sure"}
+            no_words = {"no", "nope", "wrong", "incorrect", "neither", "none", "try again"}
 
-            if any(w in speech_lower for w in yes_words):
-                state["addr_confirmed"] = state["addr_candidates"][0]
-            elif any(w in speech_lower for w in no_words):
+            if any(w in speech_lower for w in no_words):
                 state.pop("addr_candidates", None)
                 state.pop("addr_confirmed", None)
                 state.pop("addr_street", None)
                 state["retries"] = 0
                 set_state(call_sid, state)
-                vr.say("Let's try again.", voice="Polly.Joanna", language="en-US")
+                vr.say("No problem. Let's try the street name again.", voice="Polly.Joanna", language="en-US")
                 vr.redirect("/voice-process?step=1", method="POST")
                 return Response(str(vr), mimetype="text/xml")
+
+            if not any(w in speech_lower for w in yes_words):
+                # Unclear response — reprompt
+                opts = state["addr_candidates"]
+                gather = Gather(
+                    input="speech",
+                    action="/voice-process?step=1",
+                    method="POST",
+                    timeout=8,
+                    speech_timeout="auto",
+                    speech_model="deepgram_nova-2",
+                    profanity_filter=False,
+                )
+                gather.say(
+                    f"Sorry, I didn't catch that. Is {opts[0]} correct? Say yes or no.",
+                    voice="Polly.Joanna",
+                    language="en-US",
+                )
+                vr.append(gather)
+                return Response(str(vr), mimetype="text/xml")
+
+            selected = state["addr_candidates"][0]
                     
 
             try:
