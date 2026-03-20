@@ -6,15 +6,9 @@ def build_cal_booking_link(contractor: dict, state: dict) -> str:
     """
     Builds a Cal.com booking link with prefilled fields so the customer
     can review/correct details instead of re-entering everything.
-
-    Expected Cal.com identifiers:
-    - name
-    - attendeePhoneNumber
-    - service_address
-    - service_needed
     """
 
-    base_url = (contractor.get("CAL Booking URL") or "").strip()
+    base_url = (contractor.get("Intake URL") or "").strip()
     if not base_url:
         return ""
 
@@ -31,10 +25,6 @@ def build_cal_booking_link(contractor: dict, state: dict) -> str:
     service_address = (state.get("service_address") or "").strip()
     job_description = (state.get("job_description") or "").strip()
 
-    # Ensure phone is in E.164 format
-    if callback and not callback.startswith("+"):
-        callback = "+1" + callback
-
     params = {
         "name": name,
         "attendeePhoneNumber": callback,
@@ -48,6 +38,9 @@ def build_cal_booking_link(contractor: dict, state: dict) -> str:
     separator = "&" if "?" in base_url else "?"
 
     return f"{base_url}{separator}{query_string}" if query_string else base_url
+
+
+
 
 import os
 from google.oauth2.credentials import Credentials
