@@ -108,6 +108,21 @@ def address_in_service_area(contractor: dict, lat: float, lon: float) -> tuple[b
         print("SERVICE AREA CHECK ERROR |", e)
         return True, "service_check_error"
 
+def log_call_event(call_sid: str, contractor_key: str, event: str, details: dict = None):
+    try:
+        airtable_create_record(
+            {
+                "Call SID": call_sid or "",
+                "Contractor": contractor_key or "",
+                "Event": event or "",
+                "Details": json.dumps(details or {}),
+                "Timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            },
+            table_name="Call Logs",
+        )
+    except Exception as e:
+        print("CALL LOG FAILED |", event, "|", e)
+
 # -------------------------
 # INTENT HELPERS
 # -------------------------
