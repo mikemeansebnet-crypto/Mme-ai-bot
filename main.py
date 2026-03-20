@@ -1838,20 +1838,6 @@ def voice_process():
             # Confirmed yes
             state.pop("addr_confirm_retries", None)
             selected = state["addr_candidates"][0]
-                    
-
-            try:
-                idx = int(choice) - 1
-            except ValueError:
-                idx = -1
-
-            opts = state.get("addr_candidates") or []
-            if idx < 0 or idx >= len(opts):
-                vr.say("Sorry, I didn’t get that. Please press 1, 2, or 3. Or 9 for none.", voice="Polly.Joanna", language="en-US")
-                vr.redirect("/voice-process?step=1", method="POST")
-                return Response(str(vr), mimetype="text/xml")
-
-            selected = opts[idx]
 
             geo = mapbox_geocode_one(selected, country="US")
             print("MAPBOX GEO ONE |", geo)
