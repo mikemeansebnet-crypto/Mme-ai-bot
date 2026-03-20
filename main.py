@@ -1761,7 +1761,26 @@ def voice_process():
                         return Response(str(vr), mimetype="text/xml")
 
             # We have candidates; confirm via speech yes/no
+            confirm_retries = int(state.get("addr_confirm_retries", 0))
+
             if not speech:
+                if confirm_retries >= 2:
+                    state.pop("addr_candidates", None)
+                    state.pop("addr_confirmed", None)
+                    state.pop("addr_street", None)
+                    state.pop("addr_number", None)
+                    state.pop("addr_city", None)
+                    state.pop("addr_zip", None)
+                    state.pop("addr_confirm_retries", None)
+                    state["retries"] = 0
+                    set_state(call_sid, state)
+                    vr.say("Let me start the address over.", voice="Polly.Joanna", language="en-US")
+                    vr.redirect("/voice-process?step=1", method="POST")
+                    return Response(str(vr), mimetype="text/xml")
+
+                state["addr_confirm_retries"] = confirm_retries + 1
+                set_state(call_sid, state)
+
                 opts = state["addr_candidates"]
                 gather = Gather(
                     input="speech",
@@ -1781,13 +1800,14 @@ def voice_process():
                 return Response(str(vr), mimetype="text/xml")
 
             speech_lower = speech.lower().strip()
-            yes_words = {"yes", "yeah", "yep", "correct", "right", "that's right", "confirm", "yup", "sure"}
-            no_words = {"no", "nope", "wrong", "incorrect", "neither", "none", "try again"}
+            yes_words = {"yes", "yeah", "yep", "correct", "right", "confirm", "yup", "sure"}
+            no_words = {"no", "nope", "wrong", "incorrect", "try again"}
 
             if any(w in speech_lower for w in no_words):
                 state.pop("addr_candidates", None)
                 state.pop("addr_confirmed", None)
                 state.pop("addr_street", None)
+                state.pop("addr_confirm_retries", None)
                 state["retries"] = 0
                 set_state(call_sid, state)
                 vr.say("No problem. Let's try the street name again.", voice="Polly.Joanna", language="en-US")
@@ -1795,7 +1815,8 @@ def voice_process():
                 return Response(str(vr), mimetype="text/xml")
 
             if not any(w in speech_lower for w in yes_words):
-                # Unclear response — reprompt
+                state["addr_confirm_retries"] = confirm_retries + 1
+                set_state(call_sid, state)
                 opts = state["addr_candidates"]
                 gather = Gather(
                     input="speech",
@@ -1814,6 +1835,8 @@ def voice_process():
                 vr.append(gather)
                 return Response(str(vr), mimetype="text/xml")
 
+            # Confirmed yes
+            state.pop("addr_confirm_retries", None)
             selected = state["addr_candidates"][0]
                     
 
