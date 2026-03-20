@@ -1760,43 +1760,42 @@ def voice_process():
                         vr.redirect("/voice-process?step=1", method="POST")
                         return Response(str(vr), mimetype="text/xml")
 
-            # We have candidates; ask user to pick
-            if not digits:
+            # We have candidates; ask user to confirm via speech
+            if not speech_result:
                 opts = state["addr_candidates"]
                 gather = Gather(
-                    input="dtmf",
-                    num_digits=1,
+                    input="speech",
                     action="/voice-process?step=1",
                     method="POST",
                     timeout=10,
+                    speech_timeout="auto",
+                    speech_model="deepgram_nova-2",
+                    profanity_filter=False,
                 )
 
-                # Read top options
-                prompt = "I found a few possible matches. "
-                for i, a in enumerate(opts, start=1):
-                    prompt += f"Press {i} for {a}. "
-                prompt += "Or press 9 if none of these are correct."
-
+                # Read top option and ask yes/no
+                prompt = f"I found {opts[0]}. Is that correct? Say yes to confirm or no to try again."
                 gather.say(prompt, voice="Polly.Joanna", language="en-US")
                 vr.append(gather)
                 return Response(str(vr), mimetype="text/xml")
 
-            choice = "".join([c for c in digits if c.isdigit()]).strip()
+            # Handle speech response
+            speech_lower = (speech_result or "").lower().strip()
+            yes_words = {"yes", "yeah", "yep", "correct", "right", "that's right", "confirm", "yup"}
+            no_words = {"no", "nope", "wrong", "incorrect", "neither", "none"}
 
-            if choice == "9":
-                # They said none match -> try again (do NOT confirm)
+            if any(w in speech_lower for w in yes_words):
+                state["addr_confirmed"] = state["addr_candidates"][0]
+            elif any(w in speech_lower for w in no_words):
                 state.pop("addr_candidates", None)
                 state.pop("addr_confirmed", None)
-
-                # re-ask street (best) - keep house number & zip since those are solid
                 state.pop("addr_street", None)
-
                 state["retries"] = 0
                 set_state(call_sid, state)
-
-                vr.say("No problem. Let's try the street name again.", voice="Polly.Joanna", language="en-US")
+                vr.say("Let's try again.", voice="Polly.Joanna", language="en-US")
                 vr.redirect("/voice-process?step=1", method="POST")
                 return Response(str(vr), mimetype="text/xml")
+                    
 
             try:
                 idx = int(choice) - 1
