@@ -1917,9 +1917,9 @@ def voice_process():
                     action="/voice-process?step=2",
                     method="POST",
                     timeout=8,
-                    speech_timeout="auto",
+                    speech_timeout=3,
                     profanity_filter=False,
-                    speech_model="phone_call",
+                    speech_model="deepgram-nova-2",
                     hints="lawn care,mowing,cleanout,junk removal,mulch,landscaping,pressure washing,leaf cleanup,painting,drywall,plumbing,handyman"
                 )
                 gather.say(
@@ -1930,93 +1930,23 @@ def voice_process():
                 vr.append(gather)
                 return Response(str(vr), mimetype="text/xml")
 
-            # Speech exists → save it
+            # Speech exists → save and move on, no confirm needed
             state["job_description"] = speech
             state["retries"] = 0
-            state["step"] = 2   # stay on step 2 until confirmed
-            set_state(call_sid, state)
-
-            if redis_client and to_number and from_number:
-                save_resume_pointer(to_number, from_number, call_sid)
-                print("RESUME PTR SAVED (after job desc):", to_number, from_number, call_sid, "state.step=", state["step"])
-
-            # Ask for confirm via DTMF
-            gather = Gather(
-                input="dtmf",
-                num_digits=1,
-                action="/voice-process?step=2",
-                method="POST",
-                timeout=6,
-            )
-            gather.say(
-                f"I heard: {state['job_description']}. Press 1 to confirm, or press 2 to repeat.",
-                voice="Polly.Joanna",
-                language="en-US",
-            )
-            vr.append(gather)
-
-            # If they press nothing, Twilio will continue—redirect back to the same confirm menu
-            vr.redirect("/voice-process?step=2", method="POST") 
-            return Response(str(vr), mimetype="text/xml")
-
-        # We already have a job description → waiting on digits
-        if not digits:
-            gather = Gather(
-                input="dtmf",
-                num_digits=1,
-                action="/voice-process?step=2",
-                method="POST",
-                timeout=6,
-            )
-            gather.say(
-                f"I heard: {state['job_description']}. Press 1 to confirm, or press 2 to repeat.",
-                voice="Polly.Joanna",
-                language="en-US",
-            )
-            vr.append(gather)
-
-            # No input fallback
-            vr.redirect("/voice-process?step=2", method="POST")
-            return Response(str(vr), mimetype="text/xml")
-
-        if digits == "2":
-            state.pop("job_description", None)
-            state["retries"] = 0
-            set_state(call_sid, state)
-            vr.redirect("/voice-process?step=2", method="POST")
-            return Response(str(vr), mimetype="text/xml")
-
-        if digits == "1":
             state["step"] = 3
-            state["retries"] = 0
             set_state(call_sid, state)
 
             if redis_client and to_number and from_number:
                 save_resume_pointer(to_number, from_number, call_sid)
-                print("RESUME PTR SAVED (after confirm):", to_number, from_number, call_sid, "state.step=", state["step"])
+
+            log_call_event(call_sid, to_number, "step_completed", {
+                "step": 2,
+                "job_description": state["job_description"],
+            })
 
             vr.redirect("/voice-process?step=3", method="POST")
             return Response(str(vr), mimetype="text/xml")
 
-        # Any other key → reprompt
-        gather = Gather(
-            input="dtmf",
-            num_digits=1,
-            action="/voice-process?step=2",
-            method="POST",
-            timeout=6,
-        )
-        gather.say(
-            "Please press 1 to confirm, or press 2 to repeat.",
-            voice="Polly.Joanna",
-            language="en-US",
-        )
-        vr.append(gather)
-        vr.redirect("/voice-process?step=2", method="POST")
-        return Response(str(vr), mimetype="text/xml")
-
-
-   
     # STEP 3: Timing
     if step == 3:
         if not speech:
