@@ -6,26 +6,21 @@ import requests
 from .config import redis_client
 
 
-def airtable_create_record(fields: dict) -> dict:
+def airtable_create_record(fields: dict, table_name: str = None) -> dict:
     airtable_token = os.getenv("AIRTABLE_TOKEN")
     airtable_base_id = os.getenv("AIRTABLE_BASE_ID")
-    air_table_name = os.getenv("AIRTABLE_TABLE_NAME")
-
+    air_table_name = table_name or os.getenv("AIRTABLE_TABLE_NAME")  # ← use passed name or fall back to env var
     if not airtable_token or not airtable_base_id or not air_table_name:
         return {"ok": False, "error": "Missing AIRTABLE_TOKEN / AIRTABLE_BASE_ID / AIRTABLE_TABLE_NAME env vars"}
-
     url = f"https://api.airtable.com/v0/{airtable_base_id}/{air_table_name}"
     headers = {
         "Authorization": f"Bearer {airtable_token}",
         "Content-Type": "application/json",
     }
     payload = {"fields": fields}
-
     r = requests.post(url, headers=headers, json=payload, timeout=20)
-
     if r.status_code >= 400:
         return {"ok": False, "status": r.status_code, "airtable_error": r.text}
-
     return {"ok": True, "status": r.status_code, "data": r.json()}
 
 def airtable_update_record(record_id: str, fields: dict) -> dict:
