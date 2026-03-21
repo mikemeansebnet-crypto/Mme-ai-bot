@@ -252,11 +252,6 @@ def record_calls_default() -> bool:
 
 
 def start_call_recording(call_sid: str, contractor: dict) -> dict:
-    """
-    Starts a full-call recording in Twilio after consent.
-    Returns {"ok": True, "recording_sid": "..."} or {"ok": False, "error": "..."}
-    """
-    # Per-contractor override (Airtable checkbox)
     record_calls = bool(contractor.get("RECORD_CALLS")) if contractor else False
     if not record_calls and not record_calls_default():
         return {"ok": False, "disabled": True}
@@ -268,15 +263,37 @@ def start_call_recording(call_sid: str, contractor: dict) -> dict:
     client = t["client"]
 
     try:
+        print("START RECORDING | CallSid:", call_sid)
+
         rec = client.calls(call_sid).recordings.create(
-            recording_channels="dual",
             recording_status_callback_event=["completed"],
-            # OPTIONAL (recommended): add a callback URL in your app later
-            # recording_status_callback=f"{os.getenv('PUBLIC_BASE_URL','')}/recording-status",
         )
+
+        print("RECORDING STARTED | RecordingSid:", rec.sid)
         return {"ok": True, "recording_sid": rec.sid}
+
     except Exception as e:
-        return {"ok": False, "error": str(e)}
+        print("RECORDING ERROR |", repr(e))
+        print("RECORDING ERROR STRING |", str(e))
+
+        code = getattr(e, "code", None)
+        status = getattr(e, "status", None)
+        msg = getattr(e, "msg", None)
+        more_info = getattr(e, "more_info", None)
+
+        print("TWILIO ERROR CODE:", code)
+        print("TWILIO STATUS:", status)
+        print("TWILIO MSG:", msg)
+        print("TWILIO MORE INFO:", more_info)
+
+        return {
+            "ok": False,
+            "error": str(e),
+            "code": code,
+            "status": status,
+            "msg": msg,
+            "more_info": more_info,
+        }
 
 def sms_enabled() -> bool:
     return os.getenv("SMS_ENABLED", "false").lower() == "true"
