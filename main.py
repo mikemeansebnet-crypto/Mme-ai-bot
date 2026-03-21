@@ -398,7 +398,7 @@ def update_contractor_status(to_number: str, fields: dict):
         pass  # never fatal — call continues normally
     
 def send_intake_summary(state: dict, notify_email: str = None, reply_to_email: str = None):
-     print("EMAIL DEBUG | entering send_intake_summary")
+    print("EMAIL DEBUG | entering send_intake_summary")
     print ("EMAIL DEBUG | FULL ENV KEYS:", list(os.environ.keys()))
 
     email_api_key = os.environ.get("SENDGRID_API_KEY", "")
