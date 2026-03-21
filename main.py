@@ -227,6 +227,15 @@ def send_fallback_sms(to_number: str, body: str) -> dict:
 
 # routes start here
 
+@app.route("/book")
+def book_redirect():
+    from flask import request, redirect
+
+    base = "https://cal.com/mme-ai-bot-sp3q7f/on-site-estimate-mme-lawn-care"
+    query = request.query_string.decode()
+
+    return redirect(f"{base}?{query}")
+
 @app.route("/twilio-fallback", methods=["POST", "GET"])
 def twilio_fallback():
     vr = VoiceResponse()
