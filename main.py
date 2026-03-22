@@ -1548,7 +1548,6 @@ def voice_process():
                     method="POST",
                     timeout=5,                  # was 10
                     finishOnKey="#",            
-                    barge_in=True,              # feels faster 
                     actionOnEmptyResult=True,   # don't stall on silence 
                 )
                 gather.say(
