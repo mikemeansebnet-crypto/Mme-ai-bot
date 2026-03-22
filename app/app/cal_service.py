@@ -4,12 +4,14 @@ import urllib.parse
 
 def build_cal_booking_link(contractor: dict, state: dict) -> str:
     """
-    Builds a Cal.com booking link with prefilled fields so the customer
-    can review/correct details instead of re-entering everything.
+    Builds a clean redirect link that routes to the correct contractor's
+    Cal.com Intake URL with prefilled fields.
     """
 
-    base_url = (contractor.get("Intake URL") or "").strip()
-    if not base_url:
+    redirect_base = "https://mme-ai-bot.onrender.com/book"
+
+    contractor_key = (contractor.get("Twilio Number") or "").strip()
+    if not contractor_key:
         return ""
 
     name = (state.get("name") or "").strip()
@@ -26,6 +28,7 @@ def build_cal_booking_link(contractor: dict, state: dict) -> str:
     job_description = (state.get("job_description") or "").strip()
 
     params = {
+        "c": contractor_key,
         "name": name,
         "attendeePhoneNumber": callback,
         "location": service_address,
@@ -35,9 +38,9 @@ def build_cal_booking_link(contractor: dict, state: dict) -> str:
     params = {k: v for k, v in params.items() if v}
 
     query_string = urllib.parse.urlencode(params)
-    separator = "&" if "?" in base_url else "?"
+    separator = "&" if "?" in redirect_base else "?"
 
-    return f"{base_url}{separator}{query_string}" if query_string else base_url
+    return f"{redirect_base}{separator}{query_string}" if query_string else redirect_base
 
 
 
