@@ -230,22 +230,23 @@ def send_fallback_sms(to_number: str, body: str) -> dict:
 @app.route("/book")
 def book_redirect():
     from flask import request, redirect
+    from app.app.airtable_service import get_contractor_by_twilio_number
 
-    base = "https://cal.com/mme-ai-bot-sp3q7f/on-site-estimate-mme-lawn-care"
-    query = request.query_string.decode()
+    contractor_key = (request.args.get("c") or "").strip()
+    contractor = get_contractor_by_twilio_number(contractor_key) if contractor_key else {}
 
-    return redirect(f"{base}?{query}")
+    base_url = (contractor.get("Intake URL") or "").strip()
+    if not base_url:
+        return "Booking link not configured for this contractor.", 404
 
-@app.route("/twilio-fallback", methods=["POST", "GET"])
-def twilio_fallback():
-    vr = VoiceResponse()
-    vr.say(
-        "Sorry, an application error occurred. Please try again later. Goodbye.",
-        voice="Polly.Joanna",
-        language="en-US",
-    )
-    vr.hangup()
-    return Response(str(vr), mimetype="text/xml")
+    # Keep all original query params except the contractor key
+    params = request.args.to_dict(flat=True)
+    params.pop("c", None)
+
+    query_string = urllib.parse.urlencode(params)
+    separator = "&" if "?" in base_url else "?"
+
+    return redirect(f"{base_url}{separator}{query_string}" if query_string else base_url, code=302)
 
 def twilio_client():
     account_sid = os.getenv("TWILIO_ACCOUNT_SID")
