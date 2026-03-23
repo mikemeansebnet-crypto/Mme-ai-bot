@@ -25,7 +25,7 @@ def build_cal_booking_link(contractor: dict, state: dict) -> str:
         callback = f"+{callback}"
 
     service_address = (state.get("service_address") or "").strip()
-    job_description = (state.get("job_description") or "").strip
+    job_description = (state.get("job_description") or "").strip()
 
     print("CAL PREFILL ADDRESS:", service_address)
     print("CAL PREFILL JOB:", job_description)
@@ -34,7 +34,7 @@ def build_cal_booking_link(contractor: dict, state: dict) -> str:
         "c": contractor_key,
         "name": name,
         "attendeePhoneNumber": callback,
-        "locationValue": service_address,
+        "service_address": service_address,
         "Job_Description": job_description,
     }  
 
