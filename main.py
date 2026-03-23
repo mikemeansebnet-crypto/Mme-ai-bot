@@ -2124,51 +2124,58 @@ def voice_process():
 
         # Send SMS confirmation with booking link
         try:
-            sms_result = twilio_client()
+            send_sms_enabled = bool(contractor.get("SMS", False))
+            print("AIRTABLE SMS:", contractor.get("SMS"))
 
-            if not sms_result.get("ok"):
-                print("SMS send skipped:", sms_result.get("error"))
+            if not send_sms_enabled:
+                print("SMS skipped: Airtable SMS checkbox is off")
             else:
-                client = sms_result["client"]
+                sms_result = twilio_client()
 
-                sms_to = state.get("callback", "") or from_number or ""
-                sms_to_digits = "".join([c for c in sms_to if c.isdigit()])
-
-                if sms_to_digits:
-                    if len(sms_to_digits) == 10:
-                        sms_to = f"+1{sms_to_digits}"
-                    elif len(sms_to_digits) == 11 and sms_to_digits.startswith("1"):
-                        sms_to = f"+{sms_to_digits}"
-                    elif sms_to.startswith("+"):
-                        sms_to = sms_to
-                    else:
-                        sms_to = f"+{sms_to_digits}"
-
-                    if booking_link:
-                        sms_body = (
-                            f"Thanks for contacting {business_name}. "
-                            "We've got your project details. "
-                            f"Use this secure booking link to review your information, make any corrections, and choose a time for your estimate: {booking_link} "
-                            "Reply STOP to opt out."
-                        )
-                    else:
-                        sms_body = (
-                            f"Thanks for contacting {business_name}. "
-                            "We received your request and will follow up shortly. "
-                            "Reply STOP to opt out."
-                        )
-
-                    msg = client.messages.create(
-                        body=sms_body,
-                        from_=to_number,
-                        to=sms_to,
-                    )
-
-                    print("SMS SENT TO:", sms_to, "| SID:", msg.sid)
+                if not sms_result.get("ok"):
+                    print("SMS send skipped:", sms_result.get("error"))
                 else:
-                    print("SMS SKIPPED: no valid callback number")
+                    client = sms_result["client"]
+
+                    sms_to = state.get("callback", "") or from_number or ""
+                    sms_to_digits = "".join([c for c in sms_to if c.isdigit()])
+
+                    if sms_to_digits:
+                        if len(sms_to_digits) == 10:
+                            sms_to = f"+1{sms_to_digits}"
+                        elif len(sms_to_digits) == 11 and sms_to_digits.startswith("1"):
+                            sms_to = f"+{sms_to_digits}"
+                        elif sms_to.startswith("+"):
+                            sms_to = sms_to
+                        else:
+                            sms_to = f"+{sms_to_digits}"
+
+                        if booking_link:
+                            sms_body = (
+                                f"Thanks for contacting {business_name}. "
+                                "We've got your project details. "
+                                f"Use this secure booking link to review your information, make any corrections, and choose a time for your estimate: {booking_link} "
+                                "Reply STOP to opt out."
+                            )
+                        else:
+                            sms_body = (
+                                f"Thanks for contacting {business_name}. "
+                                "We received your request and will follow up shortly. "
+                                "Reply STOP to opt out."
+                            )
+
+                        msg = client.messages.create(
+                            body=sms_body,
+                            from_=to_number,
+                            to=sms_to,
+                        )
+
+                        print("SMS SENT TO:", sms_to, "| SID:", msg.sid)
+                    else:
+                        print("SMS SKIPPED: no valid callback number")
         except Exception as e:
             print("SMS send failed:", e)
+         
 
         if redis_client and to_number and from_number:
             clear_resume_pointer(to_number, from_number)
