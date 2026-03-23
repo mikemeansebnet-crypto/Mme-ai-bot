@@ -31,8 +31,8 @@ def build_cal_booking_link(contractor: dict, state: dict) -> str:
         "c": contractor_key,
         "name": name,
         "attendeePhoneNumber": callback,
-        "location":service_address,
-        "project Scope": job_description,
+        "location": service_address,          # correct key
+        "Job_Description": job_description,   # FIXED key
     }
 
     params = {k: v for k, v in params.items() if v}
