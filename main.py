@@ -1504,8 +1504,14 @@ def voice_process():
 
 
     
-    # STEP 1: Service address (fast + momentum)
+    # STEP 1: Address collection / confirmation  
     if step == 1:
+        
+        # SAFETY GUARD (prevents crash if Twilio re-hits step 1)
+        if state.get("addr_confirmed"):
+            vr.redirect("/voice-process?step=2", method="POST")
+            return Response(str(vr), mimetype="text/xml")
+            
         # Optional: very short intro ONCE (keeps your "intro once" behavior but removes narration)
         if not state.get("address_intro_played"):
             state["address_intro_played"] = True
@@ -1888,7 +1894,13 @@ def voice_process():
             if redis_client and to_number and from_number:
                 save_resume_pointer(to_number, from_number, call_sid)
 
-            vr.redirect("/voice-process?step=1", method="POST")
+            vr.say(
+                "Great, I have the service address confirmed.",
+                voice="Polly.Joanna",
+                Language="en-US",
+            )
+
+            vr.redirect("/voice-process?step=2", method="POST")
             return Response(str(vr), mimetype="text/xml")
             
      # STEP 2: Job description + confirm/repeat
