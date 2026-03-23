@@ -797,7 +797,7 @@ def voice():
 
     gather.pause(length=1)
     gather.say(
-        "I can help you get scheduled or take down some details for a project. How can I help you today?",
+        "How can I help you today?",
         voice="Polly.Joanna",
         language="en-US",
     )
@@ -1028,8 +1028,8 @@ def voice_menu():
             actionOnEmptyResult=True,
         )
         g.say(
-            "Looks like we were in the middle of a request. "
-            "I will resume where we left off. "
+            "Welcome - back, we were in the middle of a request. "
+            "I will pick up where we left off. "
             "Press 2 to start over.",
             voice="Polly.Joanna",
             language="en-US",
@@ -1551,7 +1551,7 @@ def voice_process():
                     actionOnEmptyResult=True,   # don't stall on silence 
                 )
                 gather.say(
-                    "Whats the house number? Enter it, then press pound.",
+                    "What's the house number? Enter it, then press pound.",
                     voice="Polly.Joanna",
                     language="en-US",
                 )
@@ -1595,7 +1595,7 @@ def voice_process():
                     
                 )
                 gather.say(
-                    "Great. Now please say the street name?",
+                    "Great. And the street name?",
                     voice="Polly.Joanna",
                     language="en-US",
                 )
@@ -1628,7 +1628,7 @@ def voice_process():
                     hints="Bowie, Upper Marlboro, Lanham, Crofton, Washington, Baltimore",  
                 )
                 gather.say(
-                    "Perfect. What city is that in?",
+                    "Perfect. What city?",
                     voice="Polly.Joanna",
                     language="en-US",
                 )
@@ -1942,7 +1942,7 @@ def voice_process():
             profanity_filter=False,
         )
         gather.say(
-            "Perfect, To make sure I have the right team for the job, can you give me a few more details on the scope of the work?", 
+            "Perfect, can you give me a few more details on the scope of the work?", 
             voice="Polly.Joanna",
             language="en-US",
         )
@@ -2057,7 +2057,7 @@ def voice_process():
             speech_timeout="auto",
         )
         gather.say(
-            "What is the best callback phone number?",
+            "Got it, Best number to reach you?",
             voice="Polly.Joanna",
             language="en-US",
         )
@@ -2081,7 +2081,7 @@ def voice_process():
                 profanity_filter=False,
             )
             gather.say(
-                "I didn't catch that. Please say the best callback phone number.",
+                "Sorry, what's the best number to reach you?",
                 voice="Polly.Joanna",
                 language="en-US",
             )
