@@ -1676,12 +1676,10 @@ def voice_process():
             vr.redirect("/voice-process?step=1", method="POST")
             return Response(str(vr), mimetype="text/xml")
 
-
-         # 1E) Mapbox resolve + confirm (DTMF)
+        # 1E) Mapbox resolve + confirm (speech yes/no)
         if not state.get("addr_confirmed"):
             # If we don't have candidates yet, fetch them once
             if not state.get("addr_candidates"):
-                # Build query in US recommended format (include state if you want; MD helps)
                 q = f"{state['addr_number']} {state['addr_street']} {state['addr_city']} MD {state['addr_zip']}"
                 print("MAPBOX LOOKUP |", q)
 
@@ -1692,30 +1690,7 @@ def voice_process():
 
                 if geo.get("ok") and geo.get("feature"):
                     feature = geo["feature"]
-
-                    contractor = get_contractor_by_twilio_number(to_number) or {}
-                    allowed, reason = address_in_service_area(
-                        contractor,
-                        feature.get("lat"),
-                        feature.get("lon"),
-                    )
-                    print("SERVICE AREA CHECK |", allowed, "|", reason)
-
-                    if allowed:
-                        state["addr_candidates"] = [feature["place_name"]]
-                    else:
-                        vr.say(
-                            "Sorry, that address appears to be outside our normal service area.",
-                            voice="Polly.Joanna",
-                            language="en-US",
-                        )
-                        state.pop("addr_candidates", None)
-                        state.pop("addr_confirmed", None)
-                        state.pop("addr_street", None)
-                        state["retries"] = 0
-                        set_state(call_sid, state)
-                        vr.redirect("/voice-process?step=1", method="POST")
-                        return Response(str(vr), mimetype="text/xml")
+                    state["addr_candidates"] = [feature["place_name"]]
 
                 print("MAPBOX CANDIDATES |", state["addr_candidates"])
                 set_state(call_sid, state)
@@ -1730,8 +1705,10 @@ def voice_process():
 
                 # If none returned, do NOT auto-confirm
                 if not state["addr_candidates"]:
-
                     retry_count = int(state.get("addr_street_retries", 0))
+                    bad_street = state.get("addr_street", "")
+                    bad_city = state.get("addr_city", "")
+
                     state["addr_street_retries"] = retry_count + 1
                     state.pop("addr_candidates", None)
                     state.pop("addr_confirmed", None)
@@ -1742,7 +1719,7 @@ def voice_process():
                     try:
                         update_contractor_status(to_number, {
                             "Bot Status": "Degraded",
-                            "Last Error": f"Mapbox no results: {state.get('addr_street', '')} {state.get('addr_city', '')}",
+                            "Last Error": f"Mapbox no results: {bad_street} {bad_city}",
                             "Last Error Time": datetime.now(timezone.utc).isoformat(),
                             "Last Mapbox Result": "No match found",
                         })
@@ -1750,7 +1727,6 @@ def voice_process():
                         pass
 
                     if retry_count >= 1:
-                        # Second failure — ask caller to spell it out
                         gather = Gather(
                             input="speech",
                             action="/voice-process?step=1",
@@ -1761,18 +1737,15 @@ def voice_process():
                             profanity_filter=False,
                         )
                         gather.say(
-                            "No worries. Please spell out just the street name, "
-                            "one letter at a time.",
+                            "No worries. Please spell out just the street name, one letter at a time.",
                             voice="Polly.Joanna",
                             language="en-US",
                         )
                         vr.append(gather)
                         return Response(str(vr), mimetype="text/xml")
                     else:
-                        # First failure — simple retry
                         vr.say(
-                            "I couldn't find that street. "
-                            "Please say the street name again slowly.",
+                            "I couldn't find that street. Please say the street name again slowly.",
                             voice="Polly.Joanna",
                             language="en-US",
                         )
@@ -1793,7 +1766,12 @@ def voice_process():
                     state.pop("addr_confirm_retries", None)
                     state["retries"] = 0
                     set_state(call_sid, state)
-                    vr.say("Let me start the address over.", voice="Polly.Joanna", language="en-US")
+
+                    vr.say(
+                        "Let me start the address over.",
+                        voice="Polly.Joanna",
+                        language="en-US",
+                    )
                     vr.redirect("/voice-process?step=1", method="POST")
                     return Response(str(vr), mimetype="text/xml")
 
@@ -1829,13 +1807,19 @@ def voice_process():
                 state.pop("addr_confirm_retries", None)
                 state["retries"] = 0
                 set_state(call_sid, state)
-                vr.say("No problem. Let's try the street name again.", voice="Polly.Joanna", language="en-US")
+
+                vr.say(
+                    "No problem. Let's try the street name again.",
+                    voice="Polly.Joanna",
+                    language="en-US",
+                )
                 vr.redirect("/voice-process?step=1", method="POST")
                 return Response(str(vr), mimetype="text/xml")
 
             if not any(w in speech_lower for w in yes_words):
                 state["addr_confirm_retries"] = confirm_retries + 1
                 set_state(call_sid, state)
+
                 opts = state["addr_candidates"]
                 gather = Gather(
                     input="speech",
@@ -1854,12 +1838,12 @@ def voice_process():
                 vr.append(gather)
                 return Response(str(vr), mimetype="text/xml")
 
-            # Confirmed yes
+            # Confirmed yes -> NOW run service area check
             state.pop("addr_confirm_retries", None)
             selected = state["addr_candidates"][0]
 
             geo = mapbox_geocode_one(selected, country="US")
-            print("MAPBOX GEO ONE |", geo)
+            print("MAPBOX GEO ONE CONFIRMED |", geo)
 
             if geo.get("ok") and geo.get("feature"):
                 feature = geo["feature"]
@@ -1871,7 +1855,7 @@ def voice_process():
                     feature.get("lon"),
                 )
 
-                print("SERVICE AREA CHECK |", allowed, "|", reason)
+                print("SERVICE AREA CHECK CONFIRMED |", allowed, "|", reason)
 
                 if not allowed:
                     vr.say(
@@ -1906,38 +1890,8 @@ def voice_process():
 
             vr.redirect("/voice-process?step=1", method="POST")
             return Response(str(vr), mimetype="text/xml")
-
-        # Done -> move to step 2
-        state["step"] = 2
-        state["retries"] = 0
-        set_state(call_sid, state)
-
-        
-
-        if redis_client and to_number and from_number:
-            save_resume_pointer(to_number, from_number, call_sid)
-
-        gather = Gather(
-            input="speech",
-            action="/voice-process?step=2",
-            method="POST",
-            timeout=6,                 # was 8
-            speech_timeout="auto",
-            barge_in=True,             # feels faster 
-            actionOnEmptyResult=True,
-            profanity_filter=False,
-        )
-        gather.say(
-            "Perfect, can you give me a few more details on the scope of the work?", 
-            voice="Polly.Joanna",
-            language="en-US",
-        )
-        vr.append(gather)
-        return Response(str(vr), mimetype="text/xml")
-
-
-
-    # STEP 2: Job description + confirm/repeat
+            
+     # STEP 2: Job description + confirm/repeat
     if step == 2:
         # Pull inputs safely (Twilio uses SpeechResult / Digits)
         speech = (request.values.get("SpeechResult") or request.values.get("speech") or "").strip()
