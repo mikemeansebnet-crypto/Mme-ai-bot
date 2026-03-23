@@ -763,31 +763,6 @@ def voice():
 
         vr.pause(length=1)  # 👈 CRITICAL FIX (gives Twilio time)
 
-        try:
-            tc = twilio_client()
-            if tc.get("ok"):
-                rec = tc["client"].calls(call_sid).recordings.create(
-                    recording_channels="dual",
-                )
-                print("RECORDING STARTED | CallSid:", call_sid, "| RecordingSid:", rec.sid)
-            else:
-                print("RECORDING ERROR |", tc.get("error"))
-        except Exception as e:
-            print("RECORDING FAILED |", str(e))
-            pass   # non-fatal - call continues normally
-
-            try:
-                update_contractor_status(to_number, {
-                    "Bot Status": "Degraded",
-                    "Last Error": f"Recording failed: {str(e)[:120]}",
-                    "Last Error Time": datetime.now(timezone.utc).isoformat(),
-                    "Recording Status": "Error",
-                })
-            except Exception:
-                pass
-
-        vr.pause(length=1)
-
     gather = Gather(
         input="speech",
         action="/voice-intent",
@@ -814,6 +789,7 @@ def voice():
 @app.route("/voice-intent", methods=["POST", "GET"])
 def voice_intent():
     vr = VoiceResponse()
+    call_sid = request.values.get("CallSid", "unknown")
 
     speech = (
         request.values.get("SpeechResult")
@@ -834,6 +810,13 @@ def voice_intent():
 
     business_name = (contractor.get("Business Name") or "our office").strip()
     greeting_name = (contractor.get("Greeting Name") or business_name).strip()
+
+    # START RECORDING (after disclosure already played in /voice)
+    try:
+        rec_result = start_call_recording(call_sid, contractor)
+        print("VOICE INTENT RECORDING RESULT |", rec_result)
+    except Exception as e:
+        print("VOICE INTENT RECORDING EXCEPTION |", str(e))
 
 
     # Use caller number as resume lookup key
