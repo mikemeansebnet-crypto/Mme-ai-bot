@@ -749,6 +749,7 @@ def voice():
 
     # Recording announcement FIRST
     if bool(contractor.get("RECORD_CALLS")) or record_calls_default():
+
         vr.say(
             '<speak>'
             'Hi. <break time="300ms"/>'
@@ -760,6 +761,8 @@ def voice():
             language="en-US",
         )
 
+        vr.pause(length=1)  # 👈 CRITICAL FIX (gives Twilio time)
+
         try:
             tc = twilio_client()
             if tc.get("ok"):
@@ -770,7 +773,7 @@ def voice():
             else:
                 print("RECORDING ERROR |", tc.get("error"))
         except Exception as e:
-            print("RECORDING SKIPPED |", str(e))
+            print("RECORDING FAILED |", str(e))
             pass   # non-fatal - call continues normally
 
             try:
