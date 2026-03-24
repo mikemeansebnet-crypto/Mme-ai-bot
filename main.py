@@ -1713,7 +1713,7 @@ def voice_process():
                 # Collapse spelled-out letters: "P a r a l l e l" → "Parallel"
                 def collapse_spelled(m):
                     return m.group(0).replace(" ", "")
-                text = re.sub(r"\b([A-Za-z] ){2,}[A-Za-z]\b", collapse_spelled, text)
+                text = re.sub(r"\b([A-Za-z] ){1,}[A-Za-z]\b", collapse_spelled, text)
     
                 text = re.sub(r"[^\w\s]", " ", text)   # strip punctuation
                 text = re.sub(r"\s+", " ", text).strip()
@@ -1721,9 +1721,16 @@ def voice_process():
 
             # If we don't have candidates yet, fetch them once
             if not state.get("addr_candidates"):
+                
                 street_clean = clean_speech_field(state.get("addr_street", ""))
                 city_clean   = clean_speech_field(state.get("addr_city", ""))
-                q = f"{state['addr_number']} {street_clean} {city_clean} MD {state['addr_zip']}"
+
+                # Avoid doubling city name if already in street
+                if city_clean and city_clean.lower() in street_clean.lower():
+                    q = f"{state['addr_number']} {street_clean} MD {state['addr_zip']}"
+                else:
+                    q = f"{state['addr_number']} {street_clean} {city_clean} MD {state['addr_zip']}"
+
                 print("MAPBOX LOOKUP |", q)
 
                 contractor = get_contractor_by_twilio_number(to_number) or {}
