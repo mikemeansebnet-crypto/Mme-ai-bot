@@ -1435,9 +1435,11 @@ def voice_process():
         # ── 0B) Speech just arrived — evaluate it
         if speech:
             bleed_patterns = [
-                r"\b(means?|named?|is|my name is|name[sd]?)\b.*$",
-                r"\b(abnet|ebnet|mnet)\b.*$",
+                bleed_patterns = [
+                r"^(my name is|i am|i'm|name is)\s*",  # strip common prefixes only
+                r"\b(means?|abnet|ebnet|mnet)\b.*$",    # strip known noise words
             ]
+            
             cleaned = speech.strip()
             for pattern in bleed_patterns:
                 cleaned = re.sub(pattern, "", cleaned, flags=re.IGNORECASE).strip()
