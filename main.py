@@ -1716,7 +1716,7 @@ def voice_process():
     
                 text = re.sub(r"[^\w\s]", " ", text)   # strip punctuation
                 text = re.sub(r"\s+", " ", text).strip()
-                return text
+                    return text
 
             # If we don't have candidates yet, fetch them once
             if not state.get("addr_candidates"):
@@ -1725,14 +1725,17 @@ def voice_process():
                 q = f"{state['addr_number']} {street_clean} {city_clean} MD {state['addr_zip']}"
                 print("MAPBOX LOOKUP |", q)
 
-                geo = mapbox_geocode_one(q, country="US")
-                print("MAPBOX GEO ONE |", geo)
+                contractor = get_contractor_by_twilio_number(to_number) or {}
+                normalized = {str(k).strip(): v for k, v in contractor.items()}
+                home_lat = normalized.get("Home Base Lat")
+                home_lon = normalized.get("Home Base Lon")
+                proximity = f"{home_lon},{home_lat}" if home_lat and home_lon else None
 
-                state["addr_candidates"] = []
+                candidates = mapbox_address_candidates(q, limit=3, country="US", proximity=proximity)
+                print("MAPBOX CANDIDATES V6 |", candidates)
 
-                if geo.get("ok") and geo.get("feature"):
-                    feature = geo["feature"]
-                    state["addr_candidates"] = [feature["place_name"]]
+                good = [c for c in candidates if c.get("confidence") in ("high", "medium", None)]
+                state["addr_candidates"] = [c["full_address"] for c in good[:3]]
 
                 print("MAPBOX CANDIDATES |", state["addr_candidates"])
                 set_state(call_sid, state)
