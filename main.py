@@ -1716,7 +1716,7 @@ def voice_process():
     
                 text = re.sub(r"[^\w\s]", " ", text)   # strip punctuation
                 text = re.sub(r"\s+", " ", text).strip()
-                    return text
+                return text
 
             # If we don't have candidates yet, fetch them once
             if not state.get("addr_candidates"):
