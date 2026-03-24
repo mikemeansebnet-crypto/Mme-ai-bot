@@ -1682,11 +1682,41 @@ def voice_process():
             vr.redirect("/voice-process?step=1", method="POST")
             return Response(str(vr), mimetype="text/xml")
 
+        # ── Global empty-speech guard (Bug 4) ────────────────────────────────
+        if not speech and not digits:
+            empty_retries = int(state.get("empty_retries", 0)) + 1
+            state["empty_retries"] = empty_retries
+            set_state(call_sid, state)
+
+            if empty_retries >= 3:
+                vr.say(
+                    "I'm having trouble hearing you. Please call back and we'll try again.",
+                    voice="Polly.Joanna",
+                    language="en-US",
+                )
+                vr.hangup()
+                return Response(str(vr), mimetype="text/xml")
+
+            # Fall through — let the existing Gather re-prompt handle it
+        else:
+            state["empty_retries"] = 0  # reset on any real input
+
         # 1E) Mapbox resolve + confirm (speech yes/no)
         if not state.get("addr_confirmed"):
+
+            # ── Helper: sanitize raw speech before geocoding (Bug 2) ─────────
+            def clean_speech_field(text: str) -> str:
+                import re
+                text = re.sub(r"\bI'?m\b", "", text, flags=re.IGNORECASE)
+                text = re.sub(r"[^\w\s]", " ", text)   # strip punctuation
+                text = re.sub(r"\s+", " ", text).strip()
+                return text
+
             # If we don't have candidates yet, fetch them once
             if not state.get("addr_candidates"):
-                q = f"{state['addr_number']} {state['addr_street']} {state['addr_city']} MD {state['addr_zip']}"
+                street_clean = clean_speech_field(state.get("addr_street", ""))
+                city_clean   = clean_speech_field(state.get("addr_city", ""))
+                q = f"{state['addr_number']} {street_clean} {city_clean} MD {state['addr_zip']}"
                 print("MAPBOX LOOKUP |", q)
 
                 geo = mapbox_geocode_one(q, country="US")
@@ -1709,66 +1739,65 @@ def voice_process():
                 except Exception:
                     pass
 
-                # If none returned, do NOT auto-confirm
+                # If no results returned, do NOT auto-confirm
                 if not state["addr_candidates"]:
                     retry_count = int(state.get("addr_street_retries", 0))
-                    bad_street = state.get("addr_street", "")
-                    bad_city = state.get("addr_city", "")
+                    bad_street  = state.get("addr_street", "")
+                    bad_city    = state.get("addr_city", "")
 
                     state["addr_street_retries"] = retry_count + 1
-                    state.pop("addr_candidates", None)
-                    state.pop("addr_confirmed", None)
-                    state.pop("addr_street", None)
+                    state.pop("addr_candidates",     None)
+                    state.pop("addr_confirmed",      None)
+                    state.pop("addr_street",         None)
                     state["retries"] = 0
                     set_state(call_sid, state)
 
                     try:
                         update_contractor_status(to_number, {
-                            "Bot Status": "Degraded",
-                            "Last Error": f"Mapbox no results: {bad_street} {bad_city}",
-                            "Last Error Time": datetime.now(timezone.utc).isoformat(),
+                            "Bot Status":        "Degraded",
+                            "Last Error":        f"Mapbox no results: {bad_street} {bad_city}",
+                            "Last Error Time":   datetime.now(timezone.utc).isoformat(),
                             "Last Mapbox Result": "No match found",
                         })
                     except Exception:
                         pass
 
+                    gather = Gather(
+                        input="speech",
+                        action="/voice-process?step=1",
+                        method="POST",
+                        timeout=12,
+                        speech_timeout="auto",
+                        speech_model="deepgram_nova-2",
+                        profanity_filter=False,
+                    )
                     if retry_count >= 1:
-                        gather = Gather(
-                            input="speech",
-                            action="/voice-process?step=1",
-                            method="POST",
-                            timeout=12,
-                            speech_timeout="auto",
-                            speech_model="deepgram_nova-2",
-                            profanity_filter=False,
-                        )
                         gather.say(
                             "No worries. Please spell out just the street name, one letter at a time.",
                             voice="Polly.Joanna",
                             language="en-US",
                         )
-                        vr.append(gather)
-                        return Response(str(vr), mimetype="text/xml")
                     else:
-                        vr.say(
+                        gather.say(
                             "I couldn't find that street. Please say the street name again slowly.",
                             voice="Polly.Joanna",
                             language="en-US",
                         )
-                        vr.redirect("/voice-process?step=1", method="POST")
-                        return Response(str(vr), mimetype="text/xml")
+                    vr.append(gather)
+                    return Response(str(vr), mimetype="text/xml")
 
-            # We have candidates; confirm via speech yes/no
+            # ── We have candidates; confirm via speech yes/no ─────────────────
             confirm_retries = int(state.get("addr_confirm_retries", 0))
 
             if not speech:
                 if confirm_retries >= 2:
-                    state.pop("addr_candidates", None)
-                    state.pop("addr_confirmed", None)
-                    state.pop("addr_street", None)
-                    state.pop("addr_number", None)
-                    state.pop("addr_city", None)
-                    state.pop("addr_zip", None)
+                    # Too many empty/unrecognised responses — restart address
+                    state.pop("addr_candidates",      None)
+                    state.pop("addr_confirmed",       None)
+                    state.pop("addr_street",          None)
+                    state.pop("addr_number",          None)
+                    state.pop("addr_city",            None)
+                    state.pop("addr_zip",             None)
                     state.pop("addr_confirm_retries", None)
                     state["retries"] = 0
                     set_state(call_sid, state)
@@ -1804,24 +1833,45 @@ def voice_process():
 
             speech_lower = speech.lower().strip()
             yes_words = {"yes", "yeah", "yep", "correct", "right", "confirm", "yup", "sure"}
-            no_words = {"no", "nope", "wrong", "incorrect", "try again"}
+            no_words  = {"no", "nope", "wrong", "incorrect", "try again"}
 
+            # ── Caller said NO — re-ask with a Gather (Bug 1 + Bug 3) ────────
             if any(w in speech_lower for w in no_words):
-                state.pop("addr_candidates", None)
-                state.pop("addr_confirmed", None)
-                state.pop("addr_street", None)
+                state["addr_street_retries"] = int(state.get("addr_street_retries", 0)) + 1  # Bug 3
+                state.pop("addr_candidates",      None)
+                state.pop("addr_confirmed",       None)
+                state.pop("addr_street",          None)
                 state.pop("addr_confirm_retries", None)
                 state["retries"] = 0
                 set_state(call_sid, state)
 
-                vr.say(
-                    "No problem. Let's try the street name again.",
-                    voice="Polly.Joanna",
-                    language="en-US",
+                # Bug 1 fix: use Gather instead of bare redirect so Twilio
+                # actually listens for the new street name
+                gather = Gather(
+                    input="speech",
+                    action="/voice-process?step=1",
+                    method="POST",
+                    timeout=10,
+                    speech_timeout="auto",
+                    speech_model="deepgram_nova-2",
+                    profanity_filter=False,
                 )
-                vr.redirect("/voice-process?step=1", method="POST")
+                if int(state.get("addr_street_retries", 0)) >= 2:
+                    gather.say(
+                        "No problem. Please spell out the street name one letter at a time.",
+                        voice="Polly.Joanna",
+                        language="en-US",
+                    )
+                else:
+                    gather.say(
+                        "No problem. Please say the street name and number again.",
+                        voice="Polly.Joanna",
+                        language="en-US",
+                    )
+                vr.append(gather)
                 return Response(str(vr), mimetype="text/xml")
 
+            # ── Neither yes nor no clearly heard — re-prompt ─────────────────
             if not any(w in speech_lower for w in yes_words):
                 state["addr_confirm_retries"] = confirm_retries + 1
                 set_state(call_sid, state)
@@ -1844,7 +1894,7 @@ def voice_process():
                 vr.append(gather)
                 return Response(str(vr), mimetype="text/xml")
 
-            # Confirmed yes -> NOW run service area check
+            # ── Caller said YES — run service area check ──────────────────────
             state.pop("addr_confirm_retries", None)
             selected = state["addr_candidates"][0]
 
@@ -1864,28 +1914,37 @@ def voice_process():
                 print("SERVICE AREA CHECK CONFIRMED |", allowed, "|", reason)
 
                 if not allowed:
-                    vr.say(
-                        "Sorry, that address appears to be outside our normal service area.",
-                        voice="Polly.Joanna",
-                        language="en-US",
-                    )
-
                     state.pop("addr_candidates", None)
-                    state.pop("addr_confirmed", None)
-                    state.pop("addr_street", None)
+                    state.pop("addr_confirmed",  None)
+                    state.pop("addr_street",     None)
                     state["retries"] = 0
                     set_state(call_sid, state)
 
-                    vr.redirect("/voice-process?step=1", method="POST")
+                    gather = Gather(
+                        input="speech",
+                        action="/voice-process?step=1",
+                        method="POST",
+                        timeout=10,
+                        speech_timeout="auto",
+                        speech_model="deepgram_nova-2",
+                        profanity_filter=False,
+                    )
+                    gather.say(
+                        "Sorry, that address appears to be outside our normal service area. "
+                        "Please say a different address, or say done to exit.",
+                        voice="Polly.Joanna",
+                        language="en-US",
+                    )
+                    vr.append(gather)
                     return Response(str(vr), mimetype="text/xml")
 
             state["service_address"] = selected
-            state["addr_confirmed"] = True
+            state["addr_confirmed"]  = True
             set_state(call_sid, state)
 
             try:
                 update_contractor_status(to_number, {
-                    "Bot Status": "Healthy",
+                    "Bot Status":      "Healthy",
                     "Last Good Address": selected,
                 })
             except Exception:
@@ -1897,13 +1956,12 @@ def voice_process():
             vr.say(
                 "Great, I have the service address confirmed.",
                 voice="Polly.Joanna",
-                Language="en-US",
+                language="en-US",
             )
-
             vr.redirect("/voice-process?step=2", method="POST")
             return Response(str(vr), mimetype="text/xml")
             
-     # STEP 2: Job description + confirm/repeat
+    # STEP 2: Job description + confirm/repeat
     if step == 2:
         # Pull inputs safely (Twilio uses SpeechResult / Digits)
         speech = (request.values.get("SpeechResult") or request.values.get("speech") or "").strip()
@@ -1932,7 +1990,7 @@ def voice_process():
                     timeout=8,
                     speech_timeout=3,
                     profanity_filter=False,
-                    speech_model="deepgram-nova-2",
+                    speech_model="deepgram_nova-2",
                     hints="lawn care,mowing,cleanout,junk removal,mulch,landscaping,pressure washing,leaf cleanup,painting,drywall,plumbing,handyman"
                 )
                 gather.say(
