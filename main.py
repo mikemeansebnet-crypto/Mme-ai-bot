@@ -1904,20 +1904,22 @@ def voice_process():
             state.pop("addr_confirm_retries", None)
             selected = state["addr_candidates"][0]
 
-            geo = mapbox_geocode_one(selected, country="US")
+            contractor = get_contractor_by_twilio_number(to_number) or {}
+            normalized = {str(k).strip(): v for k, v in contractor.items()}
+            home_lat = normalized.get("Home Base Lat")
+            home_lon = normalized.get("Home Base Lon")
+            proximity = f"{home_lon},{home_lat}" if home_lat and home_lon else None
+
+            geo = mapbox_geocode_one(selected, country="US", proximity=proximity)
             print("MAPBOX GEO ONE CONFIRMED |", geo)
 
             if geo.get("ok") and geo.get("feature"):
                 feature = geo["feature"]
-
-                contractor = get_contractor_by_twilio_number(to_number) or {}
                 allowed, reason = address_in_service_area(
                     contractor,
                     feature.get("lat"),
                     feature.get("lon"),
                 )
-
-                print("SERVICE AREA CHECK CONFIRMED |", allowed, "|", reason)
 
                 if not allowed:
                     state.pop("addr_candidates", None)
