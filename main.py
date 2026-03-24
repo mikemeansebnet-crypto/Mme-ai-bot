@@ -1435,7 +1435,7 @@ def voice_process():
         # ── 0B) Speech just arrived — evaluate it
         if speech:
             bleed_patterns = [
-                bleed_patterns = [
+            
                 r"^(my name is|i am|i'm|name is)\s*",  # strip common prefixes only
                 r"\b(means?|abnet|ebnet|mnet)\b.*$",    # strip known noise words
             ]
