@@ -1711,7 +1711,7 @@ def voice_process():
     
                 # Collapse spelled-out letters: "P a r a l l e l" → "Parallel"
                 def collapse_spelled(m):
-                return m.group(0).replace(" ", "")
+                    return m.group(0).replace(" ", "")
                 text = re.sub(r"\b([A-Za-z] ){2,}[A-Za-z]\b", collapse_spelled, text)
     
                 text = re.sub(r"[^\w\s]", " ", text)   # strip punctuation
