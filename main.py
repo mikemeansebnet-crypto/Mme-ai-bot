@@ -1708,6 +1708,12 @@ def voice_process():
             def clean_speech_field(text: str) -> str:
                 import re
                 text = re.sub(r"\bI'?m\b", "", text, flags=re.IGNORECASE)
+    
+                # Collapse spelled-out letters: "P a r a l l e l" → "Parallel"
+                def collapse_spelled(m):
+                return m.group(0).replace(" ", "")
+                text = re.sub(r"\b([A-Za-z] ){2,}[A-Za-z]\b", collapse_spelled, text)
+    
                 text = re.sub(r"[^\w\s]", " ", text)   # strip punctuation
                 text = re.sub(r"\s+", " ", text).strip()
                 return text
