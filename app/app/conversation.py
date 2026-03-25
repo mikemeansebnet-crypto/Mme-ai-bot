@@ -369,11 +369,11 @@ def voice_cr():
         if state.get("timing"): have.append("timing")
         greeting = f"Welcome back{', I have ' + ', '.join(have) + ' already' if have else ''}. Let me pick up where we left off."
     else:
-    record_calls = bool(contractor.get("RECORD_CALLS")) or os.getenv("RECORD_CALLS_DEFAULT", "false").lower() == "true"
-    if record_calls:
-        greeting = f"Thanks for calling {greeting_name}. Just so you know, this call may be recorded. How can I help you today?"
-    else:
-        greeting = f"Thanks for calling {greeting_name}. How can I help you today?"
+        record_calls = bool(contractor.get("RECORD_CALLS")) or os.getenv("RECORD_CALLS_DEFAULT", "false").lower() == "true"
+        if record_calls:
+            greeting = f"Thanks for calling {greeting_name}. Just so you know, this call may be recorded. How can I help you today?"
+        else:
+            greeting = f"Thanks for calling {greeting_name}. How can I help you today?"
 
     state["pending_greeting"] = greeting
     set_state(effective_call_sid, state)
