@@ -404,7 +404,10 @@ def voice_cr():
             "call_sid": effective_call_sid
         })
     )
-
+    # Store greeting for conversation-turnsetup event 
+    state["pending_greeting"] = greeting
+    set_state(effective_call_sid, state)
+    
     twiml = f"""<?xml version="1.0" encoding="UTF-8"?>
 <Response>
     <Connect>
@@ -416,7 +419,6 @@ def voice_cr():
             speechModel="nova-3"
             dtmfDetection="true"
             interruptByDtmf="true"
-            welcomeGreeting="{greeting}"
         />
     </Connect>
 </Response>"""
@@ -470,9 +472,11 @@ def conversation_turn():
             save_resume_pointer(to_number, from_number, effective_call_sid)
         return Response("{}", mimetype="application/json")
 
-    # ── Skip empty input ──
-    if not caller_input:
-        return Response("{}", mimetype="application/json")
+    # ── Setup event — send greeting ──
+    if event_type == "setup" or not caller_input:
+        greeting = state.pop("pending_greeting", "How can I help you today?")
+        set_state(effective_call_sid, state)
+        return cr_say(greeting)
 
     # ── Run Claude ──
     messages = state.get("messages", [])
