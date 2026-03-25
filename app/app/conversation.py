@@ -1,8 +1,8 @@
 # app/app/conversation.py
 #
-# ConversationRelay + Claude AI voice handler — HTTP webhook mode
-# No WebSockets needed. Works reliably on any gunicorn worker.
-# All existing integrations (Mapbox, Airtable, Cal, SMS, Email) plug in unchanged.
+# ConversationRelay + Claude AI voice handler
+# WebSocket mode — requires flask-sock in requirements.txt
+# Gunicorn: --worker-class gthread --workers 1 --threads 10 --timeout 0
 
 import os
 import json
@@ -10,6 +10,7 @@ import re
 import time
 import urllib.parse
 import anthropic
+from flask_sock import Sock
 from datetime import datetime, timezone
 from flask import Blueprint, request, Response
 
@@ -24,13 +25,14 @@ from app.app.mapbox_service import mapbox_address_candidates, mapbox_geocode_one
 from app.app.airtable_service import get_contractor_by_twilio_number
 
 # ─────────────────────────────────────────────
-# Blueprint
+# Blueprint + WebSocket
 # ─────────────────────────────────────────────
 
 conversation_bp = Blueprint("conversation", __name__)
+sock = Sock()
 
 def init_sock(app):
-    pass  # No-op — kept for compatibility with main.py import
+    sock.init_app(app)
 
 
 # ─────────────────────────────────────────────
@@ -311,26 +313,7 @@ def _extract_partial_data(claude_response: str, caller_input: str, state: dict):
 
 
 # ─────────────────────────────────────────────
-# ConversationRelay response helper
-# ─────────────────────────────────────────────
-
-def cr_say(text: str) -> Response:
-    """Return a JSON response that makes ConversationRelay speak text."""
-    return Response(
-        json.dumps({"type": "text", "token": text, "last": True}),
-        mimetype="application/json"
-    )
-
-def cr_end(text: str) -> Response:
-    """Speak text then end the call."""
-    return Response(
-        json.dumps({"type": "end", "token": text}),
-        mimetype="application/json"
-    )
-
-
-# ─────────────────────────────────────────────
-# Voice entry point — returns ConversationRelay TwiML
+# ConversationRelay TwiML entry point
 # ─────────────────────────────────────────────
 
 @conversation_bp.route("/voice-cr", methods=["POST", "GET"])
@@ -386,7 +369,7 @@ def voice_cr():
         if state.get("service_address"): have.append("your address")
         if state.get("job_description"): have.append("job details")
         if state.get("timing"): have.append("timing")
-        greeting = f"Welcome back{', I have ' + ', '.join(have) + ' already' if have else ''}. Let me pick up where we left off."
+        greeting = f"Welcome back. Let me pick up where we left off."
     else:
         record_calls = bool(contractor.get("RECORD_CALLS")) or os.getenv("RECORD_CALLS_DEFAULT", "false").lower() == "true"
         if record_calls:
@@ -394,9 +377,15 @@ def voice_cr():
         else:
             greeting = f"Thanks for calling {greeting_name}. How can I help you today?"
 
-    # Webhook URL — plain HTTPS, no WebSocket needed
-    webhook_url = (
+    # Store greeting for WebSocket setup event
+    state["pending_greeting"] = greeting
+    set_state(effective_call_sid, state)
+
+    # WebSocket URL — must be wss://
+    ws_url = (
         request.url_root.rstrip("/")
+        .replace("https://", "wss://")
+        .replace("http://", "ws://")
         + "/conversation-turn?"
         + urllib.parse.urlencode({
             "to": to_number,
@@ -404,15 +393,12 @@ def voice_cr():
             "call_sid": effective_call_sid
         })
     )
-    # Store greeting for conversation-turnsetup event 
-    state["pending_greeting"] = greeting
-    set_state(effective_call_sid, state)
-    
+
     twiml = f"""<?xml version="1.0" encoding="UTF-8"?>
 <Response>
     <Connect>
         <ConversationRelay
-            url="{webhook_url}"
+            url="{ws_url}"
             voice="en-US-Neural2-F"
             language="en-US"
             transcriptionProvider="deepgram"
@@ -427,129 +413,155 @@ def voice_cr():
 
 
 # ─────────────────────────────────────────────
-# ConversationRelay HTTP webhook handler
+# ConversationRelay WebSocket handler
 # ─────────────────────────────────────────────
 
-@conversation_bp.route("/conversation-turn", methods=["POST"])
-def conversation_turn():
-    """
-    Receives each caller utterance via HTTP POST.
-    No WebSockets — simple, reliable, works on any gunicorn worker.
-    """
-    # Get context from query string
-    to_number = request.args.get("to", "")
-    from_number = request.args.get("from", "")
+@sock.route("/conversation-turn")
+def conversation_turn(ws):
+    # Get to/from from query string passed by voice_cr
+    to_number_qs = request.args.get("to", "")
+    from_number_qs = request.args.get("from", "")
     call_sid_qs = request.args.get("call_sid", "unknown")
 
-    # Parse JSON body from ConversationRelay
-    data = request.get_json(force=True) or {}
+    while True:
+        try:
+            raw = ws.receive()
+            if raw is None:
+                break
+            data = json.loads(raw)
+        except Exception as e:
+            print("WS RECEIVE ERROR |", e)
+            break
 
-    event_type = data.get("type", "")
-    call_sid = data.get("callSid", "unknown")
-    caller_input = (data.get("voicePrompt") or data.get("text") or "").strip()
+        event_type = data.get("type", "")
+        call_sid = data.get("callSid", "unknown")
+        caller_input = (data.get("voicePrompt") or data.get("text") or "").strip()
 
-    # Fall back to query string call_sid if needed
-    if call_sid == "unknown":
-        call_sid = call_sid_qs
+        if call_sid == "unknown":
+            call_sid = call_sid_qs
 
-    print("CR EVENT |", event_type, "| CallSid:", call_sid, "| Input:", caller_input)
+        print("CR EVENT |", event_type, "| CallSid:", call_sid, "| Input:", caller_input)
 
-    # Resolve aliased call_sid
-    aliased = get_call_alias(call_sid)
-    effective_call_sid = aliased if aliased else call_sid
+        # Resolve aliased call_sid
+        aliased = get_call_alias(call_sid)
+        effective_call_sid = aliased if aliased else call_sid
 
-    state = get_state(effective_call_sid) or {}
-    to_number = state.get("to_number", "") or to_number
-    from_number = state.get("from_number", "") or state.get("callback", "") or from_number
+        state = get_state(effective_call_sid) or {}
+        to_number = state.get("to_number", "") or to_number_qs
+        from_number = state.get("from_number", "") or state.get("callback", "") or from_number_qs
 
-    print("DEBUG STATE | effective_call_sid:", effective_call_sid, "| to_number:", to_number, "| from_number:", from_number)
+        print("DEBUG STATE | effective_call_sid:", effective_call_sid, "| to_number:", to_number, "| from_number:", from_number)
 
-    contractor = get_contractor_by_twilio_number(to_number) or {}
+        contractor = get_contractor_by_twilio_number(to_number) or {}
 
-    # ── Call ended ──
-    if event_type in ("end", "disconnect", "interrupt"):
-        if to_number and from_number:
-            save_resume_pointer(to_number, from_number, effective_call_sid)
-        return Response("{}", mimetype="application/json")
+        # ── Session start ──
+        if event_type == "setup":
+            greeting = state.pop("pending_greeting", "How can I help you today?")
+            set_state(effective_call_sid, state)
+            ws.send(json.dumps({"type": "text", "token": greeting, "last": True}))
+            continue
 
-    # ── Setup event — send greeting ──
-    if event_type == "setup" or not caller_input:
-        greeting = state.pop("pending_greeting", "How can I help you today?")
+        # ── Call ended ──
+        if event_type in ("end", "disconnect"):
+            if to_number and from_number:
+                save_resume_pointer(to_number, from_number, effective_call_sid)
+            break
+
+        # ── Skip empty input ──
+        if not caller_input:
+            continue
+
+        # ── Run Claude ──
+        messages = state.get("messages", [])
+        system_prompt = build_system_prompt(contractor, state)
+
+        try:
+            claude_response = run_claude_turn(system_prompt, messages, caller_input)
+        except Exception as e:
+            print("CLAUDE ERROR |", e)
+            ws.send(json.dumps({
+                "type": "text",
+                "token": "I'm sorry, I had a technical issue. One moment please.",
+                "last": True
+            }))
+            continue
+
+        print("CLAUDE RESPONSE |", claude_response)
+
+        # ── Emergency transfer ──
+        if "EMERGENCY_TRANSFER" in claude_response:
+            if redis_client and to_number and from_number:
+                save_resume_pointer(to_number, from_number, effective_call_sid)
+            ws.send(json.dumps({
+                "type": "text",
+                "token": "Connecting you to our emergency line now. Please hold.",
+                "last": True
+            }))
+            break
+
+        # ── Voicemail transfer ──
+        if "VOICEMAIL_TRANSFER" in claude_response:
+            ws.send(json.dumps({
+                "type": "text",
+                "token": "Please leave your message after the tone.",
+                "last": True
+            }))
+            break
+
+        # ── Intake complete ──
+        intake_data = parse_intake_complete(claude_response)
+        if intake_data:
+            raw_address = intake_data.get("service_address", "")
+            addr_result = validate_address(raw_address, contractor)
+
+            if not addr_result.get("ok"):
+                retry_msg = "I need to verify that address. Could you repeat your full address including house number, street, city and zip?"
+                messages.append({"role": "user", "content": caller_input})
+                messages.append({"role": "assistant", "content": retry_msg})
+                state["messages"] = messages[-20:]
+                set_state(effective_call_sid, state)
+                ws.send(json.dumps({"type": "text", "token": retry_msg, "last": True}))
+                continue
+
+            if not addr_result.get("in_service_area"):
+                out_msg = "I'm sorry, that address is outside our service area. Do you have a different address?"
+                messages.append({"role": "user", "content": caller_input})
+                messages.append({"role": "assistant", "content": out_msg})
+                state["messages"] = messages[-20:]
+                set_state(effective_call_sid, state)
+                ws.send(json.dumps({"type": "text", "token": out_msg, "last": True}))
+                continue
+
+            # Save final state
+            state["name"] = intake_data.get("name", state.get("name", ""))
+            state["service_address"] = addr_result["full_address"]
+            state["job_description"] = intake_data.get("job_description", state.get("job_description", ""))
+            state["timing"] = intake_data.get("timing", state.get("timing", ""))
+            state["callback"] = from_number
+            set_state(effective_call_sid, state)
+
+            # Fire all integrations
+            try:
+                finalize_lead(state, contractor, to_number, from_number, effective_call_sid)
+            except Exception as e:
+                print("FINALIZE ERROR |", e)
+
+            business_name = (contractor.get("Business Name") or "our office").strip()
+            ws.send(json.dumps({
+                "type": "text",
+                "token": f"Perfect, I have everything. Watch for a text with your booking link. Thanks for calling {business_name}. Goodbye!",
+                "last": True
+            }))
+            break
+
+        # ── Normal response ──
+        _extract_partial_data(claude_response, caller_input, state)
+        messages.append({"role": "user", "content": caller_input})
+        messages.append({"role": "assistant", "content": claude_response})
+        state["messages"] = messages[-20:]
         set_state(effective_call_sid, state)
-        return cr_say(greeting)
 
-    # ── Run Claude ──
-    messages = state.get("messages", [])
-    system_prompt = build_system_prompt(contractor, state)
-
-    try:
-        claude_response = run_claude_turn(system_prompt, messages, caller_input)
-    except Exception as e:
-        print("CLAUDE ERROR |", e)
-        return cr_say("I'm sorry, I had a technical issue. One moment please.")
-
-    print("CLAUDE RESPONSE |", claude_response)
-
-    # ── Emergency transfer ──
-    if "EMERGENCY_TRANSFER" in claude_response:
         if redis_client and to_number and from_number:
             save_resume_pointer(to_number, from_number, effective_call_sid)
-        return cr_say("Connecting you to our emergency line now. Please hold.")
 
-    # ── Voicemail transfer ──
-    if "VOICEMAIL_TRANSFER" in claude_response:
-        return cr_say("Please leave your message after the tone.")
-
-    # ── Intake complete ──
-    intake_data = parse_intake_complete(claude_response)
-    if intake_data:
-        raw_address = intake_data.get("service_address", "")
-        addr_result = validate_address(raw_address, contractor)
-
-        if not addr_result.get("ok"):
-            retry_msg = "I need to verify that address. Could you repeat your full address including house number, street, city and zip?"
-            messages.append({"role": "user", "content": caller_input})
-            messages.append({"role": "assistant", "content": retry_msg})
-            state["messages"] = messages[-20:]
-            set_state(effective_call_sid, state)
-            return cr_say(retry_msg)
-
-        if not addr_result.get("in_service_area"):
-            out_msg = "I'm sorry, that address is outside our service area. Do you have a different address?"
-            messages.append({"role": "user", "content": caller_input})
-            messages.append({"role": "assistant", "content": out_msg})
-            state["messages"] = messages[-20:]
-            set_state(effective_call_sid, state)
-            return cr_say(out_msg)
-
-        # Save final state
-        state["name"] = intake_data.get("name", state.get("name", ""))
-        state["service_address"] = addr_result["full_address"]
-        state["job_description"] = intake_data.get("job_description", state.get("job_description", ""))
-        state["timing"] = intake_data.get("timing", state.get("timing", ""))
-        state["callback"] = from_number
-        set_state(effective_call_sid, state)
-
-        # Fire all integrations
-        try:
-            finalize_lead(state, contractor, to_number, from_number, effective_call_sid)
-        except Exception as e:
-            print("FINALIZE ERROR |", e)
-
-        business_name = (contractor.get("Business Name") or "our office").strip()
-        return cr_end(
-            f"Perfect, I have everything. Watch for a text with your booking link. "
-            f"Thanks for calling {business_name}. Goodbye!"
-        )
-
-    # ── Normal response ──
-    _extract_partial_data(claude_response, caller_input, state)
-    messages.append({"role": "user", "content": caller_input})
-    messages.append({"role": "assistant", "content": claude_response})
-    state["messages"] = messages[-20:]
-    set_state(effective_call_sid, state)
-
-    if redis_client and to_number and from_number:
-        save_resume_pointer(to_number, from_number, effective_call_sid)
-
-    return cr_say(claude_response)
+        ws.send(json.dumps({"type": "text", "token": claude_response, "last": True}))
