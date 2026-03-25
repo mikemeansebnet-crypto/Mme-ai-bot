@@ -431,6 +431,8 @@ def conversation_turn(ws):
         from_number = state.get("callback", "")
         contractor = get_contractor_by_twilio_number(to_number) or {}
 
+        print("DEBUG WS STATE | effective_call_sid:", effective_call_sid, "| to_number:", to_number, "| from_number:", from_number)
+
         # ── Session start ──
         if event_type == "setup":
             greeting = state.pop("pending_greeting", "How can I help you today?")
