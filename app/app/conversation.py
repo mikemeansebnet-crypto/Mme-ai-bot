@@ -8,6 +8,7 @@ import os
 import json
 import re
 import time
+import urllib.parse
 import anthropic
 from flask_sock import Sock
 from datetime import datetime, timezone
@@ -382,8 +383,13 @@ def voice_cr():
     base_url = request.url_root.rstrip("/")
     
     ws_url = (
-    base_url.replace("https://", "wss://").replace("http://", "ws://")
-    + f"/conversation-turn?to={to_number}&from={from_number}&call_sid={effective_call_sid}"
+        base_url.replace("https://", "wss://").replace("http://", "ws://")
+        + "/conversation-turn?"
+        + urllib.parse.urlencode({
+            "to": to_number,
+            "from": from_number,
+            "call_sid": effective_call_sid
+        })
     )
 
     twiml = f"""<?xml version="1.0" encoding="UTF-8"?>
