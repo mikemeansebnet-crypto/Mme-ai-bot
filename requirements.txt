@@ -37,4 +37,4 @@ anthropic
 flask-sock
 websockets
 gevent
-gevent-socket
+gevent-websocket
