@@ -408,14 +408,14 @@ def voice_cr():
 # ConversationRelay WebSocket handler
 # ─────────────────────────────────────────────
 
-    @sock.route("/conversation-turn")
-    def conversation_turn(ws):
-        # Get to/from from query string passed by voice_cr
-        to_number_qs = request.args.get("to", "")
-        from_number_qs = request.args.get("from", "")
-        call_sid_qs = request.args.get("call_sid", "unknown")
+@sock.route("/conversation-turn")
+def conversation_turn(ws):
+    # Get to/from from query string passed by voice_cr
+    to_number_qs = request.args.get("to", "")
+    from_number_qs = request.args.get("from", "")
+    call_sid_qs = request.args.get("call_sid", "unknown")
     
-        while True:
+    while True:
         try:
             raw = ws.receive()
             if raw is None:
