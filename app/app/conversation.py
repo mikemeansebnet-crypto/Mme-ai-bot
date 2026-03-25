@@ -401,7 +401,7 @@ def voice_cr():
         greeting = f"Thanks for calling {greeting_name}. How can I help you today?"
 
     # Webhook URL for conversation turns
-    webhook_url = request.url_root.rstrip("/") + "/conversation-turn"
+    webhook_url = request.url_root.rstrip("/").replace("https://", "wss://") + "/conversation-turn"
 
     twiml = f"""<?xml version="1.0" encoding="UTF-8"?>
 <Response>
