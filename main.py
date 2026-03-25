@@ -22,6 +22,8 @@ from app.app.state import (
     save_resume_pointer, get_resume_pointer, clear_resume_pointer,
     register_live_call, unregister_live_call, list_live_calls
 )
+from app.app.conversation import conversation_bp
+app.register_blueprint(conversation_bp)
 from app.app.config import redis_client
 from app.app.cal_service import build_cal_booking_link, create_google_calendar_event
 from app.app.mapbox_service import mapbox_address_candidates, mapbox_geocode_one
