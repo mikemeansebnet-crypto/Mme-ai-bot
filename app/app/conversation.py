@@ -380,7 +380,11 @@ def voice_cr():
 
     # WebSocket URL for ConversationRelay
     base_url = request.url_root.rstrip("/")
-    ws_url = base_url.replace("https://", "wss://").replace("http://", "ws://") + "/conversation-turn"
+    
+    ws_url = (
+    base_url.replace("https://", "wss://").replace("http://", "ws://")
+    + f"/conversation-turn?to={to_number}&from={from_number}&call_sid={effective_call_sid}"
+    )
 
     twiml = f"""<?xml version="1.0" encoding="UTF-8"?>
 <Response>
@@ -404,9 +408,14 @@ def voice_cr():
 # ConversationRelay WebSocket handler
 # ─────────────────────────────────────────────
 
-@sock.route("/conversation-turn")
-def conversation_turn(ws):
-    while True:
+    @sock.route("/conversation-turn")
+    def conversation_turn(ws):
+        # Get to/from from query string passed by voice_cr
+        to_number_qs = request.args.get("to", "")
+        from_number_qs = request.args.get("from", "")
+        call_sid_qs = request.args.get("call_sid", "unknown")
+    
+        while True:
         try:
             raw = ws.receive()
             if raw is None:
@@ -418,6 +427,10 @@ def conversation_turn(ws):
 
         event_type = data.get("type", "")
         call_sid = data.get("callSid", "unknown")
+        call_sid = data.get("callSid", "unknown")
+        if call_sid == "unknown":
+            call_sid = call_sid_qs
+
         caller_input = (data.get("voicePrompt") or data.get("text") or "").strip()
 
         print("CR EVENT |", event_type, "| CallSid:", call_sid, "| Input:", caller_input)
@@ -427,8 +440,8 @@ def conversation_turn(ws):
         effective_call_sid = aliased if aliased else call_sid
 
         state = get_state(effective_call_sid) or {}
-        to_number = state.get("to_number", "")
-        from_number = state.get("callback", "")
+        to_number = state.get("to_number", "") or to_number_qs
+        from_number = state.get("callback", "") or from_number_qs
         contractor = get_contractor_by_twilio_number(to_number) or {}
 
         print("DEBUG WS STATE | effective_call_sid:", effective_call_sid, "| to_number:", to_number, "| from_number:", from_number)
