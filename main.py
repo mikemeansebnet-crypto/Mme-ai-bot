@@ -40,8 +40,9 @@ from app.app.airtable_service import (
 app = Flask(__name__)
 app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "dev-secret-change-me")
 
-from app.app.conversation import conversation_bp
+from app.app.conversation import conversation_bp, init_sock
 app.register_blueprint(conversation_bp)
+init_sock(app)
 
 
 # Gather all environment variables 
