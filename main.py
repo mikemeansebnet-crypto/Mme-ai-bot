@@ -1689,7 +1689,7 @@ def voice_process():
             state["empty_retries"] = empty_retries
             set_state(call_sid, state)
 
-            if empty_retries >= 3:
+            if empty_retries >= 5:
                 vr.say(
                     "I'm having trouble hearing you. Please call back and we'll try again.",
                     voice="Polly.Joanna",
@@ -1742,7 +1742,7 @@ def voice_process():
                 candidates = mapbox_address_candidates(q, limit=3, country="US", proximity=proximity)
                 print("MAPBOX CANDIDATES V6 |", candidates)
 
-                good = [c for c in candidates if c.get("confidence") in ("high", "medium", None)]
+                good = [c for c in candidates if c.get("confidence") in ("exact", "high", "medium", "low", None)]
                 state["addr_candidates"] = [c["full_address"] for c in good[:3]]
 
                 print("MAPBOX CANDIDATES |", state["addr_candidates"])
@@ -1807,7 +1807,7 @@ def voice_process():
             confirm_retries = int(state.get("addr_confirm_retries", 0))
 
             if not speech:
-                if confirm_retries >= 2:
+                if confirm_retries >= 4:
                     # Too many empty/unrecognised responses — restart address
                     state.pop("addr_candidates",      None)
                     state.pop("addr_confirmed",       None)
