@@ -1,5 +1,3 @@
-import eventlet
-eventlet.monkey_patch()
 # CHECKPOINT: state.py integrated and production verified before removing duplicates
 
 import os
