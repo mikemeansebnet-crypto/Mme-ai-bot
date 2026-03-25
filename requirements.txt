@@ -36,3 +36,5 @@ cryptography
 anthropic
 flask-sock
 websockets
+gevent
+gevent-socket
