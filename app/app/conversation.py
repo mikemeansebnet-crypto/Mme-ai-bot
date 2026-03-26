@@ -9,6 +9,7 @@ import json
 import re
 import time
 import urllib.parse
+import xml.sax.saxutils as saxutils
 import anthropic
 from flask_sock import Sock
 from datetime import datetime, timezone
@@ -394,20 +395,21 @@ def voice_cr():
         })
     )
 
-    twiml = f"""<?xml version="1.0" encoding="UTF-8"?>
+escaped_url = saxutils.escape(ws_url)
+
+twiml = f"""<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-    <Connect>
-        <ConversationRelay
-            url="{ws_url}"
-            voice="en-US-Neural2-F"
-            language="en-US"
-            transcriptionProvider="deepgram"
-            speechModel="nova-3"
-            dtmfDetection="true"
-            interruptByDtmf="true"
-        />
-    </Connect>
+    <ConversationRelay
+        url="{escaped_url}"
+        voice="en-US-Neural2-F"
+        language="en-US"
+        transcriptionProvider="deepgram"
+        speechModel="nova-3"
+        dtmfDetection="true"
+        interruptByDtmf="true"
+    />
 </Response>"""
+
 
     return Response(twiml, mimetype="text/xml")
 
