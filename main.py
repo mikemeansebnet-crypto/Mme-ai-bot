@@ -541,39 +541,190 @@ def test_google_event():
 # -------------------------
 
 
+from flask import render_template_string, session, url_for
+
 @app.route("/dashboard")
 def dashboard():
+    """
+    Simple ContractorOS dashboard.
+    First step: clean onboarding page with Google Calendar connect button.
+    Later, you can swap render_template_string() for render_template("dashboard.html").
+    """
 
-    calendar_connected = session.get("google_connected", False)
+    # If you already store a contractor in session, use it here.
+    contractor_name = session.get("contractor_name", "Contractor")
+    google_connected = session.get("google_connected", False)
 
-    if calendar_connected:
-        status_html = """
-        <p><strong>Google Calendar Connected</strong> ✅</p>
-        <p>Your booking system is active.</p>
-        """
-    else:
-        status_html = """
-        <p>Connect your Google Calendar to start receiving bookings.</p>
-        <a href="/connect-google">
-            <button>Connect Google Calendar</button>
-        </a>
-        """
+    html = """
+    <!doctype html>
+    <html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>ContractorOS Dashboard</title>
+        <style>
+            body {
+                margin: 0;
+                font-family: Arial, sans-serif;
+                background: #f7f8fa;
+                color: #111827;
+            }
 
-    return f"""
-    <html>
-        <head>
-            <title>ContractorOS Dashboard</title>
-        </head>
+            .wrap {
+                max-width: 760px;
+                margin: 40px auto;
+                padding: 20px;
+            }
 
-        <body style="font-family: Arial; padding:40px">
+            .card {
+                background: #ffffff;
+                border: 1px solid #e5e7eb;
+                border-radius: 14px;
+                padding: 28px;
+                box-shadow: 0 2px 10px rgba(0,0,0,0.04);
+            }
 
-            <h1>ContractorOS Dashboard</h1>
+            .eyebrow {
+                font-size: 13px;
+                font-weight: 700;
+                letter-spacing: 0.08em;
+                text-transform: uppercase;
+                color: #2563eb;
+                margin-bottom: 12px;
+            }
 
-            {status_html}
+            h1 {
+                margin: 0 0 12px 0;
+                font-size: 42px;
+                line-height: 1.1;
+            }
 
-        </body>
+            .sub {
+                font-size: 18px;
+                line-height: 1.5;
+                color: #4b5563;
+                margin-bottom: 28px;
+                max-width: 620px;
+            }
+
+            .status {
+                display: inline-block;
+                margin-bottom: 18px;
+                padding: 8px 12px;
+                border-radius: 999px;
+                font-size: 14px;
+                font-weight: 700;
+            }
+
+            .status.connected {
+                background: #dcfce7;
+                color: #166534;
+            }
+
+            .status.not-connected {
+                background: #fee2e2;
+                color: #991b1b;
+            }
+
+            .button {
+                display: inline-block;
+                background: #111827;
+                color: #ffffff;
+                text-decoration: none;
+                font-weight: 700;
+                padding: 14px 20px;
+                border-radius: 10px;
+                border: none;
+                font-size: 16px;
+            }
+
+            .button:hover {
+                background: #000000;
+            }
+
+            .note {
+                margin-top: 14px;
+                font-size: 14px;
+                color: #6b7280;
+            }
+
+            .section {
+                margin-top: 24px;
+                padding-top: 24px;
+                border-top: 1px solid #e5e7eb;
+            }
+
+            .section h2 {
+                margin: 0 0 14px 0;
+                font-size: 22px;
+            }
+
+            ul {
+                margin: 0;
+                padding-left: 20px;
+                color: #374151;
+                line-height: 1.8;
+                font-size: 16px;
+            }
+
+            .mini {
+                margin-top: 10px;
+                font-size: 15px;
+                color: #374151;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="wrap">
+            <div class="card">
+                <div class="eyebrow">ContractorOS</div>
+                <h1>{{ contractor_name }} Dashboard</h1>
+
+                {% if google_connected %}
+                    <div class="status connected">Google Calendar Connected</div>
+                    <div class="sub">
+                        You’re ready to start receiving bookings automatically.
+                    </div>
+                {% else %}
+                    <div class="status not-connected">Google Calendar Not Connected</div>
+                    <div class="sub">
+                        Connect your calendar to start getting booked automatically.
+                    </div>
+
+                    <a class="button" href="{{ url_for('oauth_google') }}">
+                        Connect Google Calendar
+                    </a>
+
+                    <div class="note">
+                        Takes less than a minute. No passwords are stored in ContractorOS.
+                    </div>
+                {% endif %}
+
+                <div class="section">
+                    <h2>What happens next</h2>
+                    <ul>
+                        <li>Calls are answered automatically</li>
+                        <li>Customers receive a booking link by text</li>
+                        <li>Booked jobs land on your calendar</li>
+                        <li>Lead details are saved and organized</li>
+                    </ul>
+                </div>
+
+                <div class="section">
+                    <h2>Why contractors use this</h2>
+                    <div class="mini">Service area controls, priority routing, emergency handling, and secure onboarding built in.</div>
+                </div>
+            </div>
+        </div>
+    </body>
     </html>
     """
+
+    return render_template_string(
+        html,
+        contractor_name=contractor_name,
+        google_connected=google_connected,
+    )
 
 @app.route("/onboard/<contractor_id>")
 def onboard(contractor_id):
