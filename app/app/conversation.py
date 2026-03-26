@@ -548,6 +548,7 @@ def conversation_turn(ws):
             state["service_address"] = addr_result["full_address"]
             state["job_description"] = intake_data.get("job_description", state.get("job_description", ""))
             state["timing"] = intake_data.get("timing", state.get("timing", ""))
+            state["priority"] = intake_data.get("priority", "STANDARD")
             state["callback"] = from_number
             set_state(effective_call_sid, state)
 
