@@ -474,24 +474,7 @@ def send_intake_summary(state: dict, notify_email: str = None, reply_to_email: s
     send_email(subject, body, to_email=notify_email, reply_to=reply_to_email)
     # Optional: helpful in Render logs
 
-    # Send booking link via SMS (if contractor has one)
-    contractor = get_contractor_by_twilio_number(state.get("to_number"))
-
-    from_number = state.get("from_number")
-    to_number = state.get("to_number")
-
-    booking_link = (contractor.get("CAL Booking URL") or "").strip()
-
-    if booking_link and from_number and to_number:
-        sms_body = f"Thanks for contacting us! Choose a date and time here: {booking_link}"
-        send_sms(
-            to_number=from_number,
-            body=sms_body,
-            from_number=to_number
-        )
     
-
-
 @app.get("/test-email")
 def test_email():
     try:
