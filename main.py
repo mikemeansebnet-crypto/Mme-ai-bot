@@ -460,6 +460,7 @@ def send_intake_summary(state: dict, notify_email: str = None, reply_to_email: s
         "Call SID": state.get("call_sid", ""),
         "Appointment Requested": state.get("timing", ""),
         "Lead Status": "New Lead",
+        "Priority": state.get("priority", "STANDARD"),
 }
 
     # Only include real datetime if it exists and is valid
