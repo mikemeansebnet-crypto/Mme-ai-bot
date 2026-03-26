@@ -9,6 +9,7 @@ import json
 import re
 import time
 import urllib.parse
+import xml.sax.saxutils as saxutils
 import anthropic
 from flask_sock import Sock
 from datetime import datetime, timezone
