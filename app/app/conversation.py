@@ -556,6 +556,7 @@ def conversation_turn(ws):
                 "token": f"Perfect, I have everything. Watch for a text with your booking link. Thanks for calling {business_name}. Goodbye!",
                 "last": True
             }))
+            time.sleep(3)  # Give TTS time to finish speaking before closing
             break
 
         # ── Normal response ──
