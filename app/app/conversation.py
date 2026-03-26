@@ -561,10 +561,10 @@ def conversation_turn(ws):
             business_name = (contractor.get("Business Name") or "our office").strip()
             ws.send(json.dumps({
                 "type": "text",
-                "token": f"Perfect, I have everything. Watch for a text with your booking link. Thanks for calling {business_name}. Goodbye!",
+                "token": f"Perfect, Watch for a text with your booking link. Thanks for calling {business_name}. Goodbye!",
                 "last": True
             }))
-            time.sleep(3)  # Give TTS time to finish speaking before closing
+            time.sleep(5)  # Give TTS time to finish speaking before closing
             break
 
         # ── Normal response ──
