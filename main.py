@@ -700,7 +700,11 @@ def dashboard():
                     <div class="sub">
                         You’re ready to start receiving bookings automatically.
                     </div>
-                {% else %}
+                    <div class="mini">
+                        Your Google Calendar is connected and ready.
+                    </div>
+                    {% else %}
+                    
                     <div class="status not-connected">Google Calendar Not Connected</div>
                     <div class="sub">
                         Connect your calendar to start getting booked automatically.
