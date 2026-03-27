@@ -552,9 +552,18 @@ def dashboard():
     Later, you can swap render_template_string() for render_template("dashboard.html").
     """
 
-    # If you already store a contractor in session, use it here.
     contractor_name = session.get("contractor_name", "Contractor")
-    google_connected = session.get("google_connected", False)
+
+    contractor_key = session.get("oauth_contractor_key")
+
+    google_connected = False
+
+    if contractor_key:
+        try:
+            record = airtable_get_record(contractor_key)
+            google_connected = record.get("Google Connected", False)
+        except Exception as e:
+            print("ERROR loading contractor record:", e)
 
     html = """
     <!doctype html>
@@ -692,7 +701,7 @@ def dashboard():
                         Connect your calendar to start getting booked automatically.
                     </div>
 
-                    <a class="button" href="{{ url_for('connect_google') }}">
+                    <a href="{{ url_for('connect_google') }}" class="button">
                         Connect Google Calendar
                     </a>
 
@@ -768,14 +777,14 @@ def connect_google():
         prompt="consent",
     )
 
-    session["oauth_state"] = state
+    session["google_oauth_state"] = state
     return redirect(authorization_url)
 
 
 @app.route("/oauth/google/callback")
 def google_callback():
 
-    state = session.get("oauth_state")
+    state = session.get("google_oauth_state")
     contractor_key = session.get("oauth_contractor_key")
 
     flow = Flow.from_client_config(
