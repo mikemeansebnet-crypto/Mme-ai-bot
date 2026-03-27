@@ -565,7 +565,7 @@ def dashboard():
 
             if result.get("ok"):
                 fields = result.get("fields", {})
-                google_connected = bool(fields.get("Google Connected", False))
+                google_connected = bool(fields.get("Connected", False))
         except Exception as e:
             print("ERROR loading contractor record:", e)
 
@@ -842,7 +842,7 @@ def google_callback():
         result = airtable_update_record(
             contractor_key,
             {
-                "Google Connected": True,
+                "Connected": True,
                 "Google Email": google_email,
                 "Google Refresh Token": refresh_token or "",
                 "Google Calendar ID": calendar_id
