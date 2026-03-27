@@ -166,3 +166,33 @@ def get_contractor_by_twilio_number(to_number: str) -> dict:
     except Exception as e:
         print("Contractor lookup exception:", e)
         return {}
+
+def airtable_get_record(record_id: str, table_name: str = None) -> dict:
+    airtable_token = os.getenv("AIRTABLE_TOKEN")
+    airtable_base_id = os.getenv("AIRTABLE_BASE_ID")
+    air_table_name = table_name or os.getenv("AIRTABLE_CONTRACTORS_TABLE", "Contractors")
+
+    if not airtable_token or not airtable_base_id or not air_table_name or not record_id:
+        return {"ok": False, "error": "Missing Airtable env vars or record_id"}
+
+    url = f"https://api.airtable.com/v0/{airtable_base_id}/{air_table_name}/{record_id}"
+
+    headers = {
+        "Authorization": f"Bearer {airtable_token}",
+        "Content-Type": "application/json",
+    }
+
+    try:
+        r = requests.get(url, headers=headers, timeout=20)
+
+        if r.status_code >= 400:
+            return {"ok": False, "status": r.status_code, "airtable_error": r.text}
+
+        data = r.json()
+        return {
+            "ok": True,
+            "fields": data.get("fields", {})
+        }
+
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
