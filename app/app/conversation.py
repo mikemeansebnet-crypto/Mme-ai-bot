@@ -558,10 +558,10 @@ def conversation_turn(ws):
             except Exception as e:
                 print("FINALIZE ERROR |", e)
 
-            business_name = (contractor.get("Business Name") or "our office").strip()
+            greeting_name = (contractor.get("Greeting Name") or contractor.get("Business Name") or "our office").strip()
             ws.send(json.dumps({
                 "type": "text",
-                "token": f"Perfect, Watch for a text with your booking link. Thanks for calling {business_name}. Goodbye!",
+                "token": f"Perfect. Check your texts for the booking link. Thanks for calling {greeting_name}!",
                 "last": True
             }))
             time.sleep(10)  # Give TTS time to finish speaking before closing
