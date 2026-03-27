@@ -14,6 +14,7 @@ from sendgrid.helpers.mail import Mail
 from twilio.rest import Client 
 from google_auth_oauthlib.flow import Flow
 from datetime import datetime, timezone
+from flask import render_template_string, session, url_for
 
 
 from app.app.state import (
@@ -691,7 +692,7 @@ def dashboard():
                         Connect your calendar to start getting booked automatically.
                     </div>
 
-                    <a class="button" href="{{ url_for('oauth_google') }}">
+                    <a class="button" href="{{ url_for('connect_google') }}">
                         Connect Google Calendar
                     </a>
 
