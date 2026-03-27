@@ -554,7 +554,6 @@ def dashboard():
     """
 
     contractor_name = session.get("contractor_name", "Contractor")
-
     contractor_key = session.get("oauth_contractor_key")
 
     google_connected = False
@@ -562,11 +561,11 @@ def dashboard():
     if contractor_key:
         try:
             result = airtable_get_record(contractor_key)
+            print("DASHBOARD AIRTABLE RESULT:", result)
 
             if result.get("ok"):
                 fields = result.get("fields", {})
                 google_connected = bool(fields.get("Google Connected", False))
-                                        
         except Exception as e:
             print("ERROR loading contractor record:", e)
 
