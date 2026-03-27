@@ -34,6 +34,7 @@ from app.app.airtable_service import (
     airtable_get_city_corrections,
     normalize_city,
     airtable_update_record,
+    airtable_get_record 
 )
 
 
