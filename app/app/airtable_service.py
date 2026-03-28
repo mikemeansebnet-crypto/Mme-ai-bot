@@ -23,15 +23,11 @@ def airtable_create_record(fields: dict, table_name: str = None) -> dict:
         return {"ok": False, "status": r.status_code, "airtable_error": r.text}
     return {"ok": True, "status": r.status_code, "data": r.json()}
 
-    print("GOOGLE OAUTH DEBUG | contractor_key:", contractor_key)
-    print("GOOGLE OAUTH DEBUG | base_id:", os.getenv("AIRTABLE_BASE_ID"))
-    print("GOOGLE OAUTH DEBUG | table:", "Contractors")
-    print("GOOGLE OAUTH DEBUG | url would be:", f"https://api.airtable.com/v0/{os.getenv('AIRTABLE_BASE_ID')}/Contractors/{contractor_key}")
 
 def airtable_update_record(record_id: str, fields: dict) -> dict:
     airtable_token = os.getenv("AIRTABLE_TOKEN")
     airtable_base_id = os.getenv("AIRTABLE_BASE_ID")
-    air_table_name = " tblCMZeSuemTAvYvT"
+    air_table_name = "tblCMZeSuemTAvYvT"
 
     if not airtable_token or not airtable_base_id or not air_table_name:
         return {"ok": False, "error": "Missing Airtable env vars"}
@@ -175,7 +171,7 @@ def get_contractor_by_twilio_number(to_number: str) -> dict:
 def airtable_get_record(record_id: str, table_name: str = None) -> dict:
     airtable_token = os.getenv("AIRTABLE_TOKEN")
     airtable_base_id = os.getenv("AIRTABLE_BASE_ID")
-    air_table_name = table_name or os.getenv("AIRTABLE_CONTRACTORS_TABLE", " tblCMZeSuemTAvYvT")
+    air_table_name = table_name or os.getenv("AIRTABLE_CONTRACTORS_TABLE", "tblCMZeSuemTAvYvT")
 
     if not airtable_token or not airtable_base_id or not air_table_name or not record_id:
         return {"ok": False, "error": "Missing Airtable env vars or record_id"}
