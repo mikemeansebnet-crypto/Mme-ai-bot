@@ -35,6 +35,16 @@ def airtable_update_record(record_id: str, fields: dict, table_name: str = None)
     print("RECORD USED (UPDATE):", record_id)
     print("TOKEN PRESENT (UPDATE):", bool(airtable_token))
 
+    token = os.getenv("AIRTABLE_TOKEN")
+
+    print("====== AIRTABLE DEBUG ======")
+    print("TOKEN EXISTS:", bool(token))
+    print("TOKEN PREFIX:", token[:10] if token else "NONE")
+    print("BASE:", base_id)
+    print("TABLE:", table_name)
+    print("RECORD:", record_id)
+    print("============================")
+
     url = f"https://api.airtable.com/v0/{airtable_base_id}/{air_table_name}/{record_id}"
 
     headers = {
@@ -182,6 +192,16 @@ def airtable_get_record(record_id: str, table_name: str = None) -> dict:
     print("TABLE USED (GET):", air_table_name)
     print("RECORD USED (GET):", record_id)
     print("TOKEN PRESENT (GET):", bool(airtable_token))
+
+    token = os.getenv("AIRTABLE_TOKEN")
+
+    print("====== AIRTABLE DEBUG ======")
+    print("TOKEN EXISTS:", bool(token))
+    print("TOKEN PREFIX:", token[:10] if token else "NONE")
+    print("BASE:", base_id)
+    print("TABLE:", table_name)
+    print("RECORD:", record_id)
+    print("============================")
 
     url = f"https://api.airtable.com/v0/{airtable_base_id}/{air_table_name}/{record_id}"
 
