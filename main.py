@@ -560,7 +560,7 @@ def dashboard():
 
     if contractor_key:
         try:
-            result = airtable_get_record(contractor_key)
+            result = airtable_get_record(contractor_key, table_name="Contractors")
             print("DASHBOARD AIRTABLE RESULT:", result)
 
             if result.get("ok"):
