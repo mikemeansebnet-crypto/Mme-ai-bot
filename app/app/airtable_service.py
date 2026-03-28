@@ -12,6 +12,7 @@ def airtable_create_record(fields: dict, table_name: str = None) -> dict:
     air_table_name = table_name or os.getenv("AIRTABLE_TABLE_NAME")  # ← use passed name or fall back to env var
     if not airtable_token or not airtable_base_id or not air_table_name:
         return {"ok": False, "error": "Missing AIRTABLE_TOKEN / AIRTABLE_BASE_ID / AIRTABLE_TABLE_NAME env vars"}
+    print("TABLE USED (GET):", air_table_name)
     url = f"https://api.airtable.com/v0/{airtable_base_id}/{air_table_name}"
     headers = {
         "Authorization": f"Bearer {airtable_token}",
@@ -31,6 +32,8 @@ def airtable_update_record(record_id: str, fields: dict) -> dict:
 
     if not airtable_token or not airtable_base_id or not air_table_name:
         return {"ok": False, "error": "Missing Airtable env vars"}
+
+    print("TABLE USED (UPDATE):", air_table_name)
 
     url = f"https://api.airtable.com/v0/{airtable_base_id}/{air_table_name}/{record_id}"
 
