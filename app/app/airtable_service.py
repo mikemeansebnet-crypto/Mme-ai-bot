@@ -25,15 +25,15 @@ def airtable_create_record(fields: dict, table_name: str = None) -> dict:
     return {"ok": True, "status": r.status_code, "data": r.json()}
 
 
-def airtable_update_record(record_id: str, fields: dict) -> dict:
+def airtable_update_record(record_id: str, fields: dict, table_name: str = None) -> dict:
     airtable_token = os.getenv("AIRTABLE_TOKEN")
     airtable_base_id = os.getenv("AIRTABLE_BASE_ID")
-    air_table_name = "tblCMZeSuemTAvYvT"
+    air_table_name = table_name or os.getenv("AIRTABLE_CONTRACTORS_TABLE", "Contractors")
 
-    if not airtable_token or not airtable_base_id or not air_table_name:
-        return {"ok": False, "error": "Missing Airtable env vars"}
-
+    print("BASE USED (UPDATE):", airtable_base_id)
     print("TABLE USED (UPDATE):", air_table_name)
+    print("RECORD USED (UPDATE):", record_id)
+    print("TOKEN PRESENT (UPDATE):", bool(airtable_token))
 
     url = f"https://api.airtable.com/v0/{airtable_base_id}/{air_table_name}/{record_id}"
 
@@ -42,14 +42,16 @@ def airtable_update_record(record_id: str, fields: dict) -> dict:
         "Content-Type": "application/json",
     }
 
-    payload = {"fields": fields}
+    try:
+        r = requests.patch(url, headers=headers, json={"fields": fields}, timeout=20)
 
-    r = requests.patch(url, headers=headers, json=payload, timeout=20)
+        if r.status_code >= 400:
+            return {"ok": False, "status": r.status_code, "airtable_error": r.text}
 
-    if r.status_code >= 400:
-        return {"ok": False, "status": r.status_code, "airtable_error": r.text}
+        return {"ok": True, "data": r.json()}
 
-    return {"ok": True, "status": r.status_code, "data": r.json()}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
 
 
 def airtable_get_city_corrections() -> dict:
@@ -174,10 +176,12 @@ def get_contractor_by_twilio_number(to_number: str) -> dict:
 def airtable_get_record(record_id: str, table_name: str = None) -> dict:
     airtable_token = os.getenv("AIRTABLE_TOKEN")
     airtable_base_id = os.getenv("AIRTABLE_BASE_ID")
-    air_table_name = table_name or os.getenv("AIRTABLE_CONTRACTORS_TABLE", "tblCMZeSuemTAvYvT")
+    air_table_name = table_name or os.getenv("AIRTABLE_CONTRACTORS_TABLE", "Contractors")
 
-    if not airtable_token or not airtable_base_id or not air_table_name or not record_id:
-        return {"ok": False, "error": "Missing Airtable env vars or record_id"}
+    print("BASE USED (GET):", airtable_base_id)
+    print("TABLE USED (GET):", air_table_name)
+    print("RECORD USED (GET):", record_id)
+    print("TOKEN PRESENT (GET):", bool(airtable_token))
 
     url = f"https://api.airtable.com/v0/{airtable_base_id}/{air_table_name}/{record_id}"
 
@@ -193,10 +197,10 @@ def airtable_get_record(record_id: str, table_name: str = None) -> dict:
             return {"ok": False, "status": r.status_code, "airtable_error": r.text}
 
         data = r.json()
-        return {
-            "ok": True,
-            "fields": data.get("fields", {})
-        }
+        return {"ok": True, "fields": data.get("fields", {})}
+
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
 
     except Exception as e:
         return {"ok": False, "error": str(e)}
