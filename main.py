@@ -814,11 +814,9 @@ def google_callback():
     )
 
     flow.redirect_uri = os.getenv("GOOGLE_REDIRECT_URI")
-
     flow.fetch_token(authorization_response=request.url)
 
     credentials = flow.credentials
-
     access_token = credentials.token
 
     profile = requests.get(
@@ -828,16 +826,11 @@ def google_callback():
     ).json()
 
     google_email = profile.get("email", "")
-
-    
-
     refresh_token = encrypt_text(credentials.refresh_token or "")
     calendar_id = "primary"
 
-    # mark session as connected
     session["google_connected"] = True
 
-    # save connection to Airtable
     if contractor_key:
         result = airtable_update_record(
             contractor_key,
@@ -846,12 +839,14 @@ def google_callback():
                 "Google Email": google_email,
                 "Google Refresh Token": refresh_token or "",
                 "Google Calendar ID": calendar_id
-            }
+            },
+            table_name="Contractors"
         )
         print("GOOGLE OAUTH AIRTABLE UPDATE:", result)
-    
 
     return redirect("/dashboard")
+
+
 
 
 # ------------------------------
