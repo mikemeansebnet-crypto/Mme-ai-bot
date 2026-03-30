@@ -1,43 +1,45 @@
-# CHECKPOINT: state.py integrated and production verified before removing duplicates
+# main.py — ContractorOS AI Bot
+# Architecture: ConversationRelay + Claude Haiku (conversation.py)
+# Legacy step-based flow moved to branch: legacy-voice-stepflow
 
 import os
-import requests
 import json
-import time
-import re
 import math
+import time
 import urllib.parse
-from flask import Flask, request, jsonify, Response, session, redirect, url_for 
+from datetime import datetime, timezone
+
+from flask import Flask, request, jsonify, Response, session, redirect
+from flask import render_template_string
 from twilio.twiml.voice_response import VoiceResponse, Gather
+from twilio.rest import Client
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
-from twilio.rest import Client 
 from google_auth_oauthlib.flow import Flow
-from datetime import datetime, timezone
-from flask import render_template_string, session, url_for
-
+import requests
 
 from app.app.state import (
     get_state, set_state, clear_state,
     set_call_alias, get_call_alias, clear_call_alias,
     save_resume_pointer, get_resume_pointer, clear_resume_pointer,
-    register_live_call, unregister_live_call, list_live_calls
+    register_live_call, unregister_live_call, list_live_calls,
 )
-
 from app.app.config import redis_client
 from app.app.cal_service import build_cal_booking_link, create_google_calendar_event
 from app.app.mapbox_service import mapbox_address_candidates, mapbox_geocode_one
 from app.app.crypto_service import encrypt_text
 from app.app.airtable_service import (
     airtable_create_record,
+    airtable_update_record,
+    airtable_get_record,
     get_contractor_by_twilio_number,
     airtable_get_city_corrections,
     normalize_city,
-    airtable_update_record,
-    airtable_get_record 
 )
 
-
+# ─────────────────────────────────────────────
+# App setup
+# ─────────────────────────────────────────────
 
 app = Flask(__name__)
 app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "dev-secret-change-me")
@@ -47,39 +49,25 @@ app.register_blueprint(conversation_bp)
 init_sock(app)
 
 
-# Gather all environment variables 
-airtable_token = os.getenv("AIRTABLE_TOKEN")
-airtable_base_id = os.getenv("AIRTABLE_BASE_ID")
-air_table_name = os.getenv("AIRTABLE_TABLE_NAME")
-email_api_key = os.environ.get("SENDGRID_API_KEY")
-from_email = os.environ.get("FROM_EMAIL")
-to_email = os.environ.get("TO_EMAIL")
+# ─────────────────────────────────────────────
+# Geography helpers
+# ─────────────────────────────────────────────
 
-
-
-# helper functions
 def haversine_miles(lat1, lon1, lat2, lon2) -> float:
     r = 3958.7613
-    phi1 = math.radians(float(lat1))
-    phi2 = math.radians(float(lat2))
+    phi1, phi2 = math.radians(float(lat1)), math.radians(float(lat2))
     dphi = math.radians(float(lat2) - float(lat1))
     dlambda = math.radians(float(lon2) - float(lon1))
-
     a = (
         math.sin(dphi / 2) ** 2
         + math.cos(phi1) * math.cos(phi2) * math.sin(dlambda / 2) ** 2
     )
-    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
-    return r * c
+    return r * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
 
 def address_in_service_area(contractor: dict, lat: float, lon: float) -> tuple[bool, str]:
-    """
-    Returns (is_allowed, reason)
-    Uses Home Base Lat/Lon + Max Radius Miles / Hard Max Miles.
-    """
     try:
         normalized = {str(k).strip(): v for k, v in contractor.items()}
-
         home_lat = normalized.get("Home Base Lat")
         home_lon = normalized.get("Home Base Lon")
         max_radius = normalized.get("Max Radius Miles")
@@ -98,7 +86,6 @@ def address_in_service_area(contractor: dict, lat: float, lon: float) -> tuple[b
             return True, "no_home_base_config"
 
         miles = haversine_miles(home_lat, home_lon, lat, lon)
-
         limit = None
         if max_radius not in (None, ""):
             limit = float(max_radius)
@@ -108,161 +95,24 @@ def address_in_service_area(contractor: dict, lat: float, lon: float) -> tuple[b
         if limit is None:
             return True, f"no_radius_limit miles={miles:.2f}"
 
-        allowed = miles <= limit
-        return allowed, f"miles={miles:.2f} limit={limit:.2f}"
+        return miles <= limit, f"miles={miles:.2f} limit={limit:.2f}"
 
     except Exception as e:
         print("SERVICE AREA CHECK ERROR |", e)
         return True, "service_check_error"
 
-def log_call_event(call_sid: str, contractor_key: str, event: str, details: dict = None):
-    try:
-        airtable_create_record(
-            {
-                "Call SID": call_sid or "",
-                "Contractor": contractor_key or "",
-                "Event": event or "",
-                "Details": json.dumps(details or {}),
-                "Timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-            },
-            table_name="Call Logs",
-        )
-    except Exception as e:
-        print("CALL LOG FAILED |", event, "|", e)
 
-# -------------------------
-# INTENT HELPERS
-# -------------------------
-
-EMERGENCY_KEYWORDS = [
-    "emergency",
-    "urgent",
-    "right away",
-    "asap",
-    "immediately",
-    "tree fell",
-    "tree down",
-    "flood",
-    "flooding",
-    "water coming in",
-    "storm damage",
-    "burst pipe",
-    "pipe burst",
-    "sewer backup",
-    "danger",
-    "help",
-    "hazard",
-    "blocked."
-]
-
-VOICEMAIL_KEYWORDS = [
-    "leave a message",
-    "voicemail",
-    "call me back",
-    "callback",
-    "have mike call me",
-    "talk to mike",
-    "speak to mike",
-    "someone call me",
-    "return my call",
-    "busy",
-    "not available",
-    "reachout."
-]
-
-ESTIMATE_KEYWORDS = [
-    "estimate",
-    "quote",
-    "pricing",
-    "price",
-]
-
-
-def normalize_text(text: str) -> str:
-    return (text or "").strip().lower()
-
-
-def detect_call_intent(text: str) -> str:
-    t = normalize_text(text)
-
-    if not t:
-        return "unknown"
-
-    for kw in EMERGENCY_KEYWORDS:
-        if kw in t:
-            return "emergency"
-
-    for kw in VOICEMAIL_KEYWORDS:
-        if kw in t:
-            return "voicemail"
-
-    for kw in ESTIMATE_KEYWORDS:
-        if kw in t:
-            return "estimate"
-
-    # Default normal service requests to estimate
-    return "estimate"
-
-
-def send_fallback_sms(to_number: str, body: str) -> dict:
-    """
-    Optional SMS fallback using your existing twilio_client() helper.
-    """
-    try:
-        from helpers import twilio_client
-
-        tc = twilio_client()
-        if not tc.get("ok"):
-            return {"ok": False, "error": tc.get("error", "twilio_client_failed")}
-
-        client = tc["client"]
-        from_number = os.getenv("TWILIO_PHONE_NUMBER") or os.getenv("TWILIO_FROM_NUMBER")
-
-        if not from_number:
-            return {"ok": False, "error": "missing_twilio_from_number"}
-
-        msg = client.messages.create(
-            body=body,
-            from_=from_number,
-            to=to_number
-        )
-        return {"ok": True, "sid": msg.sid}
-
-    except Exception as e:
-        return {"ok": False, "error": str(e)}
-
-
-# routes start here
-
-@app.route("/book")
-def book_redirect():
-    from flask import request, redirect
-    from app.app.airtable_service import get_contractor_by_twilio_number
-
-    contractor_key = (request.args.get("c") or "").strip()
-    contractor = get_contractor_by_twilio_number(contractor_key) if contractor_key else {}
-
-    base_url = (contractor.get("Intake URL") or "").strip()
-    if not base_url:
-        return "Booking link not configured for this contractor.", 404
-
-    # Keep all original query params except the contractor key
-    params = request.args.to_dict(flat=True)
-    params.pop("c", None)
-
-    query_string = urllib.parse.urlencode(params)
-    separator = "&" if "?" in base_url else "?"
-
-    return redirect(f"{base_url}{separator}{query_string}" if query_string else base_url, code=302)
+# ─────────────────────────────────────────────
+# Twilio helpers
+# ─────────────────────────────────────────────
 
 def twilio_client():
     account_sid = os.getenv("TWILIO_ACCOUNT_SID")
     auth_token = os.getenv("TWILIO_AUTH_TOKEN")
-
     if not account_sid or not auth_token:
         return {"ok": False, "error": "Missing TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN"}
-
     return {"ok": True, "client": Client(account_sid, auth_token)}
+
 
 def record_calls_default() -> bool:
     return os.getenv("RECORD_CALLS_DEFAULT", "false").lower() == "true"
@@ -277,104 +127,58 @@ def start_call_recording(call_sid: str, contractor: dict) -> dict:
     if not t.get("ok"):
         return t
 
-    client = t["client"]
-
     try:
         print("START RECORDING | CallSid:", call_sid)
-
-        rec = client.calls(call_sid).recordings.create(
+        rec = t["client"].calls(call_sid).recordings.create(
             recording_status_callback_event=["completed"],
         )
-
         print("RECORDING STARTED | RecordingSid:", rec.sid)
         return {"ok": True, "recording_sid": rec.sid}
-
     except Exception as e:
-        print("RECORDING ERROR |", repr(e))
-        print("RECORDING ERROR STRING |", str(e))
+        print("RECORDING ERROR |", str(e))
+        return {"ok": False, "error": str(e)}
 
-        code = getattr(e, "code", None)
-        status = getattr(e, "status", None)
-        msg = getattr(e, "msg", None)
-        more_info = getattr(e, "more_info", None)
-
-        print("TWILIO ERROR CODE:", code)
-        print("TWILIO STATUS:", status)
-        print("TWILIO MSG:", msg)
-        print("TWILIO MORE INFO:", more_info)
-
-        return {
-            "ok": False,
-            "error": str(e),
-            "code": code,
-            "status": status,
-            "msg": msg,
-            "more_info": more_info,
-        }
 
 def sms_enabled() -> bool:
     return os.getenv("SMS_ENABLED", "false").lower() == "true"
 
+
 def send_sms(to_number: str, body: str, from_number: str) -> dict:
-    """
-    Outbound SMS sender (feature-flagged).
-    """
     if not sms_enabled():
         print("SMS_DISABLED | Would have sent:", to_number, "|", body)
         return {"ok": False, "disabled": True}
 
     account_sid = os.getenv("TWILIO_ACCOUNT_SID")
     auth_token = os.getenv("TWILIO_AUTH_TOKEN")
-
     if not account_sid or not auth_token:
-        print("Missing Twilio credentials")
         return {"ok": False, "error": "missing_credentials"}
 
     client = Client(account_sid, auth_token)
-
-    msg = client.messages.create(
-        to=to_number,
-        from_=from_number,  # <-- important
-        body=body
-    )
-
+    msg = client.messages.create(to=to_number, from_=from_number, body=body)
     print("SMS_SENT:", msg.sid)
     return {"ok": True, "sid": msg.sid}
 
+
 def send_fallback_sms(to_number: str, body: str) -> dict:
-    """
-    Uses the same SMS engine as the rest of the system.
-    """
     try:
         from_number = os.getenv("TWILIO_PHONE_NUMBER") or os.getenv("TWILIO_FROM_NUMBER")
-
         if not from_number:
-            print("FALLBACK SMS ERROR | missing_twilio_from_number")
             return {"ok": False, "error": "missing_twilio_from_number"}
-
-        print("FALLBACK SMS DEBUG | sending from", from_number, "to", to_number)
-
-        result = send_sms(
-            to_number=to_number,
-            body=body,
-            from_number=from_number
-        )
-
-        print("FALLBACK SMS RESULT |", result)
-        return result
-
+        return send_sms(to_number=to_number, body=body, from_number=from_number)
     except Exception as e:
         print("FALLBACK SMS ERROR |", str(e))
         return {"ok": False, "error": str(e)}
 
 
+# ─────────────────────────────────────────────
+# Email helpers
+# ─────────────────────────────────────────────
 
 def send_email(subject: str, body: str, to_email: str = None, reply_to: str = None):
-    # Pull fresh every time (prevents refactor breakage)
     api_key = os.getenv("SENDGRID_API_KEY")
     from_email = os.getenv("FROM_EMAIL")
-    default_to_email = os.getenv("TO_EMAIL")
-    to_email = (to_email or default_to_email or "").strip()
+    default_to = os.getenv("TO_EMAIL")
+    to_email = (to_email or default_to or "").strip()
 
     if not api_key:
         raise Exception("Missing SENDGRID_API_KEY env var")
@@ -387,60 +191,24 @@ def send_email(subject: str, body: str, to_email: str = None, reply_to: str = No
         from_email=from_email,
         to_emails=to_email,
         subject=subject,
-        plain_text_content=body
+        plain_text_content=body,
     )
-
     if reply_to:
         message.reply_to = reply_to
 
     sg = SendGridAPIClient(api_key)
     response = sg.send(message)
-
     print("EMAIL SENT:", response.status_code)
 
-def update_contractor_status(to_number: str, fields: dict):
-    """
-    Safely update contractor status fields in Airtable.
-    Never raises — a failed status update must never affect the call.
-    Uses Contractor Record ID field first, falls back to injected airtable_id.
-    """
-    try:
-        contractor = get_contractor_by_twilio_number(to_number)
-        if not contractor:
-            print("STATUS UPDATE SKIPPED | no contractor for", to_number)
-            return
- 
-        # Try Contractor Record ID field first, fall back to injected airtable_id
-        record_id = (
-            contractor.get("Contractor Record ID", "").strip()
-            or contractor.get("airtable_id", "").strip()
-        )
- 
-        if not record_id:
-            print("STATUS UPDATE SKIPPED | no record_id for", to_number)
-            return
- 
-        # Always stamp with current UTC time
-        fields["Last Call Time"] = datetime.now(timezone.utc).isoformat()
- 
-        result = airtable_update_record(record_id, fields)
-        print("STATUS UPDATED |", to_number, "|", list(fields.keys()), "| result:", result.get("ok"))
-        return result
- 
-    except Exception as e:
-        print("STATUS UPDATE ERROR |", str(e))
-        pass  # never fatal — call continues normally
-    
+
 def send_intake_summary(state: dict, notify_email: str = None, reply_to_email: str = None):
     print("EMAIL DEBUG | entering send_intake_summary")
-    print ("EMAIL DEBUG | FULL ENV KEYS:", list(os.environ.keys()))
 
     email_api_key = os.environ.get("SENDGRID_API_KEY", "")
-
     print("EMAIL DEBUG | SENDGRID KEY EXISTS:", bool(email_api_key))
     print("EMAIL DEBUG | SENDGRID KEY PREFIX:", email_api_key[:5] if email_api_key else "MISSING")
-    subject = "New MME AI Bot Intake"
 
+    subject = "New MME AI Bot Intake"
     body = (
         "New lead captured by MME AI Bot:\n\n"
         f"Client Name: {state.get('name', '')}\n"
@@ -451,8 +219,6 @@ def send_intake_summary(state: dict, notify_email: str = None, reply_to_email: s
         f"Call SID: {state.get('call_sid', '')}\n"
     )
 
-    
-    # Build Airtable payload (SAFE – no forced datetime)
     airtable_fields = {
         "Client Name": state.get("name", ""),
         "Call Back Number": state.get("callback", ""),
@@ -463,9 +229,8 @@ def send_intake_summary(state: dict, notify_email: str = None, reply_to_email: s
         "Appointment Requested": state.get("timing", ""),
         "Lead Status": "New Lead",
         "Priority": state.get("priority", "STANDARD"),
-}
+    }
 
-    # Only include real datetime if it exists and is valid
     appt_datetime = state.get("appointment")
     if appt_datetime and "T" in appt_datetime:
         airtable_fields["Appointment Date and Time"] = appt_datetime
@@ -474,58 +239,74 @@ def send_intake_summary(state: dict, notify_email: str = None, reply_to_email: s
     print("Airtable result:", airtable_result)
 
     send_email(subject, body, to_email=notify_email, reply_to=reply_to_email)
-    # Optional: helpful in Render logs
 
-    
-@app.get("/test-email")
-def test_email():
+
+# ─────────────────────────────────────────────
+# Contractor status monitoring
+# ─────────────────────────────────────────────
+
+def update_contractor_status(to_number: str, fields: dict):
     try:
-        send_email(
-            "MME AI Bot Test",
-            "If you got this, SendGrid is working ✅"
-        )
-        return jsonify({"ok": True})
-    except Exception as e:
-        return jsonify({
-            "ok": False,
-            "error": str(e)
-        }), 500
+        contractor = get_contractor_by_twilio_number(to_number)
+        if not contractor:
+            print("STATUS UPDATE SKIPPED | no contractor for", to_number)
+            return
 
+        record_id = (
+            contractor.get("Contractor Record ID", "").strip()
+            or contractor.get("airtable_id", "").strip()
+        )
+        if not record_id:
+            print("STATUS UPDATE SKIPPED | no record_id for", to_number)
+            return
+
+        fields["Last Call Time"] = datetime.now(timezone.utc).isoformat()
+        result = airtable_update_record(record_id, fields)
+        print("STATUS UPDATED |", to_number, "|", list(fields.keys()), "| result:", result.get("ok"))
+        return result
+
+    except Exception as e:
+        print("STATUS UPDATE ERROR |", str(e))
+        pass
+
+
+# ─────────────────────────────────────────────
+# Basic routes
+# ─────────────────────────────────────────────
 
 @app.get("/")
 def home():
     return jsonify({"status": "running", "message": "MME AI bot is live"})
 
+
 @app.get("/health")
 def health():
     redis_ok = False
-
     if redis_client:
         try:
             redis_client.ping()
             redis_ok = True
         except Exception as e:
             print("Redis health check failed:", e)
-            redis_ok = False
-
-    status_code = 200 if redis_ok else 500
 
     return jsonify({
         "status": "ok" if redis_ok else "degraded",
-        "redis_connected": redis_ok
-    }), status_code
+        "redis_connected": redis_ok,
+    }), 200 if redis_ok else 500
 
 
+@app.get("/test-email")
+def test_email():
+    try:
+        send_email("MME AI Bot Test", "If you got this, SendGrid is working ✅")
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
 
-# -------------------------
-# TEST GOOGLE EVENT
-# -------------------------
 
 @app.route("/test-google-event")
 def test_google_event():
-
     contractor = get_contractor_by_twilio_number("+12408686702") or {}
-
     result = create_google_calendar_event(
         contractor=contractor,
         summary="ContractorOS Test Booking",
@@ -534,49 +315,211 @@ def test_google_event():
         description="Test event created by ContractorOS",
         location="Bowie, MD",
     )
-
     return jsonify(result)
 
 
-# -------------------------
-# CONTRACTOR DASHBOARD
-# -------------------------
+@app.route("/book")
+def book_redirect():
+    contractor_key = (request.args.get("c") or "").strip()
+    contractor = get_contractor_by_twilio_number(contractor_key) if contractor_key else {}
+    base_url = (contractor.get("Intake URL") or "").strip()
+    if not base_url:
+        return "Booking link not configured for this contractor.", 404
+    params = request.args.to_dict(flat=True)
+    params.pop("c", None)
+    query_string = urllib.parse.urlencode(params)
+    separator = "&" if "?" in base_url else "?"
+    return redirect(f"{base_url}{separator}{query_string}" if query_string else base_url, code=302)
 
 
-from flask import render_template_string, session, url_for
+# ─────────────────────────────────────────────
+# SMS
+# ─────────────────────────────────────────────
 
- 
+@app.route("/sms", methods=["POST"])
+def sms():
+    incoming_msg = request.form.get("Body", "").strip()
+    from_number = request.form.get("From", "")
+    print(f"SMS from {from_number}: {incoming_msg}")
+    reply = "MME AI Bot received your message."
+    return Response(f"<Response><Message>{reply}</Message></Response>", mimetype="text/xml")
+
+
+# ─────────────────────────────────────────────
+# Fallback
+# ─────────────────────────────────────────────
+
+@app.route("/twilio-fallback", methods=["POST", "GET"])
+def twilio_fallback():
+    vr = VoiceResponse()
+    vr.say(
+        "Sorry, an application error occurred. Please try again later. Goodbye.",
+        voice="Polly.Joanna",
+        language="en-US",
+    )
+    vr.hangup()
+    return Response(str(vr), mimetype="text/xml")
+
+
+# ─────────────────────────────────────────────
+# Voice entry — routes to ConversationRelay
+# ─────────────────────────────────────────────
+
+@app.route("/voice", methods=["POST", "GET"])
+def voice():
+    vr = VoiceResponse()
+    vr.pause(length=1)
+
+    to_number = (request.values.get("To") or "").strip()
+
+    contractor = {}
+    try:
+        contractor = get_contractor_by_twilio_number(to_number) or {}
+    except Exception as e:
+        print("CONTRACTOR LOOKUP FAILED:", e)
+
+    try:
+        from_number_log = (request.values.get("From") or "").strip()
+        update_contractor_status(to_number, {
+            "Bot Status": "Active",
+            "Last Call From": from_number_log,
+            "Last Call Intent": "incoming",
+        })
+    except Exception:
+        pass
+
+    # Route to ConversationRelay
+    vr.redirect("/voice-cr", method="POST")
+    return Response(str(vr), mimetype="text/xml")
+
+
+# ─────────────────────────────────────────────
+# Emergency
+# ─────────────────────────────────────────────
+
+@app.route("/voice-emergency", methods=["POST", "GET"])
+def voice_emergency():
+    vr = VoiceResponse()
+    to_number = (request.values.get("To") or "").strip()
+    contractor = get_contractor_by_twilio_number(to_number) or {}
+    emergency_phone = (contractor.get("Emergency Phone") or "").strip()
+    business_name = (contractor.get("Business Name") or "your business").strip()
+
+    if emergency_phone:
+        vr.say("Okay. Connecting you now.", voice="Polly.Joanna", language="en-US")
+        whisper_url = (
+            request.url_root.rstrip("/")
+            + "/emergency-whisper?biz="
+            + urllib.parse.quote(business_name)
+        )
+        dial = vr.dial(timeout=20, caller_id=to_number, answer_on_bridge=True)
+        dial.number(emergency_phone, url=whisper_url)
+        return Response(str(vr), mimetype="text/xml")
+
+    vr.say(
+        "I'm sorry, we couldn't reach the on-call team. "
+        "Please leave your name, address, and the nature of the emergency after the beep.",
+        voice="Polly.Joanna",
+        language="en-US",
+    )
+    vr.record(max_length=120, play_beep=True, action="/twilio/voicemail", method="POST")
+    vr.hangup()
+    return Response(str(vr), mimetype="text/xml")
+
+
+@app.route("/emergency-whisper", methods=["POST", "GET"])
+def emergency_whisper():
+    vr = VoiceResponse()
+    biz_name = request.args.get("biz", "your business")
+    gather = Gather(input="dtmf", num_digits=1, timeout=5, action="/emergency-whisper-connect", method="POST")
+    gather.say(f"Emergency call for {biz_name}. Press any key to connect.", voice="Polly.Joanna", language="en-US")
+    vr.append(gather)
+    vr.say("No input received. Goodbye.", voice="Polly.Joanna", language="en-US")
+    vr.hangup()
+    return Response(str(vr), mimetype="text/xml")
+
+
+@app.route("/emergency-whisper-connect", methods=["POST"])
+def emergency_whisper_connect():
+    return Response(str(VoiceResponse()), mimetype="text/xml")
+
+
+# ─────────────────────────────────────────────
+# Voicemail
+# ─────────────────────────────────────────────
+
+@app.route("/twilio/voicemail", methods=["POST"])
+def twilio_voicemail():
+    call_sid = request.values.get("CallSid", "")
+    from_number = request.values.get("From", "")
+    recording_url = request.values.get("RecordingUrl", "")
+    recording_duration = request.values.get("RecordingDuration", "")
+    to_number = (request.values.get("To") or "").strip()
+
+    print("Voicemail received:", call_sid, from_number, recording_url, recording_duration)
+
+    try:
+        contractor = get_contractor_by_twilio_number(to_number) or {}
+        greeting_name = (
+            contractor.get("Greeting Name")
+            or contractor.get("Business Name")
+            or "our office"
+        ).strip()
+        send_fallback_sms(
+            to_number=from_number,
+            body=(
+                f"Thanks for calling {greeting_name}. "
+                "We received your voicemail and will follow up as soon as possible."
+            ),
+        )
+    except Exception as e:
+        print("VOICEMAIL SMS ERROR |", e)
+
+    try:
+        airtable_create_record({
+            "Source": "Voicemail",
+            "Call SID": call_sid,
+            "Call Back Number": from_number,
+            "Job Description": f"VOICEMAIL: {recording_url} ({recording_duration}s)",
+            "Lead Status": "New Lead",
+        })
+    except Exception as e:
+        print("Airtable voicemail save failed:", e)
+
+    vr = VoiceResponse()
+    vr.say("Thank you. Your message has been recorded. Goodbye.", voice="Polly.Joanna", language="en-US")
+    vr.hangup()
+    return Response(str(vr), mimetype="text/xml")
+
+
+# ─────────────────────────────────────────────
+# Onboarding — Google Calendar OAuth
+# ─────────────────────────────────────────────
+
 @app.route("/onboard/<contractor_id>")
 def onboard(contractor_id):
-    # Force  last character uppercase - brwoser sometimes lowercase record IDs
+    # Force correct casing on Airtable record ID
     contractor_id = contractor_id[:3].lower() + contractor_id[3:].upper()
     session["oauth_contractor_key"] = contractor_id
     session.permanent = True
     print("ONBOARD | contractor_id stored in session:", contractor_id)
     return redirect("/dashboard")
- 
- 
+
+
 @app.route("/dashboard")
 def dashboard():
-    """
-    Contractor onboarding dashboard.
-    Shows Google Calendar connection status and connect button.
-    """
     contractor_key = session.get("oauth_contractor_key")
     google_connected = False
     contractor_name = "Contractor"
     error_message = None
- 
+
     if contractor_key:
         try:
             result = airtable_get_record(contractor_key, table_name="Contractors")
             print("DASHBOARD AIRTABLE RESULT:", result)
- 
             if result.get("ok"):
                 fields = result.get("fields", {})
-                # Field is "Google Connected" not "Connected"
                 google_connected = bool(fields.get("Google Connected", False))
-                # Use business name if available
                 contractor_name = (
                     fields.get("Business Name")
                     or fields.get("Greeting Name")
@@ -590,7 +533,7 @@ def dashboard():
             error_message = "Something went wrong loading your account."
     else:
         error_message = "No account found. Please use your onboarding link."
- 
+
     html = """
     <!doctype html>
     <html lang="en">
@@ -602,143 +545,64 @@ def dashboard():
             * { box-sizing: border-box; margin: 0; padding: 0; }
             body {
                 font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
-                background: #f4f6f9;
-                color: #111827;
-                min-height: 100vh;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                padding: 20px;
+                background: #f4f6f9; color: #111827;
+                min-height: 100vh; display: flex;
+                align-items: center; justify-content: center; padding: 20px;
             }
             .card {
-                background: #fff;
-                border-radius: 16px;
-                padding: 40px;
-                max-width: 520px;
-                width: 100%;
+                background: #fff; border-radius: 16px; padding: 40px;
+                max-width: 520px; width: 100%;
                 box-shadow: 0 4px 24px rgba(0,0,0,0.07);
             }
-            .logo {
-                font-size: 13px;
-                font-weight: 700;
-                letter-spacing: 0.1em;
-                text-transform: uppercase;
-                color: #2563eb;
-                margin-bottom: 24px;
-            }
-            h1 {
-                font-size: 28px;
-                font-weight: 700;
-                margin-bottom: 8px;
-                line-height: 1.2;
-            }
-            .sub {
-                font-size: 16px;
-                color: #6b7280;
-                margin-bottom: 28px;
-                line-height: 1.5;
-            }
+            .logo { font-size: 13px; font-weight: 700; letter-spacing: 0.1em;
+                text-transform: uppercase; color: #2563eb; margin-bottom: 24px; }
+            h1 { font-size: 28px; font-weight: 700; margin-bottom: 8px; line-height: 1.2; }
+            .sub { font-size: 16px; color: #6b7280; margin-bottom: 28px; line-height: 1.5; }
             .status-badge {
-                display: inline-flex;
-                align-items: center;
-                gap: 6px;
-                padding: 6px 14px;
-                border-radius: 999px;
-                font-size: 14px;
-                font-weight: 600;
-                margin-bottom: 24px;
+                display: inline-flex; align-items: center; gap: 6px;
+                padding: 6px 14px; border-radius: 999px;
+                font-size: 14px; font-weight: 600; margin-bottom: 24px;
             }
-            .status-badge.connected {
-                background: #dcfce7;
-                color: #166534;
-            }
-            .status-badge.not-connected {
-                background: #fee2e2;
-                color: #991b1b;
-            }
+            .status-badge.connected { background: #dcfce7; color: #166534; }
+            .status-badge.not-connected { background: #fee2e2; color: #991b1b; }
             .btn {
-                display: block;
-                width: 100%;
-                background: #2563eb;
-                color: #fff;
-                text-decoration: none;
-                font-weight: 700;
-                padding: 16px 20px;
-                border-radius: 10px;
-                font-size: 16px;
-                text-align: center;
+                display: block; width: 100%; background: #2563eb; color: #fff;
+                text-decoration: none; font-weight: 700; padding: 16px 20px;
+                border-radius: 10px; font-size: 16px; text-align: center;
                 margin-bottom: 12px;
-                transition: background 0.2s;
             }
             .btn:hover { background: #1d4ed8; }
-            .btn.done {
-                background: #16a34a;
-                cursor: default;
-            }
-            .note {
-                font-size: 13px;
-                color: #9ca3af;
-                text-align: center;
-                margin-bottom: 28px;
-            }
-            .divider {
-                border: none;
-                border-top: 1px solid #f3f4f6;
-                margin: 28px 0;
-            }
-            .features h2 {
-                font-size: 16px;
-                font-weight: 700;
-                margin-bottom: 12px;
-                color: #374151;
-            }
-            .features ul {
-                list-style: none;
-                padding: 0;
-            }
+            .btn.done { background: #16a34a; cursor: default; }
+            .note { font-size: 13px; color: #9ca3af; text-align: center; margin-bottom: 28px; }
+            .divider { border: none; border-top: 1px solid #f3f4f6; margin: 28px 0; }
+            .features h2 { font-size: 16px; font-weight: 700; margin-bottom: 12px; color: #374151; }
+            .features ul { list-style: none; padding: 0; }
             .features li {
-                font-size: 15px;
-                color: #4b5563;
-                padding: 6px 0;
-                display: flex;
-                align-items: center;
-                gap: 8px;
+                font-size: 15px; color: #4b5563; padding: 6px 0;
+                display: flex; align-items: center; gap: 8px;
             }
-            .features li::before {
-                content: "✓";
-                color: #16a34a;
-                font-weight: 700;
-                flex-shrink: 0;
-            }
+            .features li::before { content: "✓"; color: #16a34a; font-weight: 700; flex-shrink: 0; }
             .error-box {
-                background: #fef2f2;
-                border: 1px solid #fecaca;
-                border-radius: 8px;
-                padding: 14px;
-                font-size: 14px;
-                color: #991b1b;
-                margin-bottom: 20px;
+                background: #fef2f2; border: 1px solid #fecaca;
+                border-radius: 8px; padding: 14px;
+                font-size: 14px; color: #991b1b; margin-bottom: 20px;
             }
         </style>
     </head>
     <body>
         <div class="card">
             <div class="logo">ContractorOS</div>
-            
             {% if error_message %}
                 <div class="error-box">{{ error_message }}</div>
             {% endif %}
- 
             <h1>Welcome, {{ contractor_name }}</h1>
             <p class="sub">
                 {% if google_connected %}
                     Your AI receptionist is active and ready to take calls.
                 {% else %}
-                    One step left — connect your Google Calendar to start 
-                    receiving bookings automatically.
+                    One step left — connect your Google Calendar to start receiving bookings automatically.
                 {% endif %}
             </p>
- 
             {% if google_connected %}
                 <div class="status-badge connected">&#10003; Google Calendar Connected</div>
                 <a class="btn done">You're all set!</a>
@@ -748,9 +612,7 @@ def dashboard():
                 <a href="/connect-google" class="btn">Connect Google Calendar</a>
                 <p class="note">Takes less than 60 seconds. We never store your password.</p>
             {% endif %}
- 
             <hr class="divider">
- 
             <div class="features">
                 <h2>What's included</h2>
                 <ul>
@@ -766,7 +628,7 @@ def dashboard():
     </body>
     </html>
     """
- 
+
     return render_template_string(
         html,
         contractor_name=contractor_name,
@@ -797,20 +659,16 @@ def connect_google():
             "https://www.googleapis.com/auth/userinfo.email",
         ],
     )
-
     flow.redirect_uri = os.getenv("GOOGLE_REDIRECT_URI")
-
     authorization_url, state = flow.authorization_url(
         access_type="offline",
         include_granted_scopes="true",
         prompt="consent",
     )
-
     session["oauth_state"] = state
     session.permanent = True
-    print("CONNECT GOOGLE | contractor_key:", contractor_key, "| state saved")
+    print("CONNECT GOOGLE | contractor_key:", contractor_key)
     return redirect(authorization_url)
-    
 
 
 @app.route("/oauth/google/callback")
@@ -818,7 +676,7 @@ def google_callback():
     state = session.get("oauth_state")
     contractor_key = session.get("oauth_contractor_key")
 
-    print("GOOGLE CALLBACK | contractor_key:", contractor_key, "| state:", state)
+    print("GOOGLE CALLBACK | contractor_key:", contractor_key)
 
     if not contractor_key:
         print("GOOGLE CALLBACK ERROR | no contractor_key in session")
@@ -841,7 +699,6 @@ def google_callback():
         ],
         state=state,
     )
-
     flow.redirect_uri = os.getenv("GOOGLE_REDIRECT_URI")
 
     try:
@@ -851,13 +708,12 @@ def google_callback():
         return redirect("/dashboard")
 
     credentials = flow.credentials
-    access_token = credentials.token
 
     try:
         profile = requests.get(
             "https://www.googleapis.com/oauth2/v2/userinfo",
-            headers={"Authorization": f"Bearer {access_token}"},
-            timeout=20
+            headers={"Authorization": f"Bearer {credentials.token}"},
+            timeout=20,
         ).json()
         google_email = profile.get("email", "")
     except Exception as e:
@@ -874,1682 +730,18 @@ def google_callback():
             "Google Refresh Token": refresh_token or "",
             "Google Calendar ID": "primary",
         },
-        table_name="Contractors"
+        table_name="Contractors",
     )
     print("GOOGLE OAUTH AIRTABLE UPDATE:", result)
 
     session["google_connected"] = True
     session.permanent = True
-
     return redirect("/dashboard")
 
 
-
-
-# ------------------------------
-# SMS (keep this even if A2P pending)
-# ------------------------------
-@app.route("/sms", methods=["POST"])
-def sms():
-    incoming_msg = request.form.get("Body", "").strip()
-    from_number = request.form.get("From", "")
-
-    print(f"📩 SMS from {from_number}: {incoming_msg}")
-
-    reply = "✅ MME AI Bot is live! We received your message."
-    return Response(f"<Response><Message>{reply}</Message></Response>", mimetype="text/xml")
-
-@app.route("/voice-entry", methods=["POST", "GET"])
-def voice_entry():
-    vr = VoiceResponse()
-    vr.redirect("/voice-menu", method="POST")
-    return Response(str(vr), mimetype="text/xml")
-
-# ------------------------------
-# VOICE: 4-question intake
-# ------------------------------
-
-
-@app.route("/voice", methods=["POST", "GET"])
-def voice():
-    vr = VoiceResponse()
-    vr.pause(length=1)   # safety buffer for Airtable lookup
-
-    to_number = (request.values.get("To") or "").strip()
-    call_sid = request.values.get("CallSid", "unknown")
-
-    contractor = {}
-    try:
-        contractor = get_contractor_by_twilio_number(to_number) or {}
-    except Exception as e:
-        print("CONTRACTOR LOOKUP FAILED:", e)
-
-    business_name = (contractor.get("Business Name") or "our office").strip()
-    greeting_name = (contractor.get("Greeting Name") or business_name).strip()
-
-    try:
-        from_number_log = (request.values.get("From") or "").strip()
-        update_contractor_status(to_number, {
-            "Bot Status": "Active",
-            "Last Call From": from_number_log,
-            "Last Call Intent": "incoming",
-        })
-    except Exception:
-        pass
-
-    # Recording announcement FIRST
-    if bool(contractor.get("RECORD_CALLS")) or record_calls_default():
-
-        vr.say(
-            '<speak>'
-            'Hi. <break time="300ms"/>'
-            f'Thanks for calling {greeting_name}. '
-            '<break time="500ms"/>'
-            'Just so you know, this call may be recorded to help us get your project details right.'
-            '</speak>',
-            voice="Polly.Joanna",
-            language="en-US",
-        )
-
-        vr.pause(length=1)  # 👈 CRITICAL FIX (gives Twilio time)
-
-    gather = Gather(
-        input="speech",
-        action="/voice-intent",
-        method="POST",
-        timeout=6,
-        speech_timeout="auto",
-        speech_model="deepgram_nova-2",
-        profanity_filter=False
-    )
-
-    gather.pause(length=1)
-    gather.say(
-        "How can I help you today?",
-        voice="Polly.Joanna",
-        language="en-US",
-    )
-
-    vr.append(gather)
-
-    # If silence / no speech result, still send to intent handler
-    vr.redirect("/voice-intent", method="POST")
-    return Response(str(vr), mimetype="text/xml")
-
-@app.route("/voice-intent", methods=["POST", "GET"])
-def voice_intent():
-    vr = VoiceResponse()
-    call_sid = request.values.get("CallSid", "unknown")
-
-    speech = (
-        request.values.get("SpeechResult")
-        or request.values.get("UnstableSpeechResult")
-        or ""
-    ).strip()
-
-    confidence = (request.values.get("Confidence") or "").strip()
-    to_number = (request.values.get("To") or "").strip()
-    from_number = (request.values.get("From") or "").strip()
-
-    # Keep your existing contractor lookup
-    contractor = {}
-    try:
-        contractor = get_contractor_by_twilio_number(to_number) or {}
-    except Exception as e:
-        print("CONTRACTOR LOOKUP FAILED IN INTENT:", e)
-
-    business_name = (contractor.get("Business Name") or "our office").strip()
-    greeting_name = (contractor.get("Greeting Name") or business_name).strip()
-
-    # START RECORDING (after disclosure already played in /voice)
-    try:
-        rec_result = start_call_recording(call_sid, contractor)
-        print("VOICE INTENT RECORDING RESULT |", rec_result)
-    except Exception as e:
-        print("VOICE INTENT RECORDING EXCEPTION |", str(e))
-
-
-    # Use caller number as resume lookup key
-    old_call_sid = None
-    inferred_step = 0
-
-    def _resume_step_from_fields(s: dict) -> int:
-        if not (s.get("name") or "").strip():
-            return 0
-        if not (s.get("service_address") or "").strip():
-            return 1
-        if not (s.get("job_description") or "").strip():
-            return 2
-        if not (s.get("timing") or "").strip():
-            return 3
-        return 4
-
-    if redis_client and to_number and from_number:
-        old_call_sid = get_resume_pointer(to_number, from_number)
-        if old_call_sid:
-            old_state = get_state(old_call_sid) or {}
-            inferred_step = _resume_step_from_fields(old_state)
-
-    # Determine low-confidence speech
-    low_confidence = False
-    try:
-        if confidence:
-            low_confidence = float(confidence) < 0.45
-    except Exception:
-        low_confidence = False
-
-    text = normalize_text(speech)
-    intent = detect_call_intent(text)
-
-    try:
-        update_contractor_status(to_number, {
-            "Bot Status": "Active",
-            "Last Call Intent": intent,
-            "Last Call From": from_number,
-        })
-    except Exception:
-        pass
-
-    print(
-        "VOICE INTENT DEBUG |",
-        "Speech:", speech,
-        "| Confidence:", confidence,
-        "| Low confidence:", low_confidence,
-        "| Intent:", intent,
-        "| Resume old_call_sid:", old_call_sid,
-        "| Resume step:", inferred_step
-    )
-
-    # If no usable speech, send to voicemail fallback
-    if not text or low_confidence:
-        try:
-            send_fallback_sms(
-                to_number=from_number,
-                body=(
-                    f"Thanks for calling {greeting_name}. "
-                    "We had trouble capturing your request by phone. "
-                    "Reply with your name, address, and a brief description of the work needed, "
-                    "or leave a voicemail when prompted."
-                )
-            )
-        except Exception as e:
-            print("FALLBACK SMS ERROR |", e)
-
-        vr.say(
-            "I’m sorry, I had trouble understanding. "
-            "Please leave a detailed message after the tone, and we will follow up shortly.",
-            voice="Polly.Joanna",
-            language="en-US",
-        )
-
-        vr.record(
-            maxLength=120,
-            playBeep=True,
-            action="/twilio/voicemail",
-            method="POST"
-        )
-
-        vr.hangup()
-        return Response(str(vr), mimetype="text/xml")
-
-    # If caller clearly wants voicemail
-    if intent == "voicemail":
-        vr.say(
-            "No problem. Please leave your name, phone number, address if applicable, "
-            "and a brief message after the tone.",
-            voice="Polly.Joanna",
-            language="en-US",
-        )
-
-        vr.record(
-            maxLength=120,
-            playBeep=True,
-            action="/twilio/voicemail",
-            method="POST"
-        )
-
-        vr.hangup()
-        return Response(str(vr), mimetype="text/xml")
-
-    # If caller sounds like emergency, still use your existing emergency route
-    if intent == "emergency":
-        # 1. The Humanized Acknowledgement
-        vr.say(
-            "I’m very sorry to hear that. I'm going to get you connected to our on-call contractor immediately so they can assist you.",
-            voice="Polly.Joanna",
-            language="en-US",
-        )
-
-        # 2. The "Safety" Pause (reduces the jarring transition)
-        vr.pause(length=1)
-
-        # 3. The redirect to the actual dialing logic 
-        vr.redirect("/voice-emergency", method="POST")
-        return Response(str(vr), mimetype="text/xml")
-
-    # Otherwise this is a normal estimate / service request
-    # Keep your existing resume logic
-    if old_call_sid and inferred_step > 0:
-        g = Gather(
-            input="dtmf",
-            num_digits=1,
-            timeout=3,
-            action=f"/resume-choice?old={old_call_sid}&step={inferred_step}",
-            method="POST",
-            actionOnEmptyResult=True,
-        )
-        g.say(
-            "Looks like we were in the middle of a request. "
-            "I will resume where we left off. "
-            "Press 2 to start over.",
-            voice="Polly.Joanna",
-            language="en-US",
-        )
-        vr.append(g)
-        return Response(str(vr), mimetype="text/xml")
-
-    # No resume progress -> continue straight into intake
-    vr.say(
-        "Absolutely. I’ll collect a few quick details.",
-        voice="Polly.Joanna",
-        language="en-US",
-    )
-    vr.redirect("/voice-intake", method="POST")
-    return Response(str(vr), mimetype="text/xml")
-
-
-@app.route("/voice-menu", methods=["POST", "GET"])
-def voice_menu():
-    digit = (request.values.get("Digits") or "").strip()
-    vr = VoiceResponse()
-
-    to_number = (request.values.get("To") or "").strip()
-    from_number = (request.values.get("From") or "").strip()
-
-    # Emergency stays immediate
-    if digit == "1":
-        vr.redirect("/voice-emergency", method="POST")
-        return Response(str(vr), mimetype="text/xml")
-
-    # Anything else (including blank/timeout) = estimate flow with AUTO-RESUME check
-
-    old_call_sid = None
-    inferred_step = 0
-
-    def _resume_step_from_fields(s: dict) -> int:
-        if not (s.get("name") or "").strip():
-            return 0
-        if not (s.get("service_address") or "").strip():
-            return 1
-        if not (s.get("job_description") or "").strip():
-            return 2
-        if not (s.get("timing") or "").strip():
-            return 3
-        return 4
-
-    if redis_client and to_number and from_number:
-        old_call_sid = get_resume_pointer(to_number, from_number)
-        if old_call_sid:
-            old_state = get_state(old_call_sid) or {}
-            inferred_step = _resume_step_from_fields(old_state)
-
-    # If we have progress, auto-resume unless they press 2
-    if old_call_sid and inferred_step > 0:
-        g = Gather(
-            input="dtmf",
-            num_digits=1,
-            timeout=3,
-            action=f"/resume-choice?old={old_call_sid}&step={inferred_step}",
-            method="POST",
-            actionOnEmptyResult=True,
-        )
-        g.say(
-            "Welcome - back, we were in the middle of a request. "
-            "I will pick up where we left off. "
-            "Press 2 to start over.",
-            voice="Polly.Joanna",
-            language="en-US",
-        )
-        vr.append(g)
-
-        # No input -> Twilio will still hit /resume-choice after timeout
-        return Response(str(vr), mimetype="text/xml")
-
-    # No resume progress -> start fresh
-    vr.redirect("/voice-intake", method="POST")
-    return Response(str(vr), mimetype="text/xml")
-
-@app.route("/resume-prompt", methods=["POST"])
-def resume_prompt():
-    vr = VoiceResponse()
-
-    # carry forward what /resume-choice needs
-    old_call_sid = request.values.get("old", "") or request.args.get("old", "")
-    step = request.values.get("step", "0") or request.args.get("step", "0")
-
-    gather = Gather(
-        num_digits=1,
-        action=f"/resume-choice?old={old_call_sid}&step={step}",
-        method="POST",
-        timeout=6,
-        actionOnEmptyResult=True,   # ✅ KEY FIX (so it won’t hang up on silence)
-    )
-    gather.say(
-        "I see we got disconnected. "
-        "Press 1 to resume where you left off, "
-        "or press 2 to start over.",
-        voice="Polly.Joanna",
-        language="en-US",
-    )
-    vr.append(gather)
-
-    # Fallback: if Twilio still doesn't send digits, force it to hit resume-choice
-    vr.redirect(f"/resume-choice?old={old_call_sid}&step={step}", method="POST")
-    return Response(str(vr), mimetype="text/xml")
-
-@app.route("/resume-choice", methods=["POST"])
-def resume_choice():
-    new_call_sid = request.values.get("CallSid", "unknown")
-    digits = (request.values.get("Digits") or "").strip()
-    # Treat "no input" as resume
-    if digits == "":
-        digits = "1"   # treat silence as resume
-
-    to_number = (request.values.get("To") or "").strip()
-    from_number = (request.values.get("From") or "").strip()
-
-    old_call_sid = request.args.get("old", "") or ""
-    inferred_step = int(request.args.get("step", "0") or "0")
-
-    vr = VoiceResponse()
-
-    # Press 2 => start over fresh
-    if digits == "2":
-        # Clear resume pointer 
-        if redis_client and to_number and from_number:
-            clear_resume_pointer(to_number, from_number)
-            print("RESUME PTR CLEARED (restart):", to_number, from_number)
-
-        # Clear any alias mapping for this new call
-        clear_call_alias(new_call_sid)
-
-        # If we know the old call, wipe its state too (prevents stale resume + stale Mapbox candidates)
-        if old_call_sid:
-            clear_state(old_call_sid)
-            clear_call_alias(old_call_sid)
-
-        vr.say("No problem. We'll start over.", voice="Polly.Joanna", language="en-US")
-        vr.redirect("/voice-intake", method="POST")
-        return Response(str(vr), mimetype="text/xml")
-
-    # Default => resume
-    if old_call_sid and inferred_step > 0:
-        # Map NEW CallSid -> OLD CallSid so /voice-process uses old state
-        set_call_alias(new_call_sid, old_call_sid)
-
-        # Keep pointer alive pointing at OLD call sid
-        if redis_client and to_number and from_number:
-            save_resume_pointer(to_number, from_number, old_call_sid)
-
-        vr.say("Resuming your request now.", voice="Polly.Joanna", language="en-US")
-        vr.redirect(f"/voice-process?step={inferred_step}", method="POST")
-        return Response(str(vr), mimetype="text/xml")
-
-    vr.redirect("/voice-intake", method="POST")
-    return Response(str(vr), mimetype="text/xml")
-
-
-@app.route("/twilio/voicemail", methods=["POST"])
-def twilio_voicemail():
-    call_sid = request.values.get("CallSid", "")
-    from_number = request.values.get("From", "")
-    recording_url = request.values.get("RecordingUrl", "")
-    recording_duration = request.values.get("RecordingDuration", "")
-
-    print("Voicemail received:", call_sid, from_number, recording_url, recording_duration)
-        
-    #SEND CONFIRMATION TEXT
-    try:
-        to_number = (request.values.get("To") or "").strip()
-        contractor = get_contractor_by_twilio_number(to_number) or {}
-        
-        business_name = (contractor.get("Business Name") or "our office").strip()
-        greeting_name = (contractor.get("Greeting Name") or business_name).strip()
-
-        sms_result = send_fallback_sms(
-            to_number=from_number,
-            body=(
-                f"Thanks for calling {greeting_name}. "
-                "We received your voicemail and will follow up as soon as possible."
-            )
-        )
-        print("VOICEMAIL SMS RESULT |", sms_result)
-
-    except Exception as e:
-        print("VOICEMAIL SMS ERROR |", e)
-
-    # OPTIONAL: save to Airtable (add fields that exist in your Airtable table)
-    try:
-        airtable_create_record({
-            "Source": "Voicemail",
-            "Call SID": call_sid,
-            "Call Back Number": from_number,
-            "Job Description": f"VOICEMAIL: {recording_url} ({recording_duration}s)",
-            "Lead Status": "New Lead",
-        })
-    except Exception as e:
-        print("Airtable voicemail save failed:", e)
-
-    vr = VoiceResponse()
-    vr.say("Thank you. Your message has been recorded. Goodbye.", voice="Polly.Joanna", language="en-US")
-    vr.hangup()
-    return Response(str(vr), mimetype="text/xml")
-
-@app.route("/voice-intake", methods=["POST"])
-def voice_intake():
-    """
-    Start a fresh intake.
-    Resume/restart decision happens only in /voice-menu -> /resume-choice.
-    """
-
-    call_sid = request.values.get("CallSid", "unknown")
-
-    # Normalize To/From (Twilio sometimes uses Called/Caller depending on webhook)
-    to_number = (request.values.get("To") or request.values.get("Called") or "").strip()
-    from_number = (request.values.get("From") or request.values.get("Caller") or "").strip()
-
-    contractor_key = to_number or "unknown"
-
-    state = {
-        "step": 0,
-        "callback": from_number,
-        "retries": 0,
-        "name": "",
-        "service_address": "",
-        "job_description": "",
-        "timing": "",
-        "call_sid": call_sid,
-        "to_number": to_number,
-        "contractor_key": contractor_key,
-        "started_at": int(time.time()),
-    }
-
-    set_state(call_sid, state)
-    register_live_call(contractor_key, call_sid)
-
-    vr = VoiceResponse()
-
-    gather = Gather(
-        input="speech",
-        action="/voice-process?step=0",
-        method="POST",
-        timeout=6,
-        speech_timeout="auto",
-    )
-    gather.say(
-        "First, what's your name?",
-        voice="Polly.Joanna",
-        language="en-US",
-    )
-
-    vr.append(gather)
-
-    vr.say(
-        "Sorry, I didn’t catch that. Please call back and try again. Goodbye.",
-        voice="Polly.Joanna",
-        language="en-US",
-    )
-
-    vr.hangup()
-    return Response(str(vr), mimetype="text/xml")
-
-
-
-@app.route("/voice-emergency", methods=["POST", "GET"])
-def voice_emergency():
-    vr = VoiceResponse()
-
-    to_number = (request.values.get("To") or "").strip()
-    contractor = get_contractor_by_twilio_number(to_number) or {}
-
-    emergency_phone = (contractor.get("Emergency Phone") or "").strip()
-    business_name = (contractor.get("Business Name") or "your business").strip()
-
-    print("DEBUG To number:", to_number)
-    print("DEBUG contractor:", contractor)
-    print("DEBUG emergency_phone:", emergency_phone)
-    print("DEBUG business_name:", business_name)
-
-    if emergency_phone:
-        vr.say(
-            "Okay. Connecting you now.",
-            voice="Polly.Joanna",
-            language="en-US"
-        )
-
-        whisper_url = (
-            request.url_root.rstrip("/")
-            + "/emergency-whisper?biz="
-            + urllib.parse.quote(business_name)
-        )
-
-        print("DEBUG whisper_url:", whisper_url)
-
-        dial = vr.dial(
-            timeout=20,
-            caller_id=to_number,
-            answer_on_bridge=True
-        )
-
-        dial.number(
-            emergency_phone,
-            url=whisper_url
-        )
-
-        return Response(str(vr), mimetype="text/xml")
-
-    vr.say(
-        "I am sorry we couldn't reach the on-call team. "
-        "Please leave your name, address, and the nature of the emergency after the beep.",
-        voice="Polly.Joanna",
-        language="en-US"
-    )
-
-    vr.record(
-        max_length=120,
-        play_beep=True,
-        action="/twilio/voicemail",
-        method="POST"
-    )
-
-    vr.hangup()
-    return Response(str(vr), mimetype="text/xml")
-    
-@app.route("/emergency-whisper", methods=["POST", "GET"])
-def emergency_whisper():
-    vr = VoiceResponse()
-
-    biz_name = request.args.get("biz", "your business")
-
-    gather = Gather(
-        input="dtmf",
-        num_digits=1,
-        timeout=5,
-        action="/emergency-whisper-connect",
-        method="POST"
-    )
-    gather.say(
-        f"Emergency call for {biz_name}. Press any key to connect.",
-        voice="Polly.Joanna",
-        language="en-US"
-    )
-    vr.append(gather)
-
-    vr.say(
-        "No input received. Goodbye.",
-        voice="Polly.Joanna",
-        language="en-US"
-    )
-    vr.hangup()
-    return Response(str(vr), mimetype="text/xml")
-
-@app.route("/emergency-whisper-connect", methods=["POST"])
-def emergency_whisper_connect():
-    vr = VoiceResponse()
-    return Response(str(vr), mimetype="text/xml")
-
-
-@app.route("/voice-process", methods=["POST"])
-def voice_process():
-    call_sid = request.values.get("CallSid", "unknown")
-    step = int(request.args.get("step", "0"))
-    digits = (request.values.get("Digits") or "").strip()
-   
-    speech = (
-    
-        request.values.get("SpeechResult") 
-        or request.values.get("UnstableSpeechResult")
-        or ""
-    ).strip()
-
-    confidence_raw = (request.values.get("Confidence") or "").strip()
-
-    try:
-        confidence = float(confidence_raw) if confidence_raw else 0.0
-    except Exception:
-        confidence = 0.0
-
-    print(
-        "SPEECH DEBUG |",
-        "Speech:", speech,
-        "| Confidence:", confidence
-    )
-
-    print(
-        "STEP DEBUG |",
-        "CallSid:", call_sid,
-        "| Step:", step,
-        "| Digits:", digits,   
-        "| Speech:", speech
-    ) 
-
-    to_number = (request.values.get("To") or "").strip()
-    from_number = (request.values.get("From") or "").strip()
-
-    # --- Resume / Alias logic (caller hung up and called back) ---
-
-    # Keep the NEW CallSid so we can map it to the OLD one
-    new_call_sid = call_sid
-
-    # If this CallSid was already aliased earlier, follow it
-    aliased = get_call_alias(new_call_sid)
-    if aliased:
-        call_sid = aliased
-
-    # --- Lookup existing resume pointer BEFORE saving anything ---
-    old_call_sid = None
-    if step == 0 and redis_client and to_number and from_number:
-        old_call_sid = get_resume_pointer(to_number, from_number)
-
-    print("DEBUG resume pointer lookup:",
-          "step=", step,
-          "new=", new_call_sid,
-          "old=", old_call_sid,
-          "call_sid(before swap)=", call_sid)
-
-    # If we found an older CallSid for this same caller, swap to it
-    if old_call_sid and old_call_sid != new_call_sid:
-        set_call_alias(new_call_sid, old_call_sid)   # NEW -> OLD mapping
-        call_sid = old_call_sid
-        print("DEBUG swapped call_sid to OLD:", call_sid)
-
-    # Now load state for the FINAL chosen call_sid
-    state = get_state(call_sid) or {}
-
-
-    # Always store CallSid
-    state["call_sid"] = call_sid
-
-    # Safe defaults (define keys first)
-    state.setdefault("retries", 0)
-    state.setdefault("name", "")
-    state.setdefault("service_address", "")
-    state.setdefault("job_description", "")
-    state.setdefault("timing", "")
-    state.setdefault("callback", "")
-    state.setdefault("step", 0)
-
-    # Always capture caller phone number (do not overwrite if already set)
-    state["callback"] = state["callback"] or request.values.get("From", "")
-
-    # -------- Restore step on callback by checking which fields are already filled --------
-    def _resume_step_from_fields(s: dict) -> int:
-        name_ok = bool((s.get("name") or "").strip())
-        addr_ok = bool((s.get("service_address") or "").strip())
-        job_ok  = bool((s.get("job_description") or "").strip())
-        time_ok = bool((s.get("timing") or "").strip())
-
-        if not name_ok:
-            return 0
-        if not addr_ok:
-            return 1
-        if not job_ok:
-            return 2
-        if not time_ok:
-            return 3
-        return 4
-
-    # If Twilio hits us with step=0 again on a callback, jump to the correct step
-    if step == 0:
-        inferred_step = _resume_step_from_fields(state)
-        if inferred_step > 0:
-            print("RESUME STEP INFERRED:", inferred_step, "| from keys:", list(state.keys()))  
-            step = inferred_step
-            state["step"] = inferred_step
-            set_state(call_sid, state)
-    # -------------------------------------------------------------------------------
-
-    print("DEBUG resume check | request step:", step, "| call_sid:", call_sid, "| state.step:", state.get("step"))
-    print("DEBUG state keys:", list(state.keys()))
-
-    # Save back immediately (single save)
-    set_state(call_sid, state)
-
-    vr = VoiceResponse()
-
-    
-
-    # STEP 0: Client name
-    if step == 0:
-
-        # ── 0B) Speech just arrived — evaluate it
-        if speech:
-            bleed_patterns = [
-            
-                r"^(my name is|i am|i'm|name is)\s*",  # strip common prefixes only
-            ]
-            
-            cleaned = speech.strip()
-            for pattern in bleed_patterns:
-                cleaned = re.sub(pattern, "", cleaned, flags=re.IGNORECASE).strip()
-
-            # If after cleaning we have nothing useful, reprompt
-            if not cleaned:
-                gather = Gather(
-                    input="speech",
-                    action="/voice-process?step=0",
-                    method="POST",
-                    timeout=6,
-                    speech_timeout=3,
-                    speech_model="deepgram-nova-2",
-                    profanity_filter=False,
-                    hints="first name, last name",
-                )
-                gather.say(
-                    "Please say just your first and last name.",
-                    voice="Polly.Joanna",
-                    language="en-US",
-                )
-                vr.append(gather)
-                return Response(str(vr), mimetype="text/xml")
-
-            # Name is clean — save and move on
-            state["name"] = cleaned
-            state["retries"] = 0
-            state["step"] = 1
-            set_state(call_sid, state)
-
-            if redis_client and to_number and from_number:
-                save_resume_pointer(to_number, from_number, call_sid)
-
-            log_call_event(call_sid, to_number, "step_completed", {
-                "step": 0,
-                "name": state["name"],
-            })
-
-            vr.say("Thanks.", voice="Polly.Joanna", language="en-US")
-            vr.redirect("/voice-process?step=1", method="POST")
-            return Response(str(vr), mimetype="text/xml")
-
-        # ── 0A) No speech, no digits, no candidate — ask for name ─────────────
-        gather = Gather(
-            input="speech",
-            action="/voice-process?step=0",
-            method="POST",
-            timeout=8,
-            speech_timeout=3,
-            speech_model="deepgram-nova-2",
-            profanity_filter=False,
-            hints="first name, last name",
-        )
-        gather.pause(length=1)   # pause so mic opens AFTER prompt finishes — stops bleed
-        gather.say(
-            "What is your name?",
-            voice="Polly.Joanna", language="en-US",
-        )
-        vr.append(gather)
-        vr.redirect("/voice-process?step=0", method="POST")
-        return Response(str(vr), mimetype="text/xml")
-            
-
-
-
-    
-    # STEP 1: Address collection / confirmation  
-    if step == 1:
-        
-        # SAFETY GUARD (prevents crash if Twilio re-hits step 1)
-        if state.get("addr_confirmed"):
-            vr.redirect("/voice-process?step=2", method="POST")
-            return Response(str(vr), mimetype="text/xml")
-            
-        # Optional: very short intro ONCE (keeps your "intro once" behavior but removes narration)
-        if not state.get("address_intro_played"):
-            state["address_intro_played"] = True
-            state["retries"] = 0
-            set_state(call_sid, state)
-
-            vr.say(
-                "Alright — let’s get the service address.",
-                voice="Polly.Joanna",
-                language="en-US",
-            )
-
-            # If they hang up mid-address, resume should still work
-            if redis_client and to_number and from_number:
-                save_resume_pointer(to_number, from_number, call_sid)
-
-            vr.redirect("/voice-process?step=1", method="POST")
-            return Response(str(vr), mimetype="text/xml")
-
-        # 1A) House / Building number (DTMF best, end with #)
-        if not state.get("addr_number"):
-            if not digits:
-                gather = Gather(
-                    input="dtmf",
-                    action="/voice-process?step=1",
-                    method="POST",
-                    timeout=5,                  # was 10
-                    finishOnKey="#",            
-                    actionOnEmptyResult=True,   # don't stall on silence 
-                )
-                gather.say(
-                    "What's the house number? Enter it, then press pound.",
-                    voice="Polly.Joanna",
-                    language="en-US",
-                )
-                vr.append(gather)
-                return Response(str(vr), mimetype="text/xml")
-
-            house_num = "".join([c for c in digits if c.isdigit()]).strip()
-            if len(house_num) < 1:
-                vr.say(
-                    "Sorry - house number only. Enter it, then press pound.",
-                    voice="Polly.Joanna",
-                    language="en-US",
-                )
-                vr.redirect("/voice-process?step=1", method="POST")
-                return Response(str(vr), mimetype="text/xml")
-
-            state["addr_number"] = house_num
-            state["retries"] = 0
-            set_state(call_sid, state)
-
-            if redis_client and to_number and from_number:
-                save_resume_pointer(to_number, from_number, call_sid)
-
-            vr.redirect("/voice-process?step=1", method="POST")
-            return Response(str(vr), mimetype="text/xml")
-
-        # 1B) Street name (speech)
-        if not state.get("addr_street"):
-            if not speech:
-                gather = Gather(
-                    input="speech",
-                    action="/voice-process?step=1",
-                    method="POST",
-                    timeout=6,                  # was 8
-                    speech_timeout="auto",
-                    barge_in=True,              # feels faster             
-                    actionOnEmptyResult=True,
-                    profanity_filter=False,
-                    speech_model="deepgram_nova-2",
-                    hints="Street, Avenue, Boulevard, Drive, Court, Lane, Terrace, Bowie, Upper Marlboro, Lanham, Crofton, Laurel, Lisborough",
-                    
-                )
-                gather.say(
-                    "Great. And the street name?",
-                    voice="Polly.Joanna",
-                    language="en-US",
-                )
-                vr.append(gather)
-                return Response(str(vr), mimetype="text/xml")
-
-            state["addr_street"] = speech.strip()
-            state["retries"] = 0
-            set_state(call_sid, state)
-
-            if redis_client and to_number and from_number:
-                save_resume_pointer(to_number, from_number, call_sid)
-
-            vr.redirect("/voice-process?step=1", method="POST")
-            return Response(str(vr), mimetype="text/xml")
-
-        # 1C) City (speech)
-        if not state.get("addr_city"):
-            if not speech:
-                gather = Gather(
-                    input="speech",
-                    action="/voice-process?step=1",
-                    method="POST",
-                    timeout=6,                 # was 8
-                    speech_timeout="auto",
-                    barge_in=True,              # feels faster
-                    actionOnEmptyResult=True,
-                    profanity_filter=False,
-                    speech_model="deepgram_nova-2",
-                    hints="Bowie, Upper Marlboro, Lanham, Crofton, Washington, Baltimore",  
-                )
-                gather.say(
-                    "Perfect. What city?",
-                    voice="Polly.Joanna",
-                    language="en-US",
-                )
-                vr.append(gather)
-                return Response(str(vr), mimetype="text/xml")
-
-            state["addr_city"] = speech.strip()
-
-            corrections = airtable_get_city_corrections()
-            state["addr_city"] = normalize_city(state["addr_city"], corrections)
-            print("CITY NORMALIZED |", state["addr_city"])
-            
-            state["retries"] = 0
-            set_state(call_sid, state)
-
-            if redis_client and to_number and from_number:
-                save_resume_pointer(to_number, from_number, call_sid)
-
-            vr.redirect("/voice-process?step=1", method="POST")
-            return Response(str(vr), mimetype="text/xml")
-
-        # 1D) ZIP (DTMF)
-        if not state.get("addr_zip"):
-            if not digits:
-                gather = Gather(
-                    input="dtmf",
-                    num_digits=5,
-                    action="/voice-process?step=1",
-                    method="POST",
-                    timeout=5,                 # was 10
-                    barge_in=True,             # feels faster
-                    actionOnEmptyResult=True,
-                )
-                gather.say(
-                    "Got it, please enter the five digit zip code.",
-                    voice="Polly.Joanna",
-                    language="en-US",
-                )
-                vr.append(gather)
-                return Response(str(vr), mimetype="text/xml")
-
-            zip_digits = "".join([c for c in digits if c.isdigit()])
-            if len(zip_digits) != 5:
-                vr.say(
-                    "Sorry, please enter a five digit zip code.",
-                    voice="Polly.Joanna",
-                    language="en-US",
-                )
-                vr.redirect("/voice-process?step=1", method="POST")
-                return Response(str(vr), mimetype="text/xml")
-
-            state["addr_zip"] = zip_digits
-            state["retries"] = 0
-            set_state(call_sid, state)
-
-            if redis_client and to_number and from_number:
-                save_resume_pointer(to_number, from_number, call_sid)
-
-            vr.redirect("/voice-process?step=1", method="POST")
-            return Response(str(vr), mimetype="text/xml")
-
-        # ── Global empty-speech guard (Bug 4) ────────────────────────────────
-        if not speech and not digits:
-            empty_retries = int(state.get("empty_retries", 0)) + 1
-            state["empty_retries"] = empty_retries
-            set_state(call_sid, state)
-
-            if empty_retries >= 5:
-                vr.say(
-                    "I'm having trouble hearing you. Please call back and we'll try again.",
-                    voice="Polly.Joanna",
-                    language="en-US",
-                )
-                vr.hangup()
-                return Response(str(vr), mimetype="text/xml")
-
-            # Fall through — let the existing Gather re-prompt handle it
-        else:
-            state["empty_retries"] = 0  # reset on any real input
-
-        # 1E) Mapbox resolve + confirm (speech yes/no)
-        if not state.get("addr_confirmed"):
-
-            # ── Helper: sanitize raw speech before geocoding (Bug 2) ─────────
-            def clean_speech_field(text: str) -> str:
-                import re
-                text = re.sub(r"\bI'?m\b", "", text, flags=re.IGNORECASE)
-    
-                # Collapse spelled-out letters: "P a r a l l e l" → "Parallel"
-                def collapse_spelled(m):
-                    return m.group(0).replace(" ", "")
-                text = re.sub(r"\b([A-Za-z] ){1,}[A-Za-z]\b", collapse_spelled, text)
-    
-                text = re.sub(r"[^\w\s]", " ", text)   # strip punctuation
-                text = re.sub(r"\s+", " ", text).strip()
-                return text
-
-            # If we don't have candidates yet, fetch them once
-            if not state.get("addr_candidates"):
-                
-                street_clean = clean_speech_field(state.get("addr_street", ""))
-                city_clean   = clean_speech_field(state.get("addr_city", ""))
-
-                # Avoid doubling city name if already in street
-                if city_clean and city_clean.lower() in street_clean.lower():
-                    q = f"{state['addr_number']} {street_clean} MD {state['addr_zip']}"
-                else:
-                    q = f"{state['addr_number']} {street_clean} {city_clean} MD {state['addr_zip']}"
-
-                print("MAPBOX LOOKUP |", q)
-
-                contractor = get_contractor_by_twilio_number(to_number) or {}
-                normalized = {str(k).strip(): v for k, v in contractor.items()}
-                home_lat = normalized.get("Home Base Lat")
-                home_lon = normalized.get("Home Base Lon")
-                proximity = f"{home_lon},{home_lat}" if home_lat and home_lon else None
-
-                candidates = mapbox_address_candidates(q, limit=3, country="US", proximity=proximity)
-                print("MAPBOX CANDIDATES V6 |", candidates)
-
-                good = [c for c in candidates if c.get("confidence") in ("exact", "high", "medium", "low", None)]
-                state["addr_candidates"] = [c["full_address"] for c in good[:3]]
-
-                print("MAPBOX CANDIDATES |", state["addr_candidates"])
-                set_state(call_sid, state)
-
-                try:
-                    mapbox_result = state["addr_candidates"][0] if state["addr_candidates"] else "No match"
-                    update_contractor_status(to_number, {
-                        "Last Mapbox Result": mapbox_result,
-                    })
-                except Exception:
-                    pass
-
-                # If no results returned, do NOT auto-confirm
-                if not state["addr_candidates"]:
-                    retry_count = int(state.get("addr_street_retries", 0))
-                    bad_street  = state.get("addr_street", "")
-                    bad_city    = state.get("addr_city", "")
-
-                    state["addr_street_retries"] = retry_count + 1
-                    state.pop("addr_candidates",     None)
-                    state.pop("addr_confirmed",      None)
-                    state.pop("addr_street",         None)
-                    state["retries"] = 0
-                    set_state(call_sid, state)
-
-                    try:
-                        update_contractor_status(to_number, {
-                            "Bot Status":        "Degraded",
-                            "Last Error":        f"Mapbox no results: {bad_street} {bad_city}",
-                            "Last Error Time":   datetime.now(timezone.utc).isoformat(),
-                            "Last Mapbox Result": "No match found",
-                        })
-                    except Exception:
-                        pass
-
-                    gather = Gather(
-                        input="speech",
-                        action="/voice-process?step=1",
-                        method="POST",
-                        timeout=12,
-                        speech_timeout="auto",
-                        speech_model="deepgram_nova-2",
-                        profanity_filter=False,
-                    )
-                    if retry_count >= 1:
-                        gather.say(
-                            "No worries. Please spell out just the street name, one letter at a time.",
-                            voice="Polly.Joanna",
-                            language="en-US",
-                        )
-                    else:
-                        gather.say(
-                            "I couldn't find that street. Please say the street name again slowly.",
-                            voice="Polly.Joanna",
-                            language="en-US",
-                        )
-                    vr.append(gather)
-                    return Response(str(vr), mimetype="text/xml")
-
-            # ── We have candidates; confirm via speech yes/no ─────────────────
-            confirm_retries = int(state.get("addr_confirm_retries", 0))
-
-            if not speech:
-                if confirm_retries >= 4:
-                    # Too many empty/unrecognised responses — restart address
-                    state.pop("addr_candidates",      None)
-                    state.pop("addr_confirmed",       None)
-                    state.pop("addr_street",          None)
-                    state.pop("addr_number",          None)
-                    state.pop("addr_city",            None)
-                    state.pop("addr_zip",             None)
-                    state.pop("addr_confirm_retries", None)
-                    state["retries"] = 0
-                    set_state(call_sid, state)
-
-                    vr.say(
-                        "Let me start the address over.",
-                        voice="Polly.Joanna",
-                        language="en-US",
-                    )
-                    vr.redirect("/voice-process?step=1", method="POST")
-                    return Response(str(vr), mimetype="text/xml")
-
-                state["addr_confirm_retries"] = confirm_retries + 1
-                set_state(call_sid, state)
-
-                opts = state["addr_candidates"]
-                gather = Gather(
-                    input="speech",
-                    action="/voice-process?step=1",
-                    method="POST",
-                    timeout=8,
-                    speech_timeout="auto",
-                    speech_model="deepgram_nova-2",
-                    profanity_filter=False,
-                )
-                gather.say(
-                    f"I found {opts[0]}. Is that correct? Say yes to confirm or no to try again.",
-                    voice="Polly.Joanna",
-                    language="en-US",
-                )
-                vr.append(gather)
-                return Response(str(vr), mimetype="text/xml")
-
-            speech_lower = speech.lower().strip()
-            yes_words = {"yes", "yeah", "yep", "correct", "right", "confirm", "yup", "sure"}
-            no_words  = {"no", "nope", "wrong", "incorrect", "try again"}
-
-            # ── Caller said NO — re-ask with a Gather (Bug 1 + Bug 3) ────────
-            if any(w in speech_lower for w in no_words):
-                state["addr_street_retries"] = int(state.get("addr_street_retries", 0)) + 1  # Bug 3
-                state.pop("addr_candidates",      None)
-                state.pop("addr_confirmed",       None)
-                state.pop("addr_street",          None)
-                state.pop("addr_confirm_retries", None)
-                state["retries"] = 0
-                set_state(call_sid, state)
-
-                # Bug 1 fix: use Gather instead of bare redirect so Twilio
-                # actually listens for the new street name
-                gather = Gather(
-                    input="speech",
-                    action="/voice-process?step=1",
-                    method="POST",
-                    timeout=10,
-                    speech_timeout="auto",
-                    speech_model="deepgram_nova-2",
-                    profanity_filter=False,
-                )
-                if int(state.get("addr_street_retries", 0)) >= 2:
-                    gather.say(
-                        "No problem. Please spell out the street name one letter at a time.",
-                        voice="Polly.Joanna",
-                        language="en-US",
-                    )
-                else:
-                    gather.say(
-                        "No problem. Please say the street name and number again.",
-                        voice="Polly.Joanna",
-                        language="en-US",
-                    )
-                vr.append(gather)
-                return Response(str(vr), mimetype="text/xml")
-
-            # ── Neither yes nor no clearly heard — re-prompt ─────────────────
-            if not any(w in speech_lower for w in yes_words):
-                state["addr_confirm_retries"] = confirm_retries + 1
-                set_state(call_sid, state)
-
-                opts = state["addr_candidates"]
-                gather = Gather(
-                    input="speech",
-                    action="/voice-process?step=1",
-                    method="POST",
-                    timeout=8,
-                    speech_timeout="auto",
-                    speech_model="deepgram_nova-2",
-                    profanity_filter=False,
-                )
-                gather.say(
-                    f"Sorry, I didn't catch that. Is {opts[0]} correct? Say yes or no.",
-                    voice="Polly.Joanna",
-                    language="en-US",
-                )
-                vr.append(gather)
-                return Response(str(vr), mimetype="text/xml")
-
-            # ── Caller said YES — run service area check ──────────────────────
-            state.pop("addr_confirm_retries", None)
-            selected = state["addr_candidates"][0]
-
-            contractor = get_contractor_by_twilio_number(to_number) or {}
-            normalized = {str(k).strip(): v for k, v in contractor.items()}
-            home_lat = normalized.get("Home Base Lat")
-            home_lon = normalized.get("Home Base Lon")
-            proximity = f"{home_lon},{home_lat}" if home_lat and home_lon else None
-
-            geo = mapbox_geocode_one(selected, country="US", proximity=proximity)
-            print("MAPBOX GEO ONE CONFIRMED |", geo)
-
-            if geo.get("ok") and geo.get("feature"):
-                feature = geo["feature"]
-                allowed, reason = address_in_service_area(
-                    contractor,
-                    feature.get("lat"),
-                    feature.get("lon"),
-                )
-
-                if not allowed:
-                    state.pop("addr_candidates", None)
-                    state.pop("addr_confirmed",  None)
-                    state.pop("addr_street",     None)
-                    state["retries"] = 0
-                    set_state(call_sid, state)
-
-                    gather = Gather(
-                        input="speech",
-                        action="/voice-process?step=1",
-                        method="POST",
-                        timeout=10,
-                        speech_timeout="auto",
-                        speech_model="deepgram_nova-2",
-                        profanity_filter=False,
-                    )
-                    gather.say(
-                        "Sorry, that address appears to be outside our normal service area. "
-                        "Please say a different address, or say done to exit.",
-                        voice="Polly.Joanna",
-                        language="en-US",
-                    )
-                    vr.append(gather)
-                    return Response(str(vr), mimetype="text/xml")
-
-            state["service_address"] = selected
-            state["addr_confirmed"]  = True
-            set_state(call_sid, state)
-
-            try:
-                update_contractor_status(to_number, {
-                    "Bot Status":      "Healthy",
-                    "Last Good Address": selected,
-                })
-            except Exception:
-                pass
-
-            if redis_client and to_number and from_number:
-                save_resume_pointer(to_number, from_number, call_sid)
-
-            vr.say(
-                "Great, I have the service address confirmed.",
-                voice="Polly.Joanna",
-                language="en-US",
-            )
-            vr.redirect("/voice-process?step=2", method="POST")
-            return Response(str(vr), mimetype="text/xml")
-            
-    # STEP 2: Job description + confirm/repeat
-    if step == 2:
-        # Pull inputs safely (Twilio uses SpeechResult / Digits)
-        speech = (request.values.get("SpeechResult") or request.values.get("speech") or "").strip()
-        digits = (request.values.get("Digits") or "").strip()
-
-        # If we don't have a job description yet, ask for it
-        if not state.get("job_description"):
-            if not speech:
-                # retry protection for silence
-                state["retries"] = state.get("retries", 0) + 1
-                set_state(call_sid, state)
-
-                if state["retries"] >= 2:
-                    vr.say(
-                        "Sorry, I'm having trouble hearing you. We'll follow up shortly.",
-                        voice="Polly.Joanna",
-                        language="en-US",
-                    )
-                    vr.hangup()
-                    return Response(str(vr), mimetype="text/xml")
-
-                gather = Gather(
-                    input="speech",
-                    action="/voice-process?step=2",
-                    method="POST",
-                    timeout=8,
-                    speech_timeout=3,
-                    profanity_filter=False,
-                    speech_model="deepgram_nova-2",
-                    hints="lawn care,mowing,cleanout,junk removal,mulch,landscaping,pressure washing,leaf cleanup,painting,drywall,plumbing,handyman"
-                )
-                gather.say(
-                    "Please briefly describe the service you need.",
-                    voice="Polly.Joanna",
-                    language="en-US",
-                )
-                vr.append(gather)
-                return Response(str(vr), mimetype="text/xml")
-
-            # Speech exists → save and move on, no confirm needed
-            state["job_description"] = speech
-            state["retries"] = 0
-            state["step"] = 3
-            set_state(call_sid, state)
-
-            if redis_client and to_number and from_number:
-                save_resume_pointer(to_number, from_number, call_sid)
-
-            log_call_event(call_sid, to_number, "step_completed", {
-                "step": 2,
-                "job_description": state["job_description"],
-            })
-
-            vr.redirect("/voice-process?step=3", method="POST")
-            return Response(str(vr), mimetype="text/xml")
-
-    # STEP 3: Timing
-    if step == 3:
-        if not speech:
-            state["retries"] = state.get("retries", 0) + 1
-            set_state(call_sid, state)
-
-            if state["retries"] >= 2:
-                vr.say(
-                    "Sorry, I'm having trouble hearing you. We'll follow up shortly.",
-                    voice="Polly.Joanna",
-                    language="en-US",
-                )
-                vr.hangup()
-                return Response(str(vr), mimetype="text/xml")
-
-            gather = Gather(
-                input="speech",
-                action="/voice-process?step=3",   # <-- FIXED
-                method="POST",
-                timeout=8,
-                speech_timeout="auto",
-                profanity_filter=False,
-            )
-            gather.say(
-                "Please tell me when you need the service.",
-                voice="Polly.Joanna",
-                language="en-US",
-            )
-            vr.append(gather)
-            return Response(str(vr), mimetype="text/xml")
-
-        # Speech EXISTS -> save timing, move to step 4
-        state["timing"] = speech.strip()
-        state["retries"] = 0
-        state["step"] = 4
-        set_state(call_sid, state)
-
-        if redis_client and to_number and from_number:
-            save_resume_pointer(to_number, from_number, call_sid)
-            print("RESUME PTR SAVED (after timing):", to_number, from_number, call_sid, "state.step=", state["step"])                  
-
-        gather = Gather(
-            input="speech",
-            action="/voice-process?step=4",
-            method="POST",
-            timeout=8,
-            speech_timeout="auto",
-        )
-        gather.say(
-            "Got it, Best number to reach you?",
-            voice="Polly.Joanna",
-            language="en-US",
-        )
-        vr.append(gather)
-        return Response(str(vr), mimetype="text/xml")
-
-
-    # STEP 4: Callback number
-    if step == 4:
-        # Prefer DTMF if provided, otherwise use speech
-        callback_val = (digits or speech or "").strip()
-
-        # If still nothing usable, reprompt
-        if not callback_val:
-            gather = Gather(
-                input="speech",
-                action="/voice-process?step=4",
-                method="POST",
-                timeout=8,
-                speech_timeout="auto",
-                profanity_filter=False,
-            )
-            gather.say(
-                "Sorry, what's the best number to reach you?",
-                voice="Polly.Joanna",
-                language="en-US",
-            )
-            vr.append(gather)
-            return Response(str(vr), mimetype="text/xml")
-
-        # Normalize to digits only (handles 240-555-1234, etc.)
-        callback_digits = "".join([c for c in callback_val if c.isdigit()])
-
-        # If caller spoke something too short, fall back to caller ID
-        if len(callback_digits) < 7:
-            callback_digits = (request.values.get("From", "") or "").strip()
-
-        state["callback"] = callback_digits
-        set_state(call_sid, state)
-        
-        if redis_client and to_number and from_number:
-            save_resume_pointer(to_number, from_number, call_sid)
-
-        # Pull per-contractor email routing (fallback safe)
-        contractor = get_contractor_by_twilio_number(to_number) or {}
-        business_name = (contractor.get("Business Name") or "our office").strip()
-        
-
-        notify_email = (contractor.get("Notify Email") or os.getenv("TO_EMAIL") or "").strip() or None
-        reply_to_email = (contractor.get("Reply to Email") or "").strip() or None
-        
-        try:
-            send_intake_summary(state, notify_email=notify_email, reply_to_email=reply_to_email)
-        except Exception as e:
-            print("send_intake_summary failed:", e)
-
-        # Build Cal booking link with prefilled customer details 
-        if not state.get("callback") and from_number:
-            state["callback"] = from_number
-            
-        booking_link = build_cal_booking_link(contractor, state)
-
-        print("CAL BOOKING LINK:", booking_link)
-
-        # Send SMS confirmation with booking link
-        try:
-            send_sms_enabled = bool(contractor.get("SMS", False))
-            print("AIRTABLE SMS:", contractor.get("SMS"))
-
-            if not send_sms_enabled:
-                print("SMS skipped: Airtable SMS checkbox is off")
-            else:
-                sms_result = twilio_client()
-
-                if not sms_result.get("ok"):
-                    print("SMS send skipped:", sms_result.get("error"))
-                else:
-                    client = sms_result["client"]
-
-                    sms_to = state.get("callback", "") or from_number or ""
-                    sms_to_digits = "".join([c for c in sms_to if c.isdigit()])
-
-                    if sms_to_digits:
-                        if len(sms_to_digits) == 10:
-                            sms_to = f"+1{sms_to_digits}"
-                        elif len(sms_to_digits) == 11 and sms_to_digits.startswith("1"):
-                            sms_to = f"+{sms_to_digits}"
-                        elif sms_to.startswith("+"):
-                            sms_to = sms_to
-                        else:
-                            sms_to = f"+{sms_to_digits}"
-
-                        if booking_link:
-                            sms_body = (
-                                f"Thanks for contacting {business_name}. "
-                                "We've got your project details. "
-                                f"Use this secure booking link to review your information, make any corrections, and choose a time for your estimate: {booking_link} "
-                                "Reply STOP to opt out."
-                            )
-                        else:
-                            sms_body = (
-                                f"Thanks for contacting {business_name}. "
-                                "We received your request and will follow up shortly. "
-                                "Reply STOP to opt out."
-                            )
-
-                        msg = client.messages.create(
-                            body=sms_body,
-                            from_=to_number,
-                            to=sms_to,
-                        )
-
-                        print("SMS SENT TO:", sms_to, "| SID:", msg.sid)
-                    else:
-                        print("SMS SKIPPED: no valid callback number")
-        except Exception as e:
-            print("SMS send failed:", e)
-         
-
-        if redis_client and to_number and from_number:
-            clear_resume_pointer(to_number, from_number)
-            print("RESUME PTR CLEARED:", to_number, from_number)
-
-        print(
-            "CALL COMPLETE|",
-            "CallSid:", call_sid,
-            "| Name:", state.get("name"),
-            "| Address:", state.get("service_address"),
-            "| City:", state.get("city"),
-            "| State:", state.get("state"),
-            "| Zip:", state.get("zip")
-        )
-
-        unregister_live_call(state.get("contractor_key", "unknown"), call_sid)
-        clear_state(call_sid)
-
-        try:
-            recording_on = bool(contractor.get("RECORD_CALLS")) or record_calls_default()
-            update_contractor_status(to_number, {
-                "Bot Status": "Healthy",
-                "Last Good Address": state.get("service_address", ""),
-                "Recording Status": "Active" if recording_on else "Disabled",
-            })
-        except Exception:
-            pass
-        
-        # Refined version with better spacing for the TTS engine
-        vr.say(
-            f'<speak>Perfect. I\'ve recorded all those details.'
-            '<break time="600ms"/> '
-            'Keep an eye out for a text message shortly with your secure booking link.'
-            '<break time="400ms"/> '
-            f'Thanks for contacting {business_name}. Goodbye!</speak>',
-            voice="Polly.Joanna",
-            language="en-US",
-        )    
-        
-        vr.pause(length=1)
-        vr.hangup()
-        return Response(str(vr), mimetype="text/xml")
-
-
-        
-         
-               
-   
-
-
-# ---------- Helpers ----------
-def norm(text: str) -> str:
-    return re.sub(r"\s+", " ", (text or "").strip().lower())
-
-def normalize_service(service_input: str) -> str:
-    s = norm(service_input)
-    for canonical, aliases in SERVICE_ALIASES.items():
-        if s == canonical or s in aliases:
-            return canonical
-    return "other"
-
-def normalize_size(size_input: str) -> str:
-    s = norm(size_input)
-    if s in ("small", "minor", "s"):
-        return "small"
-    if s in ("medium", "m"):
-        return "medium"
-    if s in ("large", "big", "l"):
-        return "large"
-    return ""
-
-def pick_range(service_key: str, size_key: str) -> str:
-    tiers = PRICING.get(service_key)
-    if isinstance(tiers, dict):
-        return tiers.get(size_key, tiers.get("default"))
-    return tiers or "$100–$300"
-
-# ---------- Phase 1 Services ----------
-SERVICE_ALIASES = {
-    "lawn": [
-        "lawn", "lawn mowing", "mowing", "grass cut", "yard cut"
-    ],
-    "mulch": [
-        "mulch", "mulching", "mulch install"
-    ],
-    "drywall repair": [
-        "drywall patch", "hole in wall", "wall hole", "sheetrock repair"
-    ],
-    "door lock replace": [
-        "replace lock", "change lock", "deadbolt replace", "install lock"
-    ],
-    "faucet replace": [
-        "replace faucet", "install faucet", "kitchen faucet", "bath faucet"
-    ],
-    "toilet unclog": [
-        "unclog toilet", "clogged toilet", "toilet clog"
-    ],
-    "toilet repair": [
-        "running toilet", "toilet leaking", "fix toilet"
-    ],
-    "light fixture replace": [
-        "replace light fixture", "install light fixture", "ceiling light"
-    ],
-    "outlet switch replace": [
-        "replace outlet", "replace switch", "outlet not working"
-    ],
-    "tv mount": [
-        "mount tv", "tv mounting", "hang tv"
-    ],
-}
-
-# ---------- Pricing (Ranges Only) ----------
-PRICING = {
-    "lawn": "$60–$150",
-    "mulch": "$300–$900",
-
-    "drywall repair": {
-        "small": "$150–$300",
-        "medium": "$300–$650",
-        "large": "$650–$1,400",
-        "default": "$150–$1,400",
-    },
-
-    "door lock replace": "$175–$450",
-    "faucet replace": "$200–$650",
-    "toilet unclog": "$125–$225",
-    "toilet repair": "$150–$350",
-    "light fixture replace": "$175–$550",
-    "outlet switch replace": "$125–$450",
-    "tv mount": "$150–$450",
-}
-
-@app.post("/estimate")
-def estimate():
-    if not request.is_json:
-        return jsonify({"error": "Request must be JSON"}), 400
-
-    data = request.get_json() or {}
-    service_input = data.get("service", "")
-    size_input = data.get("size", "")
-    details = data.get("details", "")
-
-    service_key = normalize_service(service_input)
-    size_key = normalize_size(size_input)
-
-    price_range = pick_range(service_key, size_key)
-
-    return jsonify({
-        "service_requested": service_input,
-        "service_matched": service_key,
-        "size": size_key or "unspecified",
-        "estimated_range": price_range,
-        "notes_received": details,
-        "disclaimer": "Rough estimate only. Final pricing depends on site conditions, scope, and materials."
-    })
+# ─────────────────────────────────────────────
+# Run
+# ─────────────────────────────────────────────
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 3000))
