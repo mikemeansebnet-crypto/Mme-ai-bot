@@ -548,13 +548,8 @@ from flask import render_template_string, session, url_for
  
 @app.route("/onboard/<contractor_id>")
 def onboard(contractor_id):
-    """
-    Entry point for contractor onboarding.
-    Store contractor_id in session and redirect to dashboard.
-    """
-    # Store in session — contractor_id is the Airtable record ID (rec...)
     session["oauth_contractor_key"] = contractor_id
-    session.permanent = True  # keeps session alive longer
+    session.permanent = True
     print("ONBOARD | contractor_id stored in session:", contractor_id)
     return redirect("/dashboard")
  
@@ -776,17 +771,6 @@ def dashboard():
         google_connected=google_connected,
         error_message=error_message,
     )
-        
-    
-    
-@app.route("/onboard/<contractor_id>")
-def onboard(contractor_id):
-    session["oauth_contractor_key"] = contractor_id
-    session.permanent = True
-    print("ONBOARD | contractor_id stored in session:", contractor_id)
-    return redirect("/dashboard")
-
-
 
 
 @app.route("/connect-google")
