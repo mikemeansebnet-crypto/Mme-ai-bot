@@ -344,6 +344,32 @@ def sms():
     reply = "MME AI Bot received your message."
     return Response(f"<Response><Message>{reply}</Message></Response>", mimetype="text/xml")
 
+@app.route("/cal-webhook", methods=["POST"])
+def cal_webhook():
+    try:
+        data = request.json
+        print("CAL WEBHOOK RECEIVED:", data)
+
+        if data.get("triggerEvent") == "BOOKING_CREATED":
+            payload = data.get("payload", {})
+            responses = payload.get("responses", {})
+
+            name = responses.get("name", "")
+            phone = responses.get("attendeePhoneNumber", "")
+            start_time = payload.get("startTime", "")
+
+            if phone:
+                send_sms(
+                    to_number=phone,
+                    body=f"Hi {name}, your estimate is confirmed for {start_time}. We’ll see you then!"
+                )
+
+        return "", 200
+
+    except Exception as e:
+        print("WEBHOOK ERROR:", e)
+        return "", 500
+
 
 # ─────────────────────────────────────────────
 # Fallback
