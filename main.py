@@ -347,22 +347,43 @@ def sms():
 @app.route("/cal-webhook", methods=["POST"])
 def cal_webhook():
     try:
-        data = request.json
+        data = request.get_json(silent=True) or {}
         print("CAL WEBHOOK RECEIVED:", data)
 
-        if data.get("triggerEvent") == "BOOKING_CREATED":
-            payload = data.get("payload", {})
-            responses = payload.get("responses", {})
+        trigger = (data.get("triggerEvent") or data.get("event") or "").upper()
+        payload = data.get("payload", {}) or {}
 
-            name = responses.get("name", "")
-            phone = responses.get("attendeePhoneNumber", "")
-            start_time = payload.get("startTime", "")
+        if trigger in {"BOOKING_CREATED", "BOOKING.CREATED"}:
+            responses = payload.get("responses", {}) or {}
+
+            name = (
+                responses.get("name")
+                or payload.get("attendee", {}).get("name")
+                or ""
+            ).strip()
+
+            phone = (
+                responses.get("attendeePhoneNumber")
+                or payload.get("attendee", {}).get("phoneNumber")
+                or payload.get("attendee", {}).get("phone")
+                or ""
+            ).strip()
+
+            start_time = (
+                payload.get("startTime")
+                or payload.get("start")
+                or ""
+            ).strip()
+
+            print("WEBHOOK PARSED | name:", name, "| phone:", phone, "| start:", start_time)
 
             if phone:
                 send_sms(
                     to_number=phone,
-                    body=f"Hi {name}, your estimate is confirmed for {start_time}. We’ll see you then!"
+                    body=f"Hi {name or 'there'}, your estimate is confirmed for {start_time}. We’ll see you then!"
                 )
+            else:
+                print("WEBHOOK NOTICE | No phone found in payload")
 
         return "", 200
 
