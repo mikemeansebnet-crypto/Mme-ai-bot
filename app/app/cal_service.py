@@ -32,7 +32,7 @@ def build_cal_booking_link(contractor: dict, state: dict) -> str:
 
     params = {
         "c": contractor_key,
-        "attendeeName": name,
+        "name": name,
         "attendeePhoneNumber": callback,
         "service_address": service_address,
         "job_description": job_description,
@@ -42,6 +42,14 @@ def build_cal_booking_link(contractor: dict, state: dict) -> str:
 
     query_string = urllib.parse.urlencode(params)
     separator = "&" if "?" in redirect_base else "?"
+
+    print("CAL PREFILL NAME:", repr(name))
+    print("CAL PREFILL ADDRESS:", repr(service_address))
+    print("CAL PREFILL JOB:", repr(job_description))
+    print("CAL PREFILL CALLBACK:", repr(callback))
+    print("CAL PARAMS:", params)
+    print("CAL QUERY STRING:", query_string)
+    print("CAL BOOKING LINK:", f"{redirect_base}{separator}{query_string}")
 
     return f"{redirect_base}{separator}{query_string}" if query_string else redirect_base
 
