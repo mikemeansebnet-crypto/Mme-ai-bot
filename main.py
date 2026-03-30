@@ -384,14 +384,15 @@ def cal_webhook():
             print("WEBHOOK PARSED | name:", name, "| phone:", phone, "| start:", start_time)
 
             if phone:
-                send_sms(
+                sms_result = send_fallback_sms(
                     to_number=phone,
                     body=f"Hi {name or 'there'}, your estimate is confirmed for {start_time}. We’ll see you then!"
                 )
+                print("WEBHOOK SMS RESULT:", sms_result)
             else:
                 print("WEBHOOK NOTICE | No phone found in payload")
-
-        return "", 200
+               
+            return "", 200
 
     except Exception as e:
         print("WEBHOOK ERROR:", e)
