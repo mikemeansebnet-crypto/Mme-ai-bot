@@ -743,14 +743,11 @@ def dashboard():
         contractor_name=contractor_name,
         google_connected=google_connected,
     )
-
 @app.route("/onboard/<contractor_id>")
 def onboard(contractor_id):
-
-    # store contractor id in session
     session["oauth_contractor_key"] = contractor_id
-
-    # send user to dashboard
+    session.permanent = True
+    print("ONBOARD | contractor_id stored in session:", contractor_id)
     return redirect("/dashboard")
 
 
@@ -758,6 +755,9 @@ def onboard(contractor_id):
 
 @app.route("/connect-google")
 def connect_google():
+    contractor_key = session.get("oauth_contractor_key")
+    if not contractor_key:
+        return redirect("/dashboard")
 
     flow = Flow.from_client_config(
         {
@@ -773,7 +773,6 @@ def connect_google():
             "https://www.googleapis.com/auth/calendar.events",
             "https://www.googleapis.com/auth/calendar.readonly",
             "https://www.googleapis.com/auth/userinfo.email",
-            
         ],
     )
 
@@ -785,15 +784,23 @@ def connect_google():
         prompt="consent",
     )
 
-    session["google_oauth_state"] = state
+    session["oauth_state"] = state
+    session.permanent = True
+    print("CONNECT GOOGLE | contractor_key:", contractor_key, "| state saved")
     return redirect(authorization_url)
+    
 
 
 @app.route("/oauth/google/callback")
 def google_callback():
-
-    state = session.get("google_oauth_state")
+    state = session.get("oauth_state")
     contractor_key = session.get("oauth_contractor_key")
+
+    print("GOOGLE CALLBACK | contractor_key:", contractor_key, "| state:", state)
+
+    if not contractor_key:
+        print("GOOGLE CALLBACK ERROR | no contractor_key in session")
+        return redirect("/dashboard")
 
     flow = Flow.from_client_config(
         {
@@ -814,35 +821,43 @@ def google_callback():
     )
 
     flow.redirect_uri = os.getenv("GOOGLE_REDIRECT_URI")
-    flow.fetch_token(authorization_response=request.url)
+
+    try:
+        flow.fetch_token(authorization_response=request.url)
+    except Exception as e:
+        print("GOOGLE CALLBACK TOKEN ERROR:", e)
+        return redirect("/dashboard")
 
     credentials = flow.credentials
     access_token = credentials.token
 
-    profile = requests.get(
-        "https://www.googleapis.com/oauth2/v2/userinfo",
-        headers={"Authorization": f"Bearer {access_token}"},
-        timeout=20
-    ).json()
+    try:
+        profile = requests.get(
+            "https://www.googleapis.com/oauth2/v2/userinfo",
+            headers={"Authorization": f"Bearer {access_token}"},
+            timeout=20
+        ).json()
+        google_email = profile.get("email", "")
+    except Exception as e:
+        print("GOOGLE PROFILE ERROR:", e)
+        google_email = ""
 
-    google_email = profile.get("email", "")
     refresh_token = encrypt_text(credentials.refresh_token or "")
-    calendar_id = "primary"
+
+    result = airtable_update_record(
+        contractor_key,
+        {
+            "Google Connected": True,
+            "Google Email": google_email,
+            "Google Refresh Token": refresh_token or "",
+            "Google Calendar ID": "primary",
+        },
+        table_name="Contractors"
+    )
+    print("GOOGLE OAUTH AIRTABLE UPDATE:", result)
 
     session["google_connected"] = True
-
-    if contractor_key:
-        result = airtable_update_record(
-            contractor_key,
-            {
-                "Connected": True,
-                "Google Email": google_email,
-                "Google Refresh Token": refresh_token or "",
-                "Google Calendar ID": calendar_id
-            },
-            table_name="Contractors"
-        )
-        print("GOOGLE OAUTH AIRTABLE UPDATE:", result)
+    session.permanent = True
 
     return redirect("/dashboard")
 
