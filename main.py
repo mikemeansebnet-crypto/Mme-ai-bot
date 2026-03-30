@@ -352,24 +352,30 @@ def cal_webhook():
 
         trigger = (data.get("triggerEvent") or data.get("event") or "").upper()
         payload = data.get("payload", {}) or {}
+        responses = payload.get("responses", {}) or {}
+
+        def response_value(key: str) -> str:
+            item = responses.get(key, "")
+            if isinstance(item, dict):
+                return str(item.get("value") or "").strip()
+            return str(item or "").strip()
 
         if trigger in {"BOOKING_CREATED", "BOOKING.CREATED"}:
-            responses = payload.get("responses", {}) or {}
+            attendee = payload.get("attendees", [])
+            attendee0 = attendee[0] if attendee and isinstance(attendee[0], dict) else {}
 
             name = (
-                responses.get("name")
-                or payload.get("attendee", {}).get("name")
-                or ""
+                response_value("name")
+                or str(attendee0.get("name") or "")
             ).strip()
 
             phone = (
-                responses.get("attendeePhoneNumber")
-                or payload.get("attendee", {}).get("phoneNumber")
-                or payload.get("attendee", {}).get("phone")
-                or ""
+                response_value("attendeePhoneNumber")
+                or str(attendee0.get("phoneNumber") or "")
+                or str(attendee0.get("phone") or "")
             ).strip()
 
-            start_time = (
+            start_time = str(
                 payload.get("startTime")
                 or payload.get("start")
                 or ""
@@ -390,7 +396,6 @@ def cal_webhook():
     except Exception as e:
         print("WEBHOOK ERROR:", e)
         return "", 500
-
 
 # ─────────────────────────────────────────────
 # Fallback
