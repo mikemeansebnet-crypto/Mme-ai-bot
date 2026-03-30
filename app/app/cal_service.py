@@ -32,7 +32,7 @@ def build_cal_booking_link(contractor: dict, state: dict) -> str:
 
     params = {
         "c": contractor_key,
-        "name": your name,
+        "name": name,
         "attendeePhoneNumber": callback,
         "service_address": service_address,
         "job_description": job_description,
