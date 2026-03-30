@@ -548,6 +548,8 @@ from flask import render_template_string, session, url_for
  
 @app.route("/onboard/<contractor_id>")
 def onboard(contractor_id):
+    # Force  last character uppercase - brwoser sometimes lowercase record IDs
+    contractor_id = contractor_id[:-1] + contractor_id[-1].upper()
     session["oauth_contractor_key"] = contractor_id
     session.permanent = True
     print("ONBOARD | contractor_id stored in session:", contractor_id)
