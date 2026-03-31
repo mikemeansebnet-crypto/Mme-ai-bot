@@ -1000,12 +1000,7 @@ def photo_upload_page(lead_id):
                     document.getElementById('progress').style.display = 'none';
                 }
             }
-                } catch (e) {
-                    alert('Something went wrong. Please try again.');
-                    submitBtn.disabled = false;
-                    document.getElementById('progress').style.display = 'none';
-                }
-            }
+                
 
             function skipPhotos() {
                 document.getElementById('main-card').style.display = 'none';
