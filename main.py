@@ -37,6 +37,12 @@ from app.app.airtable_service import (
     normalize_city,
 )
 
+from app.app.photo_service import (
+    upload_photo,
+    analyze_photos_with-claude,
+    build_photo_upload_link,
+)
+
 # ─────────────────────────────────────────────
 # App setup
 # ─────────────────────────────────────────────
