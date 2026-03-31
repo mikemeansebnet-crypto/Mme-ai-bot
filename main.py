@@ -695,6 +695,419 @@ def dashboard():
         error_message=error_message,
     )
 
+# =============================================================================
+# PHOTO  ROUTES
+
+
+@app.route("/upload-photos/<lead_id>", methods=["GET"])
+def photo_upload_page(lead_id):
+    """
+    Customer-facing photo upload page.
+    Sent via SMS after the call ends.
+    Clean mobile-first design.
+    """
+    html = """
+    <!doctype html>
+    <html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Upload Job Photos</title>
+        <style>
+            * { box-sizing: border-box; margin: 0; padding: 0; }
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+                background: #f4f6f9;
+                color: #111827;
+                min-height: 100vh;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 20px;
+            }
+            .card {
+                background: #fff;
+                border-radius: 16px;
+                padding: 32px 24px;
+                max-width: 480px;
+                width: 100%;
+                box-shadow: 0 4px 24px rgba(0,0,0,0.07);
+            }
+            .logo {
+                font-size: 12px;
+                font-weight: 700;
+                letter-spacing: 0.1em;
+                text-transform: uppercase;
+                color: #2563eb;
+                margin-bottom: 20px;
+            }
+            h1 {
+                font-size: 24px;
+                font-weight: 700;
+                margin-bottom: 8px;
+            }
+            .sub {
+                font-size: 15px;
+                color: #6b7280;
+                margin-bottom: 28px;
+                line-height: 1.5;
+            }
+            .upload-area {
+                border: 2px dashed #d1d5db;
+                border-radius: 12px;
+                padding: 32px 20px;
+                text-align: center;
+                margin-bottom: 20px;
+                cursor: pointer;
+                transition: border-color 0.2s;
+            }
+            .upload-area:hover { border-color: #2563eb; }
+            .upload-area.dragover { border-color: #2563eb; background: #eff6ff; }
+            .upload-icon {
+                font-size: 40px;
+                margin-bottom: 12px;
+            }
+            .upload-text {
+                font-size: 15px;
+                color: #374151;
+                margin-bottom: 6px;
+                font-weight: 500;
+            }
+            .upload-hint {
+                font-size: 13px;
+                color: #9ca3af;
+            }
+            #file-input { display: none; }
+            .preview-grid {
+                display: grid;
+                grid-template-columns: repeat(3, 1fr);
+                gap: 8px;
+                margin-bottom: 20px;
+            }
+            .preview-item {
+                position: relative;
+                aspect-ratio: 1;
+                border-radius: 8px;
+                overflow: hidden;
+            }
+            .preview-item img {
+                width: 100%;
+                height: 100%;
+                object-fit: cover;
+            }
+            .preview-item .remove {
+                position: absolute;
+                top: 4px;
+                right: 4px;
+                background: rgba(0,0,0,0.6);
+                color: white;
+                border: none;
+                border-radius: 50%;
+                width: 22px;
+                height: 22px;
+                font-size: 12px;
+                cursor: pointer;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+            .btn {
+                display: block;
+                width: 100%;
+                background: #2563eb;
+                color: #fff;
+                border: none;
+                font-weight: 700;
+                padding: 16px;
+                border-radius: 10px;
+                font-size: 16px;
+                cursor: pointer;
+                margin-bottom: 12px;
+            }
+            .btn:hover { background: #1d4ed8; }
+            .btn:disabled { background: #9ca3af; cursor: not-allowed; }
+            .btn-skip {
+                display: block;
+                width: 100%;
+                background: none;
+                color: #6b7280;
+                border: none;
+                font-size: 14px;
+                cursor: pointer;
+                padding: 8px;
+            }
+            .progress {
+                display: none;
+                background: #eff6ff;
+                border-radius: 8px;
+                padding: 14px;
+                margin-bottom: 16px;
+                font-size: 14px;
+                color: #2563eb;
+                text-align: center;
+            }
+            .success {
+                display: none;
+                background: #f0fdf4;
+                border: 1px solid #bbf7d0;
+                border-radius: 12px;
+                padding: 24px;
+                text-align: center;
+            }
+            .success h2 { color: #166534; font-size: 20px; margin-bottom: 8px; }
+            .success p { color: #4b5563; font-size: 15px; }
+            .count { font-size: 13px; color: #6b7280; margin-bottom: 16px; }
+        </style>
+    </head>
+    <body>
+        <div class="card" id="main-card">
+            <div class="logo">ContractorOS</div>
+            <h1>Upload Job Photos</h1>
+            <p class="sub">
+                Help us prepare a better estimate by sharing photos of the work area.
+                Up to 5 photos accepted.
+            </p>
+
+            <div class="upload-area" id="upload-area" onclick="document.getElementById('file-input').click()">
+                <div class="upload-icon">📷</div>
+                <div class="upload-text">Tap to add photos</div>
+                <div class="upload-hint">JPG, PNG, HEIC up to 10MB each</div>
+            </div>
+
+            <input type="file" id="file-input" accept="image/*" multiple>
+
+            <div class="preview-grid" id="preview-grid"></div>
+            <div class="count" id="count-text" style="display:none"></div>
+
+            <div class="progress" id="progress">Uploading and analyzing photos...</div>
+
+            <button class="btn" id="submit-btn" disabled onclick="submitPhotos()">
+                Send Photos
+            </button>
+            <button class="btn-skip" onclick="skipPhotos()">
+                Skip — I'll discuss details at the estimate
+            </button>
+        </div>
+
+        <div class="success" id="success-card" style="display:none; max-width:480px; width:100%; background:#fff; border-radius:16px; padding:32px 24px; box-shadow: 0 4px 24px rgba(0,0,0,0.07);">
+            <div style="font-size:48px; margin-bottom:16px;">✓</div>
+            <h2>Photos received!</h2>
+            <p>Your contractor will review these before the estimate visit. We'll be in touch to confirm your appointment.</p>
+        </div>
+
+        <script>
+            const leadId = window.location.pathname.split('/').pop();
+            let selectedFiles = [];
+
+            const fileInput = document.getElementById('file-input');
+            const previewGrid = document.getElementById('preview-grid');
+            const submitBtn = document.getElementById('submit-btn');
+            const countText = document.getElementById('count-text');
+            const uploadArea = document.getElementById('upload-area');
+
+            fileInput.addEventListener('change', handleFiles);
+
+            uploadArea.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                uploadArea.classList.add('dragover');
+            });
+            uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('dragover'));
+            uploadArea.addEventListener('drop', (e) => {
+                e.preventDefault();
+                uploadArea.classList.remove('dragover');
+                handleFiles({ target: { files: e.dataTransfer.files } });
+            });
+
+            function handleFiles(e) {
+                const files = Array.from(e.target.files);
+                const remaining = 5 - selectedFiles.length;
+                const toAdd = files.slice(0, remaining);
+                selectedFiles = [...selectedFiles, ...toAdd];
+                renderPreviews();
+            }
+
+            function renderPreviews() {
+                previewGrid.innerHTML = '';
+                selectedFiles.forEach((file, i) => {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        const item = document.createElement('div');
+                        item.className = 'preview-item';
+                        item.innerHTML = `
+                            <img src="${e.target.result}" alt="Photo ${i+1}">
+                            <button class="remove" onclick="removePhoto(${i})">×</button>
+                        `;
+                        previewGrid.appendChild(item);
+                    };
+                    reader.readAsDataURL(file);
+                });
+
+                submitBtn.disabled = selectedFiles.length === 0;
+                countText.style.display = selectedFiles.length > 0 ? 'block' : 'none';
+                countText.textContent = `${selectedFiles.length} photo${selectedFiles.length !== 1 ? 's' : ''} selected`;
+                uploadArea.style.display = selectedFiles.length >= 5 ? 'none' : 'block';
+            }
+
+            function removePhoto(index) {
+                selectedFiles.splice(index, 1);
+                renderPreviews();
+            }
+
+            async function submitPhotos() {
+                if (selectedFiles.length === 0) return;
+
+                submitBtn.disabled = true;
+                document.getElementById('progress').style.display = 'block';
+
+                const formData = new FormData();
+                formData.append('lead_id', leadId);
+                selectedFiles.forEach((file, i) => {
+                    formData.append(`photo_${i}`, file);
+                });
+
+                try {
+                    const response = await fetch('/process-photos', {
+                        method: 'POST',
+                        body: formData,
+                    });
+
+                    const result = await response.json();
+
+                    if (result.ok) {
+                        document.getElementById('main-card').style.display = 'none';
+                        document.getElementById('success-card').style.display = 'block';
+                    } else {
+                        alert('Upload failed. Please try again.');
+                        submitBtn.disabled = false;
+                        document.getElementById('progress').style.display = 'none';
+                    }
+                } catch (e) {
+                    alert('Something went wrong. Please try again.');
+                    submitBtn.disabled = false;
+                    document.getElementById('progress').style.display = 'none';
+                }
+            }
+
+            function skipPhotos() {
+                document.getElementById('main-card').style.display = 'none';
+                document.getElementById('success-card').style.display = 'block';
+                document.querySelector('#success-card h2').textContent = 'All set!';
+                document.querySelector('#success-card p').textContent = 
+                    'We\'ll be in touch to confirm your estimate appointment.';
+            }
+        </script>
+    </body>
+    </html>
+    """
+    return render_template_string(html, lead_id=lead_id)
+
+
+@app.route("/process-photos", methods=["POST"])
+def process_photos():
+    """
+    Receives uploaded photos, saves to Cloudinary,
+    runs Claude Vision analysis, emails contractor.
+    """
+    from app.app.photo_service import upload_photo, analyze_photos_with_claude
+    from app.app.airtable_service import airtable_get_record, airtable_update_record
+
+    lead_id = request.form.get("lead_id", "unknown")
+    print("PHOTO UPLOAD | lead_id:", lead_id)
+
+    # Collect uploaded files
+    uploaded_urls = []
+    photo_keys = [k for k in request.files if k.startswith("photo_")]
+
+    for key in sorted(photo_keys):
+        file = request.files[key]
+        if file and file.filename:
+            file_data = file.read()
+            index = key.split("_")[1]
+            result = upload_photo(file_data, lead_id, index)
+            if result.get("ok"):
+                uploaded_urls.append(result["url"])
+
+    print("PHOTOS UPLOADED |", len(uploaded_urls), "photos")
+
+    if not uploaded_urls:
+        return jsonify({"ok": False, "error": "no_photos_uploaded"})
+
+    # Get lead details from Airtable
+    lead = {}
+    try:
+        lead_result = airtable_get_record(lead_id, table_name="Leads")
+        if lead_result.get("ok"):
+            lead = lead_result.get("fields", {})
+    except Exception as e:
+        print("LEAD LOOKUP ERROR |", e)
+
+    job_description = lead.get("Job Description", "general contractor work")
+    client_name = lead.get("Client Name", "Customer")
+    service_address = lead.get("Service Address", "")
+
+    # Run Claude Vision analysis
+    analysis = analyze_photos_with_claude(
+        photo_urls=uploaded_urls,
+        job_description=job_description,
+    )
+    print("CLAUDE VISION ANALYSIS |", analysis)
+
+    # Update lead in Airtable with AI analysis
+    if analysis.get("ok"):
+        try:
+            airtable_update_record(
+                lead_id,
+                {
+                    "AI Scope Summary": analysis.get("summary", ""),
+                    "AI Estimate Range": analysis.get("estimate_range", ""),
+                    "AI Full Analysis": analysis.get("full_analysis", ""),
+                    "Photo URLs": "\n".join(uploaded_urls),
+                },
+                table_name="Leads",
+            )
+        except Exception as e:
+            print("AIRTABLE UPDATE ERROR |", e)
+
+    # Email contractor with photos + AI analysis
+    try:
+        photo_links = "\n".join([f"  Photo {i+1}: {url}" for i, url in enumerate(uploaded_urls)])
+
+        if analysis.get("ok"):
+            email_body = (
+                f"Job photos received from {client_name}\n"
+                f"Address: {service_address}\n"
+                f"Job: {job_description}\n\n"
+                f"━━━ AI ANALYSIS ━━━\n\n"
+                f"{analysis.get('full_analysis', '')}\n\n"
+                f"━━━ PHOTO LINKS ━━━\n"
+                f"{photo_links}\n\n"
+                f"Lead ID: {lead_id}"
+            )
+            subject = f"📸 Job Photos + AI Analysis — {client_name}"
+        else:
+            email_body = (
+                f"Job photos received from {client_name}\n"
+                f"Address: {service_address}\n"
+                f"Job: {job_description}\n\n"
+                f"Photos:\n{photo_links}\n\n"
+                f"Lead ID: {lead_id}"
+            )
+            subject = f"📸 Job Photos — {client_name}"
+
+        # Get contractor notify email from lead's call number
+        notify_email = os.getenv("TO_EMAIL", "")
+        send_email(subject, email_body, to_email=notify_email)
+        print("PHOTO ANALYSIS EMAIL SENT |", notify_email)
+
+    except Exception as e:
+        print("PHOTO EMAIL ERROR |", e)
+
+    return jsonify({
+        "ok": True,
+        "photos": len(uploaded_urls),
+        "analysis": analysis.get("ok", False),
+    })
+
 
 @app.route("/connect-google")
 def connect_google():
