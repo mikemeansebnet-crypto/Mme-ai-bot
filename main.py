@@ -39,7 +39,7 @@ from app.app.airtable_service import (
 
 from app.app.photo_service import (
     upload_photo,
-    analyze_photos_with-claude,
+    analyze_photos_with_claude,
     build_photo_upload_link,
 )
 
