@@ -243,6 +243,13 @@ def send_intake_summary(state: dict, notify_email: str = None, reply_to_email: s
 
     airtable_result = airtable_create_record(airtable_fields)
     print("Airtable result:", airtable_result)
+ 
+    # Save the new lead's Airtable record ID back to state
+    # so finalize_lead() can use it for the photo upload link
+    if airtable_result.get("ok"):
+        lead_id = airtable_result.get("data", {}).get("id", "")
+        state["lead_airtable_id"] = lead_id
+        print("LEAD AIRTABLE ID SAVED |", lead_id)
 
     send_email(subject, body, to_email=notify_email, reply_to=reply_to_email)
 
