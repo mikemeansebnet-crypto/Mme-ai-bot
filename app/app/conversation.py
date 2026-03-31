@@ -226,7 +226,23 @@ def finalize_lead(state: dict, contractor: dict, to_number: str, from_number: st
                 else:
                     sms_to = from_number
 
-                if booking_link:
+                # Build base URL for photo upload link
+                base_url = os.getenv("RENDER_EXTERNAL_URL", "").rstrip("/")
+                if not base_url:
+                    base_url = "https://mme-ai-bot.onrender.com"
+ 
+                # Get the Airtable lead ID from the intake result
+                lead_airtable_id = state.get("lead_airtable_id", "")
+                photo_link = f"{base_url}/upload-photos/{lead_airtable_id}" if lead_airtable_id else ""
+ 
+                if booking_link and photo_link:
+                    sms_body = (
+                        f"Thanks for contacting {business_name}. "
+                        f"Book your estimate: {booking_link}\n\n"
+                        f"Speed up your estimate — send job photos: {photo_link} "
+                        "Reply STOP to opt out."
+                    )
+                elif booking_link:
                     sms_body = (
                         f"Thanks for contacting {business_name}. "
                         f"Book your estimate here: {booking_link} "
