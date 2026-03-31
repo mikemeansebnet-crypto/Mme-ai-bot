@@ -968,9 +968,10 @@ def photo_upload_page(lead_id):
 
                 const formData = new FormData();
                 formData.append('lead_id', leadId);
-                selectedFiles.forEach((file, i) => {
-                    formData.append(`photo_${i}`, file);
-                });
+
+                for (let i = 0; i < selectedFiles.length; i++) {
+                    formData.append(`photo_${i}`, selectedFiles[i]);
+                }
 
                 try {
                     const response = await fetch('/process-photos', {
@@ -978,16 +979,27 @@ def photo_upload_page(lead_id):
                         body: formData,
                     });
 
-                    const result = await response.json();
+                    const text = await response.text();
+                    console.log('Server response:', text);
+
+                    let result;
+                    try { result = JSON.parse(text); }
+                    catch(e) { throw new Error('Bad server response: ' + text.substring(0, 100)); }
 
                     if (result.ok) {
                         document.getElementById('main-card').style.display = 'none';
                         document.getElementById('success-card').style.display = 'block';
                     } else {
-                        alert('Upload failed. Please try again.');
+                        alert('Upload failed: ' + (result.error || 'unknown'));
                         submitBtn.disabled = false;
                         document.getElementById('progress').style.display = 'none';
                     }
+                } catch(e) {
+                    alert('Error: ' + e.message);
+                    submitBtn.disabled = false;
+                    document.getElementById('progress').style.display = 'none';
+                }
+            }
                 } catch (e) {
                     alert('Something went wrong. Please try again.');
                     submitBtn.disabled = false;
