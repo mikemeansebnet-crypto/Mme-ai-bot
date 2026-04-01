@@ -393,18 +393,18 @@ def voice_cr():
 
     # Build greeting
     if resume_state and resume_call_sid:
-    still_needed = []
-    if not state.get("name"): still_needed.append("your name")
-    if not state.get("service_address"): still_needed.append("the service address")
-    if not state.get("job_description"): still_needed.append("what work you need done")
-    if not state.get("timing"): still_needed.append("when you need it")
+        still_needed = []
+        if not state.get("name"): still_needed.append("your name")
+        if not state.get("service_address"): still_needed.append("the service address")
+        if not state.get("job_description"): still_needed.append("what work you need done")
+        if not state.get("timing"): still_needed.append("when you need it")
 
-    if still_needed:
-        next_item = still_needed[0]
-        greeting = f"Welcome back. I still need {next_item} — can you go ahead?"
-    else:
-        # All fields collected — just finalize
-        greeting = "Welcome back. I have all your details — let me wrap this up."
+        if still_needed:
+            next_item = still_needed[0]
+            greeting = f"Welcome back. I still need {next_item} — can you go ahead?"
+        else:
+            # All fields collected — just finalize
+            greeting = "Welcome back. I have all your details — let me wrap this up."
     else:
         record_calls = bool(contractor.get("RECORD_CALLS")) or os.getenv("RECORD_CALLS_DEFAULT", "false").lower() == "true"
         if record_calls:
