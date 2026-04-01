@@ -1,5 +1,8 @@
 # app/app/photo_service.py
 # Handles photo uploads to Cloudinary and Claude Vision analysis
+# Generates two outputs:
+#   1. Internal contractor analysis (detailed notes)
+#   2. Customer-ready estimate (forward directly to customer)
 
 import os
 import base64
@@ -41,7 +44,7 @@ def upload_photo(file_data: bytes, lead_id: str, photo_index: int) -> dict:
             resource_type="image",
             transformation=[
                 {"quality": "auto", "fetch_format": "auto"},
-                {"width": 1200, "crop": "limit"},  # max 1200px wide
+                {"width": 1200, "crop": "limit"},
             ],
         )
 
@@ -63,10 +66,6 @@ def upload_photo(file_data: bytes, lead_id: str, photo_index: int) -> dict:
 # ─────────────────────────────────────────────
 
 def image_url_to_base64(url: str) -> str | None:
-    """
-    Download an image from a URL and return base64 encoded string.
-    Needed for Claude Vision API.
-    """
     try:
         response = requests.get(url, timeout=15)
         response.raise_for_status()
@@ -77,17 +76,21 @@ def image_url_to_base64(url: str) -> str | None:
 
 
 # ─────────────────────────────────────────────
-# Claude Vision analysis
+# Claude Vision analysis — dual output
 # ─────────────────────────────────────────────
 
 def analyze_photos_with_claude(
     photo_urls: list,
     job_description: str,
-    contractor_trade: str = "general contractor",
+    contractor_name: str = "our team",
+    client_name: str = "Customer",
+    service_address: str = "",
 ) -> dict:
     """
     Send photos to Claude Vision for job scope analysis.
-    Returns {"ok": True, "summary": "...", "estimate_range": "...", "full_analysis": "..."}
+    Returns two outputs:
+      - internal_analysis: detailed notes for contractor
+      - customer_estimate: clean forward-ready estimate for customer
     """
     if not photo_urls:
         return {"ok": False, "error": "no_photos"}
@@ -96,10 +99,9 @@ def analyze_photos_with_claude(
         api_key = os.getenv("ANTHROPIC_API_KEY", "").strip()
         client = anthropic.Anthropic(api_key=api_key)
 
-        # Build image content blocks for Claude
+        # Build image content blocks
         content = []
-
-        for i, url in enumerate(photo_urls[:5]):  # max 5 photos
+        for i, url in enumerate(photo_urls[:5]):
             b64 = image_url_to_base64(url)
             if b64:
                 content.append({
@@ -115,82 +117,110 @@ def analyze_photos_with_claude(
         if not content:
             return {"ok": False, "error": "could_not_load_photos"}
 
-        # Add the analysis prompt
         content.append({
             "type": "text",
-            "text": f"""You are an expert {contractor_trade} estimator reviewing job photos.
+            "text": f"""You are an expert contractor estimator reviewing job photos.
 
-The customer described the job as: "{job_description}"
+Customer name: {client_name}
+Service address: {service_address}
+Job described as: "{job_description}"
+Contractor business: {contractor_name}
 
-Please analyze these photos and provide:
+Analyze these photos and provide TWO separate outputs:
 
-1. SCOPE SUMMARY (2-3 sentences): What do you see in the photos? Describe the condition, size, and scope of the work needed.
+=== CONTRACTOR INTERNAL NOTES ===
+(Detailed technical notes for the contractor only)
 
-2. ESTIMATE RANGE: Based on what you can see, provide a rough dollar range for this type of work. Be conservative and note that this is a visual estimate only.
-
-3. KEY OBSERVATIONS: List 3-5 specific things the contractor should know before the estimate visit (access issues, materials needed, potential complications, etc.)
-
-4. PRIORITY LEVEL: Rate as STANDARD, HIGH_PRIORITY, or URGENT based on what you see.
-
-Format your response exactly like this:
 SCOPE SUMMARY:
-[your summary]
+[2-3 sentences describing exactly what you see — materials, size, condition, scope]
 
 ESTIMATE RANGE:
-[dollar range]
+[Dollar range based on visible scope]
 
 KEY OBSERVATIONS:
-- [observation 1]
-- [observation 2]
-- [observation 3]
+- [Technical observation 1]
+- [Technical observation 2]
+- [Technical observation 3]
+- [Technical observation 4 if needed]
+- [Technical observation 5 if needed]
+
+POTENTIAL UPSELLS:
+- [Any additional services the contractor could offer based on what you see]
 
 PRIORITY LEVEL:
-[level]"""
+[STANDARD / HIGH_PRIORITY / URGENT]
+
+=== CUSTOMER ESTIMATE EMAIL ===
+(Clean, professional email the contractor can forward directly to the customer)
+
+Subject: Your Estimate — {job_description} at {service_address}
+
+[Write a warm, professional 3-4 paragraph email that includes:
+- Thank them for sending photos
+- Brief friendly description of what was observed (no technical jargon)
+- The estimate range with a note that final price confirmed at visit
+- 2-3 bullet points of what to expect during the service
+- A closing sentence about confirming the appointment
+- Sign off as {contractor_name}
+
+Keep it conversational and reassuring. Do not mention AI or photo analysis.]"""
         })
 
         response = client.messages.create(
             model="claude-opus-4-6",
-            max_tokens=800,
+            max_tokens=1200,
             messages=[{"role": "user", "content": content}],
         )
 
-        full_analysis = response.content[0].text.strip()
-        print("CLAUDE VISION RESPONSE |", full_analysis[:100], "...")
+        full_response = response.content[0].text.strip()
+        print("CLAUDE VISION RESPONSE | length:", len(full_response))
 
-        # Parse out the sections
-        scope_summary = ""
+        # ── Parse the two sections ──────────────────────────────────────────
+        internal_analysis = ""
+        customer_estimate = ""
+        customer_subject = ""
+
+        if "=== CONTRACTOR INTERNAL NOTES ===" in full_response:
+            parts = full_response.split("=== CUSTOMER ESTIMATE EMAIL ===")
+            internal_part = parts[0].replace("=== CONTRACTOR INTERNAL NOTES ===", "").strip()
+            internal_analysis = internal_part
+
+            if len(parts) > 1:
+                customer_part = parts[1].strip()
+                # Extract subject line
+                lines = customer_part.split("\n")
+                for i, line in enumerate(lines):
+                    if line.startswith("Subject:"):
+                        customer_subject = line.replace("Subject:", "").strip()
+                        customer_estimate = "\n".join(lines[i+1:]).strip()
+                        break
+                if not customer_subject:
+                    customer_estimate = customer_part
+                    customer_subject = f"Your Estimate — {job_description}"
+        else:
+            internal_analysis = full_response
+
+        # ── Parse estimate range and priority from internal notes ───────────
         estimate_range = ""
         priority = "STANDARD"
 
-        lines = full_analysis.split("\n")
-        current_section = None
-
-        for line in lines:
+        for line in internal_analysis.split("\n"):
             line = line.strip()
-            if line.startswith("SCOPE SUMMARY:"):
-                current_section = "scope"
-            elif line.startswith("ESTIMATE RANGE:"):
-                current_section = "estimate"
-            elif line.startswith("KEY OBSERVATIONS:"):
-                current_section = "observations"
-            elif line.startswith("PRIORITY LEVEL:"):
-                current_section = "priority"
-            elif current_section == "scope" and line:
-                scope_summary += line + " "
-            elif current_section == "estimate" and line:
+            if line.startswith("$") or ("$" in line and "-" in line and len(line) < 60):
                 estimate_range = line
-            elif current_section == "priority" and line:
-                if "URGENT" in line.upper():
-                    priority = "URGENT"
-                elif "HIGH" in line.upper():
-                    priority = "HIGH_PRIORITY"
+            if "URGENT" in line.upper() and "PRIORITY" in line.upper():
+                priority = "URGENT"
+            elif "HIGH_PRIORITY" in line.upper() or "HIGH PRIORITY" in line.upper():
+                priority = "HIGH_PRIORITY"
 
         return {
             "ok": True,
-            "summary": scope_summary.strip(),
-            "estimate_range": estimate_range.strip(),
+            "internal_analysis": internal_analysis,
+            "customer_estimate": customer_estimate,
+            "customer_subject": customer_subject,
+            "estimate_range": estimate_range,
             "priority": priority,
-            "full_analysis": full_analysis,
+            "full_response": full_response,
         }
 
     except Exception as e:
@@ -203,7 +233,4 @@ PRIORITY LEVEL:
 # ─────────────────────────────────────────────
 
 def build_photo_upload_link(lead_id: str, base_url: str) -> str:
-    """
-    Build the photo upload URL to send to the customer via SMS.
-    """
     return f"{base_url.rstrip('/')}/upload-photos/{lead_id}"
