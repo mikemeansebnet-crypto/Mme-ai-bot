@@ -258,7 +258,7 @@ def finalize_lead(state: dict, contractor: dict, to_number: str, from_number: st
     
                     if send_sms_enabled and tc.get("ok") and messaging_service_sid:
                         from datetime import timedelta
-                        photo_send_time = datetime.now(timezone.utc) + timedelta(minutes=2)
+                        photo_send_time = datetime.now(timezone.utc) + timedelta(minutes=6)
         
                         base_url = os.getenv("RENDER_EXTERNAL_URL", "https://mme-ai-bot.onrender.com").rstrip("/")
                         lead_id = state.get("lead_airtable_id", "")
