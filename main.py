@@ -974,7 +974,7 @@ def photo_upload_page(lead_id):
                 }
 
                 try {
-                    const response = await fetch('/process-photos', {
+                    const response = await fetch('{{ base_url }}/process-photos', {
                         method: 'POST',
                         body: formData,
                     });
