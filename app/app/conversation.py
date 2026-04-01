@@ -258,6 +258,38 @@ def finalize_lead(state: dict, contractor: dict, to_number: str, from_number: st
                 msg = client.messages.create(body=sms_body, from_=to_number, to=sms_to)
                 print("SMS SENT TO:", sms_to, "| SID:", msg.sid)
 
+                # ── Delayed photo upload SMS (fires 2 min after booking link) ──
+                try:
+                    messaging_service_sid = os.getenv("TWILIO_MESSAGING_SERVICE_SID", "").strip()
+    
+                    if send_sms_enabled and tc.get("ok") and messaging_service_sid:
+                        from datetime import timedelta
+                        photo_send_time = datetime.now(timezone.utc) + timedelta(minutes=2)
+        
+                        base_url = os.getenv("RENDER_EXTERNAL_URL", "https://mme-ai-bot.onrender.com").rstrip("/")
+                        lead_id = state.get("lead_airtable_id", "")
+                        photo_link = f"{base_url}/upload-photos/{lead_id}" if lead_id else ""
+        
+                        if photo_link:
+                            photo_sms = (
+                                f"One more thing — send us photos of the job "
+                                f"so we can prepare a better estimate: {photo_link} "
+                                f"The more we see, the faster we can quote you."
+                            )
+            
+                            tc["client"].messages.create(
+                                body=photo_sms,
+                                from_=to_number,
+                                to=sms_to,
+                                send_at=photo_send_time.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                                schedule_type="fixed",
+                                messaging_service_sid=messaging_service_sid,
+                            )
+                            print("PHOTO SMS SCHEDULED | 2 min delay | to:", sms_to)
+
+                except Exception as e:
+                    print("PHOTO SMS SCHEDULE ERROR |", e)
+
     except Exception as e:
         print("FINALIZE SMS ERROR |", e)
 
