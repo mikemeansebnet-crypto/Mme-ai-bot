@@ -710,8 +710,8 @@ def dashboard():
 def photo_upload_page(lead_id):
     """
     Customer-facing photo upload page.
-    Sent via SMS after the call ends.
-    Clean mobile-first design.
+    Uses plain HTML form — no JavaScript fetch needed.
+    Works on all browsers including iOS Safari.
     """
     html = """
     <!doctype html>
@@ -748,18 +748,15 @@ def photo_upload_page(lead_id):
                 color: #2563eb;
                 margin-bottom: 20px;
             }
-            h1 {
-                font-size: 24px;
-                font-weight: 700;
-                margin-bottom: 8px;
-            }
+            h1 { font-size: 24px; font-weight: 700; margin-bottom: 8px; }
             .sub {
                 font-size: 15px;
                 color: #6b7280;
                 margin-bottom: 28px;
                 line-height: 1.5;
             }
-            .upload-area {
+            .file-label {
+                display: block;
                 border: 2px dashed #d1d5db;
                 border-radius: 12px;
                 padding: 32px 20px;
@@ -768,56 +765,11 @@ def photo_upload_page(lead_id):
                 cursor: pointer;
                 transition: border-color 0.2s;
             }
-            .upload-area:hover { border-color: #2563eb; }
-            .upload-area.dragover { border-color: #2563eb; background: #eff6ff; }
-            .upload-icon {
-                font-size: 40px;
-                margin-bottom: 12px;
-            }
-            .upload-text {
-                font-size: 15px;
-                color: #374151;
-                margin-bottom: 6px;
-                font-weight: 500;
-            }
-            .upload-hint {
-                font-size: 13px;
-                color: #9ca3af;
-            }
-            #file-input { display: none; }
-            .preview-grid {
-                display: grid;
-                grid-template-columns: repeat(3, 1fr);
-                gap: 8px;
-                margin-bottom: 20px;
-            }
-            .preview-item {
-                position: relative;
-                aspect-ratio: 1;
-                border-radius: 8px;
-                overflow: hidden;
-            }
-            .preview-item img {
-                width: 100%;
-                height: 100%;
-                object-fit: cover;
-            }
-            .preview-item .remove {
-                position: absolute;
-                top: 4px;
-                right: 4px;
-                background: rgba(0,0,0,0.6);
-                color: white;
-                border: none;
-                border-radius: 50%;
-                width: 22px;
-                height: 22px;
-                font-size: 12px;
-                cursor: pointer;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-            }
+            .file-label:hover { border-color: #2563eb; }
+            .file-icon { font-size: 40px; margin-bottom: 12px; }
+            .file-text { font-size: 15px; color: #374151; font-weight: 500; margin-bottom: 6px; }
+            .file-hint { font-size: 13px; color: #9ca3af; }
+            input[type="file"] { display: none; }
             .btn {
                 display: block;
                 width: 100%;
@@ -830,9 +782,9 @@ def photo_upload_page(lead_id):
                 font-size: 16px;
                 cursor: pointer;
                 margin-bottom: 12px;
+                text-align: center;
             }
             .btn:hover { background: #1d4ed8; }
-            .btn:disabled { background: #9ca3af; cursor: not-allowed; }
             .btn-skip {
                 display: block;
                 width: 100%;
@@ -842,32 +794,27 @@ def photo_upload_page(lead_id):
                 font-size: 14px;
                 cursor: pointer;
                 padding: 8px;
+                text-align: center;
+                text-decoration: none;
             }
-            .progress {
-                display: none;
+            .selected-info {
                 background: #eff6ff;
                 border-radius: 8px;
-                padding: 14px;
-                margin-bottom: 16px;
+                padding: 10px 14px;
                 font-size: 14px;
                 color: #2563eb;
-                text-align: center;
-            }
-            .success {
+                margin-bottom: 16px;
                 display: none;
-                background: #f0fdf4;
-                border: 1px solid #bbf7d0;
-                border-radius: 12px;
-                padding: 24px;
-                text-align: center;
             }
-            .success h2 { color: #166534; font-size: 20px; margin-bottom: 8px; }
-            .success p { color: #4b5563; font-size: 15px; }
-            .count { font-size: 13px; color: #6b7280; margin-bottom: 16px; }
+            .divider {
+                border: none;
+                border-top: 1px solid #f3f4f6;
+                margin: 20px 0;
+            }
         </style>
     </head>
     <body>
-        <div class="card" id="main-card">
+        <div class="card">
             <div class="logo">ContractorOS</div>
             <h1>Upload Job Photos</h1>
             <p class="sub">
@@ -875,139 +822,43 @@ def photo_upload_page(lead_id):
                 Up to 5 photos accepted.
             </p>
 
-            <div class="upload-area" id="upload-area" onclick="document.getElementById('file-input').click()">
-                <div class="upload-icon">📷</div>
-                <div class="upload-text">Tap to add photos</div>
-                <div class="upload-hint">JPG, PNG, HEIC up to 10MB each</div>
-            </div>
+            <form method="POST" action="/process-photos" enctype="multipart/form-data">
+                <input type="hidden" name="lead_id" value="{{ lead_id }}">
 
-            <input type="file" id="file-input" accept="image/*" multiple>
+                <label class="file-label" for="photos">
+                    <div class="file-icon">📷</div>
+                    <div class="file-text">Tap to select photos</div>
+                    <div class="file-hint">JPG, PNG, HEIC — up to 5 photos</div>
+                </label>
 
-            <div class="preview-grid" id="preview-grid"></div>
-            <div class="count" id="count-text" style="display:none"></div>
+                <input
+                    type="file"
+                    id="photos"
+                    name="photos"
+                    accept="image/*"
+                    multiple
+                    onchange="showSelected(this)"
+                >
 
-            <div class="progress" id="progress">Uploading and analyzing photos...</div>
+                <div class="selected-info" id="selected-info"></div>
 
-            <button class="btn" id="submit-btn" disabled onclick="submitPhotos()">
-                Send Photos
-            </button>
-            <button class="btn-skip" onclick="skipPhotos()">
+                <button type="submit" class="btn">Send Photos</button>
+            </form>
+
+            <hr class="divider">
+            <a href="/upload-photos/{{ lead_id }}/skip" class="btn-skip">
                 Skip — I'll discuss details at the estimate
-            </button>
-        </div>
-
-        <div class="success" id="success-card" style="display:none; max-width:480px; width:100%; background:#fff; border-radius:16px; padding:32px 24px; box-shadow: 0 4px 24px rgba(0,0,0,0.07);">
-            <div style="font-size:48px; margin-bottom:16px;">✓</div>
-            <h2>Photos received!</h2>
-            <p>Your contractor will review these before the estimate visit. We'll be in touch to confirm your appointment.</p>
+            </a>
         </div>
 
         <script>
-            const leadId = window.location.pathname.split('/').pop();
-            let selectedFiles = [];
-
-            const fileInput = document.getElementById('file-input');
-            const previewGrid = document.getElementById('preview-grid');
-            const submitBtn = document.getElementById('submit-btn');
-            const countText = document.getElementById('count-text');
-            const uploadArea = document.getElementById('upload-area');
-
-            fileInput.addEventListener('change', handleFiles);
-
-            uploadArea.addEventListener('dragover', (e) => {
-                e.preventDefault();
-                uploadArea.classList.add('dragover');
-            });
-            uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('dragover'));
-            uploadArea.addEventListener('drop', (e) => {
-                e.preventDefault();
-                uploadArea.classList.remove('dragover');
-                handleFiles({ target: { files: e.dataTransfer.files } });
-            });
-
-            function handleFiles(e) {
-                const files = Array.from(e.target.files);
-                const remaining = 5 - selectedFiles.length;
-                const toAdd = files.slice(0, remaining);
-                selectedFiles = [...selectedFiles, ...toAdd];
-                renderPreviews();
-            }
-
-            function renderPreviews() {
-                previewGrid.innerHTML = '';
-                selectedFiles.forEach((file, i) => {
-                    const reader = new FileReader();
-                    reader.onload = (e) => {
-                        const item = document.createElement('div');
-                        item.className = 'preview-item';
-                        item.innerHTML = `
-                            <img src="${e.target.result}" alt="Photo ${i+1}">
-                            <button class="remove" onclick="removePhoto(${i})">×</button>
-                        `;
-                        previewGrid.appendChild(item);
-                    };
-                    reader.readAsDataURL(file);
-                });
-
-                submitBtn.disabled = selectedFiles.length === 0;
-                countText.style.display = selectedFiles.length > 0 ? 'block' : 'none';
-                countText.textContent = `${selectedFiles.length} photo${selectedFiles.length !== 1 ? 's' : ''} selected`;
-                uploadArea.style.display = selectedFiles.length >= 5 ? 'none' : 'block';
-            }
-
-            function removePhoto(index) {
-                selectedFiles.splice(index, 1);
-                renderPreviews();
-            }
-
-            async function submitPhotos() {
-                if (selectedFiles.length === 0) return;
-
-                submitBtn.disabled = true;
-                document.getElementById('progress').style.display = 'block';
-
-                const formData = new FormData();
-                formData.append('lead_id', leadId);
-
-                for (let i = 0; i < selectedFiles.length; i++) {
-                    formData.append(`photo_${i}`, selectedFiles[i]);
+            function showSelected(input) {
+                const info = document.getElementById('selected-info');
+                if (input.files && input.files.length > 0) {
+                    const count = Math.min(input.files.length, 5);
+                    info.textContent = count + ' photo' + (count !== 1 ? 's' : '') + ' selected — tap Send Photos to upload';
+                    info.style.display = 'block';
                 }
-
-                try {
-                    const response = await fetch('{{ base_url }}/process-photos', {
-                        method: 'POST',
-                        body: formData,
-                    });
-
-                    const text = await response.text();
-                    console.log('Server response:', text);
-
-                    let result;
-                    try { result = JSON.parse(text); }
-                    catch(e) { throw new Error('Bad server response: ' + text.substring(0, 100)); }
-
-                    if (result.ok) {
-                        document.getElementById('main-card').style.display = 'none';
-                        document.getElementById('success-card').style.display = 'block';
-                    } else {
-                        alert('Upload failed: ' + (result.error || 'unknown'));
-                        submitBtn.disabled = false;
-                        document.getElementById('progress').style.display = 'none';
-                    }
-                } catch(e) {
-                    alert('Error: ' + e.message);
-                    submitBtn.disabled = false;
-                    document.getElementById('progress').style.display = 'none';
-                }
-            }
-                
-
-            function skipPhotos() {
-                document.getElementById('main-card').style.display = 'none';
-                document.getElementById('success-card').style.display = 'block';
-                document.querySelector('#success-card h2').textContent = 'All set!';
-                document.querySelector('#success-card p').textContent = 
-                    'We\'ll be in touch to confirm your estimate appointment.';
             }
         </script>
     </body>
@@ -1016,6 +867,45 @@ def photo_upload_page(lead_id):
     return render_template_string(html, lead_id=lead_id)
 
 
+@app.route("/upload-photos/<lead_id>/skip", methods=["GET"])
+def photo_upload_skip(lead_id):
+    """Caller chose to skip photo upload."""
+    html = """
+    <!doctype html>
+    <html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>All Set</title>
+        <style>
+            * { box-sizing: border-box; margin: 0; padding: 0; }
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+                background: #f4f6f9; min-height: 100vh;
+                display: flex; align-items: center; justify-content: center; padding: 20px;
+            }
+            .card {
+                background: #fff; border-radius: 16px; padding: 40px 24px;
+                max-width: 480px; width: 100%; text-align: center;
+                box-shadow: 0 4px 24px rgba(0,0,0,0.07);
+            }
+            .icon { font-size: 48px; margin-bottom: 16px; }
+            h1 { font-size: 24px; font-weight: 700; margin-bottom: 8px; }
+            p { font-size: 15px; color: #6b7280; line-height: 1.5; }
+        </style>
+    </head>
+    <body>
+        <div class="card">
+            <div class="icon">✓</div>
+            <h1>All set!</h1>
+            <p>We'll be in touch to confirm your estimate appointment.</p>
+        </div>
+    </body>
+    </html>
+    """
+    return render_template_string(html)
+        
+                  
 @app.route("/process-photos", methods=["POST"])
 def process_photos():
     """
@@ -1030,15 +920,13 @@ def process_photos():
 
     # Collect uploaded files
     uploaded_urls = []
-    photo_keys = [k for k in request.files if k.startswith("photo_")]
-
-    for key in sorted(photo_keys):
-        file = request.files[key]
+    
+    photo_files = request.files.getlist("photos")
+    for index, file in enumerate(photo_files[:5]):
         if file and file.filename:
             file_data = file.read()
-            index = key.split("_")[1]
             result = upload_photo(file_data, lead_id, index)
-            if result.get("ok"):
+        if result.get("ok"):
                 uploaded_urls.append(result["url"])
 
     print("PHOTOS UPLOADED |", len(uploaded_urls), "photos")
