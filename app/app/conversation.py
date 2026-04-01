@@ -235,14 +235,7 @@ def finalize_lead(state: dict, contractor: dict, to_number: str, from_number: st
                 lead_airtable_id = state.get("lead_airtable_id", "")
                 photo_link = f"{base_url}/upload-photos/{lead_airtable_id}" if lead_airtable_id else ""
  
-                if booking_link and photo_link:
-                    sms_body = (
-                        f"Thanks for contacting {business_name}. "
-                        f"Book your estimate: {booking_link}\n\n"
-                        f"Speed up your estimate — send job photos: {photo_link} "
-                        "Reply STOP to opt out."
-                    )
-                elif booking_link:
+                if booking_link:
                     sms_body = (
                         f"Thanks for contacting {business_name}. "
                         f"Book your estimate here: {booking_link} "
@@ -254,6 +247,7 @@ def finalize_lead(state: dict, contractor: dict, to_number: str, from_number: st
                         "We received your request and will follow up shortly. "
                         "Reply STOP to opt out."
                     )
+                   
 
                 msg = client.messages.create(body=sms_body, from_=to_number, to=sms_to)
                 print("SMS SENT TO:", sms_to, "| SID:", msg.sid)
