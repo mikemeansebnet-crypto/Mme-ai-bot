@@ -396,16 +396,30 @@ def cal_webhook():
 
             print("WEBHOOK PARSED | name:", name, "| phone:", phone, "| start:", start_time)
 
-            if phone:
-                sms_result = send_fallback_sms(
-                    to_number=phone,
-                    body=f"Hi {name or 'there'}, your estimate is confirmed for {start_time}. We’ll see you then!"
-                )
+            
                 print("WEBHOOK SMS RESULT:", sms_result)
             else:
                 print("WEBHOOK NOTICE | No phone found in payload")
                
-            return "", 200
+            return "", 
+        
+            if phone:
+                # Format the timestamp into readable date/time
+                try:
+                    from datetime import datetime
+                    dt = datetime.fromisoformat(start_time.replace("Z", "+00:00"))
+                    # Convert to Eastern time
+                    from zoneinfo import ZoneInfo
+                    eastern = dt.astimezone(ZoneInfo("America/New_York"))
+                    formatted_time = eastern.strftime("%A, %B %-d at %-I:%M %p")
+                except Exception:
+                    formatted_time = start_time
+
+                sms_result = send_fallback_sms(
+                    to_number=phone,
+                    body=f"Hi {name or 'there'}, your estimate is confirmed for {formatted_time}. We'll see you then!"
+                )
+
 
     except Exception as e:
         print("WEBHOOK ERROR:", e)
