@@ -362,7 +362,6 @@ def cal_webhook():
     try:
         data = request.get_json(silent=True) or {}
         print("CAL WEBHOOK RECEIVED:", data)
-
         trigger = (data.get("triggerEvent") or data.get("event") or "").upper()
         payload = data.get("payload", {}) or {}
         responses = payload.get("responses", {}) or {}
@@ -376,18 +375,15 @@ def cal_webhook():
         if trigger in {"BOOKING_CREATED", "BOOKING.CREATED"}:
             attendee = payload.get("attendees", [])
             attendee0 = attendee[0] if attendee and isinstance(attendee[0], dict) else {}
-
             name = (
                 response_value("name")
                 or str(attendee0.get("name") or "")
             ).strip()
-
             phone = (
                 response_value("attendeePhoneNumber")
                 or str(attendee0.get("phoneNumber") or "")
                 or str(attendee0.get("phone") or "")
             ).strip()
-
             start_time = str(
                 payload.get("startTime")
                 or payload.get("start")
@@ -396,20 +392,10 @@ def cal_webhook():
 
             print("WEBHOOK PARSED | name:", name, "| phone:", phone, "| start:", start_time)
 
-            
-                print("WEBHOOK SMS RESULT:", sms_result)
-            else:
-                print("WEBHOOK NOTICE | No phone found in payload")
-               
-            return "", 
-        
             if phone:
-                # Format the timestamp into readable date/time
                 try:
-                    from datetime import datetime
-                    dt = datetime.fromisoformat(start_time.replace("Z", "+00:00"))
-                    # Convert to Eastern time
                     from zoneinfo import ZoneInfo
+                    dt = datetime.fromisoformat(start_time.replace("Z", "+00:00"))
                     eastern = dt.astimezone(ZoneInfo("America/New_York"))
                     formatted_time = eastern.strftime("%A, %B %-d at %-I:%M %p")
                 except Exception:
@@ -419,11 +405,17 @@ def cal_webhook():
                     to_number=phone,
                     body=f"Hi {name or 'there'}, your estimate is confirmed for {formatted_time}. We'll see you then!"
                 )
+                print("WEBHOOK SMS RESULT:", sms_result)
+            else:
+                print("WEBHOOK NOTICE | No phone found in payload")
 
+        return "", 200
 
     except Exception as e:
         print("WEBHOOK ERROR:", e)
         return "", 500
+  
+
 
 # ─────────────────────────────────────────────
 # Fallback
