@@ -951,6 +951,10 @@ def process_photos():
     analysis = analyze_photos_with_claude(
         photo_urls=uploaded_urls,
         job_description=job_description,
+        contractor_name=lead.get("Business Name", "our team"),
+        client_name=client_name,
+        service_address=service_address,
+    
     )
     print("CLAUDE VISION ANALYSIS |", analysis)
 
@@ -970,39 +974,90 @@ def process_photos():
         except Exception as e:
             print("AIRTABLE UPDATE ERROR |", e)
 
+ 
     # Email contractor with photos + AI analysis
     try:
-        photo_links = "\n".join([f"  Photo {i+1}: {url}" for i, url in enumerate(uploaded_urls)])
-
+        photo_links = "\n".join([
+            f"  Photo {i+1}: {url}"
+            for i, url in enumerate(uploaded_urls)
+        ])
+ 
+        # Get contractor notify email from Airtable
+        try:
+            contractor = get_contractor_by_twilio_number(
+                lead.get("Twilio Number", "") or ""
+            )
+            notify_email = (
+                contractor.get("Notify Email")
+                or os.getenv("TO_EMAIL", "")
+            ).strip()
+        except Exception:
+            notify_email = os.getenv("TO_EMAIL", "")
+ 
         if analysis.get("ok"):
-            email_body = (
+ 
+            # ── Email 1: Internal contractor analysis ──────────────────────
+            internal_body = (
                 f"Job photos received from {client_name}\n"
                 f"Address: {service_address}\n"
                 f"Job: {job_description}\n\n"
-                f"━━━ AI ANALYSIS ━━━\n\n"
-                f"{analysis.get('full_analysis', '')}\n\n"
-                f"━━━ PHOTO LINKS ━━━\n"
+                f"{'━' * 40}\n"
+                f"CONTRACTOR INTERNAL NOTES\n"
+                f"{'━' * 40}\n\n"
+                f"{analysis.get('internal_analysis', '')}\n\n"
+                f"{'━' * 40}\n"
+                f"PHOTO LINKS\n"
+                f"{'━' * 40}\n"
                 f"{photo_links}\n\n"
                 f"Lead ID: {lead_id}"
             )
-            subject = f"📸 Job Photos + AI Analysis — {client_name}"
+ 
+            send_email(
+                subject=f"📸 Job Photos + AI Analysis — {client_name}",
+                body=internal_body,
+                to_email=notify_email,
+            )
+            print("INTERNAL ANALYSIS EMAIL SENT |", notify_email)
+ 
+            # ── Email 2: Customer-ready estimate (separate email) ──────────
+            customer_estimate = analysis.get("customer_estimate", "")
+            customer_subject = analysis.get("customer_subject", f"Your Estimate — {job_description}")
+ 
+            if customer_estimate:
+                customer_ready_body = (
+                    f"━━━ CUSTOMER-READY ESTIMATE ━━━\n"
+                    f"Copy and forward this directly to {client_name}:\n\n"
+                    f"Subject: {customer_subject}\n\n"
+                    f"{customer_estimate}\n\n"
+                    f"━━━ END OF CUSTOMER EMAIL ━━━"
+                )
+ 
+                send_email(
+                    subject=f"📋 Forward to Customer — {client_name}",
+                    body=customer_ready_body,
+                    to_email=notify_email,
+                )
+                print("CUSTOMER ESTIMATE EMAIL SENT |", notify_email)
+ 
         else:
-            email_body = (
+            # Analysis failed — send basic photo notification
+            basic_body = (
                 f"Job photos received from {client_name}\n"
                 f"Address: {service_address}\n"
                 f"Job: {job_description}\n\n"
                 f"Photos:\n{photo_links}\n\n"
                 f"Lead ID: {lead_id}"
             )
-            subject = f"📸 Job Photos — {client_name}"
-
-        # Get contractor notify email from lead's call number
-        notify_email = os.getenv("TO_EMAIL", "")
-        send_email(subject, email_body, to_email=notify_email)
-        print("PHOTO ANALYSIS EMAIL SENT |", notify_email)
-
+            send_email(
+                subject=f"📸 Job Photos — {client_name}",
+                body=basic_body,
+                to_email=notify_email,
+            )
+            print("BASIC PHOTO EMAIL SENT |", notify_email)
+ 
     except Exception as e:
         print("PHOTO EMAIL ERROR |", e)
+   
 
     return jsonify({
         "ok": True,
