@@ -528,14 +528,29 @@ def conversation_turn(ws):
             raw_address = intake_data.get("service_address", "")
             addr_result = validate_address(raw_address, contractor)
 
+            # Track Mapbox validation attempts
+            addr_retries = state.get("addr_retries", 0)
+
             if not addr_result.get("ok"):
-                retry_msg = "I need to verify that address. Could you repeat your full address including house number, street, city and zip?"
-                messages.append({"role": "user", "content": caller_input})
-                messages.append({"role": "assistant", "content": retry_msg})
-                state["messages"] = messages[-20:]
-                set_state(effective_call_sid, state)
-                ws.send(json.dumps({"type": "text", "token": retry_msg, "last": True}))
-                continue
+                if addr_retries == 0:
+                    # First failure — ask once more
+                    state["addr_retries"] = 1
+                    set_state(effective_call_sid, state)
+                    retry_msg = "I need to verify that address. Could you repeat your full address including house number, street, city and zip?"
+                    messages.append({"role": "user", "content": caller_input})
+                    messages.append({"role": "assistant", "content": retry_msg})
+                    state["messages"] = messages[-20:]
+                    set_state(effective_call_sid, state)
+                    ws.send(json.dumps({"type": "text", "token": retry_msg, "last": True}))
+                    continue
+                else:
+                    # Mapbox failed twice — trust Claude and move on
+                    print("MAPBOX VALIDATION FAILED | trusting Claude address:", raw_address)
+                    addr_result = {
+                        "ok": True,
+                        "full_address": raw_address,
+                        "in_service_area": True
+                    }
 
             if not addr_result.get("in_service_area"):
                 out_msg = "I'm sorry, that address is outside our service area. Do you have a different address?"
@@ -547,6 +562,7 @@ def conversation_turn(ws):
                 continue
 
             # Save final state
+            state["addr_retries"] = 0  # reset for future calls
             state["name"] = intake_data.get("name", state.get("name", ""))
             state["service_address"] = addr_result["full_address"]
             state["job_description"] = intake_data.get("job_description", state.get("job_description", ""))
@@ -567,8 +583,10 @@ def conversation_turn(ws):
                 "token": f"Perfect. Check your texts for the booking link. Thanks for calling {greeting_name}!",
                 "last": True
             }))
-            time.sleep(10)  # Give TTS time to finish speaking before closing
+            time.sleep(10)
             break
+
+        
 
         # ── Normal response ──
         _extract_partial_data(claude_response, caller_input, state)
