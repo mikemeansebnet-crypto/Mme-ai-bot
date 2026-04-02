@@ -27,14 +27,19 @@ cloudinary.config(
 # Upload photo to Cloudinary
 # ─────────────────────────────────────────────
 
+
 def upload_photo(file_data: bytes, lead_id: str, photo_index: int) -> dict:
     """
-    
+    Upload a single photo to Cloudinary.
+    Organizes photos in folders by lead ID.
+    Returns {"ok": True, "url": "...", "public_id": "..."} or {"ok": False, "error": "..."}
+    """
+
     # Check file size — compress if too large for Cloudinary free tier
     MAX_SIZE = 9 * 1024 * 1024  # 9MB
-    
+
     if len(file_data) > MAX_SIZE:
-        print(f"FILE TOO LARGE | {len(file_data)} bytes — compressing")
+        print(f"FILE TOO LARGE | {len(file_data)} bytes - compressing")
         try:
             from PIL import Image
             import io
@@ -48,10 +53,12 @@ def upload_photo(file_data: bytes, lead_id: str, photo_index: int) -> dict:
             print(f"COMPRESSED | new size: {len(file_data)} bytes")
         except Exception as e:
             print("COMPRESSION ERROR |", e)
-            return {"ok": False, "error": f"File too large and compression failed"}
+            return {"ok": False, "error": "File too large and compression failed"}
 
     try:
         folder = f"contractoros/leads/{lead_id}"
+    
+    
         public_id = f"{folder}/photo_{photo_index}"
 
         result = cloudinary.uploader.upload(
