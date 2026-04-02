@@ -36,3 +36,4 @@ cryptography
 anthropic
 flask-sock
 cloudinary
+Pillow
