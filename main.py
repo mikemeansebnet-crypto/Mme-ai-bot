@@ -336,12 +336,25 @@ def book_redirect():
     contractor_key = (request.args.get("c") or "").strip()
     contractor = get_contractor_by_twilio_number(contractor_key) if contractor_key else {}
     base_url = (contractor.get("Intake URL") or "").strip()
+    
     if not base_url:
         return "Booking link not configured for this contractor.", 404
-    params = request.args.to_dict(flat=True)
+        
+    params = request.args.to_dict(flat=False)
     params.pop("c", None)
-    query_string = urllib.parse.urlencode(params)
+    query_string = urllib.parse.urlencode(params, doseq=True)
     separator = "&" if "?" in base_url else "?"
+
+    
+    print("BOOK DEBUG | raw request args:", request.args)
+    print("BOOK DEBUG | params dict:", params)
+    print("BOOK DEBUG | query string:", query_string)
+    print("BOOK DEBUG | base url:", base_url)
+
+    final_url = f"{base_url}{separator}{query_string}" if query_string else base_url
+
+    print("BOOK DEBUG | redirect final:", final_url)
+    
     return redirect(f"{base_url}{separator}{query_string}" if query_string else base_url, code=302)
 
 
