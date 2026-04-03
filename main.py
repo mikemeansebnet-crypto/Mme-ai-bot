@@ -17,6 +17,7 @@ from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
 from google_auth_oauthlib.flow import Flow
 import requests
+import anthropic
 
 from app.app.state import (
     get_state, set_state, clear_state,
