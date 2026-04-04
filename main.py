@@ -585,23 +585,28 @@ def sms():
             mimetype="text/xml"
         )
  
-    # Extract collected fields from this exchange before saving
-        last_bot_message = messages[-1].get("content", "") if messages else ""
-    
-        if not sms_state.get("name"):
-            if any(w in last_bot_message.lower() for w in ["name", "who"]):
+    # Don't save short confirmation words as field values
+    skip_words = {"yes", "no", "yeah", "nope", "correct", "yep", "ok", "okay", "sure"}
+    is_confirmation = incoming_msg.lower().strip().rstrip(".!?") in skip_words
+
+    if not sms_state.get("name"):
+        if any(w in last_bot_message.lower() for w in ["name", "who"]):
+            if not is_confirmation:
                 sms_state["name"] = incoming_msg.split(".")[0].strip()
 
-        elif not sms_state.get("service_address"):
-            if any(w in last_bot_message.lower() for w in ["address", "location", "zip"]):
+    elif not sms_state.get("service_address"):
+        if any(w in last_bot_message.lower() for w in ["address", "location", "zip"]):
+            if not is_confirmation:
                 sms_state["service_address"] = incoming_msg.strip()
 
-        elif not sms_state.get("job_description"):
-            if any(w in last_bot_message.lower() for w in ["work", "done", "need", "service"]):
+    elif not sms_state.get("job_description"):
+        if any(w in last_bot_message.lower() for w in ["work", "done", "need", "service"]):
+            if not is_confirmation:
                 sms_state["job_description"] = incoming_msg.strip()
 
-        elif not sms_state.get("timing"):
-            if any(w in last_bot_message.lower() for w in ["when", "timing", "available"]):
+    elif not sms_state.get("timing"):
+        if any(w in last_bot_message.lower() for w in ["when", "timing", "available"]):
+            if not is_confirmation:
                 sms_state["timing"] = incoming_msg.split(".")[0].strip()
 
         # Normal response — save state and reply
