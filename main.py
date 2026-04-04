@@ -477,14 +477,18 @@ def sms():
     # Load or initialize SMS conversation state from Redis
     sms_state_key = f"sms_state:{to_number}:{from_number}"
     sms_state = {}
- 
+
     if redis_client:
         try:
             raw = redis_client.get(sms_state_key)
             if raw:
                 sms_state = json.loads(raw)
+                print("SMS STATE LOADED |", sms_state_key, "| name:", sms_state.get("name"), "| address:", sms_state.get("service_address"))
+            else:
+                print("SMS STATE NOT FOUND |", sms_state_key)
         except Exception as e:
             print("SMS STATE LOAD ERROR |", e)
+   
  
     # Initialize state if new conversation
     if not sms_state:
@@ -626,6 +630,7 @@ def sms():
     # Save state to Redis with 2 hour TTL
     if redis_client:
         try:
+            print("SMS STATE SAVING |", sms_state_key, "| name:", sms_state.get("name"), "| address:", sms_state.get("service_address"))
             redis_client.setex(sms_state_key, 7200, json.dumps(sms_state))
         except Exception as e:
             print("SMS STATE SAVE ERROR |", e)
