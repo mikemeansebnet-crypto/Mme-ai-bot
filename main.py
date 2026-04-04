@@ -586,28 +586,37 @@ def sms():
         )
  
     # Don't save short confirmation words as field values
-    skip_words = {"yes", "no", "yeah", "nope", "correct", "yep", "ok", "okay", "sure"}
-    is_confirmation = incoming_msg.lower().strip().rstrip(".!?") in skip_words
+        skip_words = {"yes", "no", "yeah", "nope", "correct", "yep", "ok", "okay", "sure"}
+        is_confirmation = incoming_msg.lower().strip().rstrip(".!?") in skip_words
 
-    if not sms_state.get("name"):
-        if any(w in last_bot_message.lower() for w in ["name", "who"]):
-            if not is_confirmation:
-                sms_state["name"] = incoming_msg.split(".")[0].strip()
+        # If customer confirmed address extract it from Claude's confirmation message
+        if is_confirmation and not sms_state.get("service_address"):
+            if any(w in last_bot_message.lower() for w in ["address", "confirm"]):
+                import re
+                addr_match = re.search(r"is (.+?) your service address", last_bot_message, re.IGNORECASE)
+                if addr_match:
+                    sms_state["service_address"] = addr_match.group(1).strip()
+                    print("ADDRESS CONFIRMED FROM BOT MESSAGE |", sms_state["service_address"])
 
-    elif not sms_state.get("service_address"):
-        if any(w in last_bot_message.lower() for w in ["address", "location", "zip"]):
-            if not is_confirmation:
-                sms_state["service_address"] = incoming_msg.strip()
+        if not sms_state.get("name"):
+            if any(w in last_bot_message.lower() for w in ["name", "who"]):
+                if not is_confirmation:
+                    sms_state["name"] = incoming_msg.split(".")[0].strip()
 
-    elif not sms_state.get("job_description"):
-        if any(w in last_bot_message.lower() for w in ["work", "done", "need", "service"]):
-            if not is_confirmation:
-                sms_state["job_description"] = incoming_msg.strip()
+        elif not sms_state.get("service_address"):
+            if any(w in last_bot_message.lower() for w in ["address", "location", "zip"]):
+                if not is_confirmation:
+                    sms_state["service_address"] = incoming_msg.strip()
 
-    elif not sms_state.get("timing"):
-        if any(w in last_bot_message.lower() for w in ["when", "timing", "available"]):
-            if not is_confirmation:
-                sms_state["timing"] = incoming_msg.split(".")[0].strip()
+        elif not sms_state.get("job_description"):
+            if any(w in last_bot_message.lower() for w in ["work", "done", "need", "service"]):
+                if not is_confirmation:
+                    sms_state["job_description"] = incoming_msg.strip()
+
+        elif not sms_state.get("timing"):
+            if any(w in last_bot_message.lower() for w in ["when", "timing", "available"]):
+                if not is_confirmation:
+                    sms_state["timing"] = incoming_msg.split(".")[0].strip()
 
         # Normal response — save state and reply
         messages.append({"role": "user", "content": incoming_msg})
