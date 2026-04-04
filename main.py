@@ -284,6 +284,82 @@ def update_contractor_status(to_number: str, fields: dict):
         pass
 
 
+def run_sms_claude(system_prompt: str, messages: list, user_message: str) -> str:
+    """
+    Run a Claude turn for SMS conversation.
+    Shorter responses than phone — SMS needs to be concise.
+    """
+    try:
+        api_key = os.getenv("ANTHROPIC_API_KEY", "").strip()
+        client = anthropic.Anthropic(api_key=api_key)
+ 
+        messages_to_send = messages + [{"role": "user", "content": user_message}]
+ 
+        response = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=150,  # Keep SMS responses short
+            system=system_prompt,
+            messages=messages_to_send,
+        )
+        return response.content[0].text.strip()
+    except Exception as e:
+        print("SMS CLAUDE ERROR |", e)
+        return None
+ 
+ 
+def build_sms_system_prompt(contractor: dict, state: dict) -> str:
+    """
+    System prompt for SMS intake — shorter and more text-friendly than phone.
+    """
+    business_name = (contractor.get("Business Name") or "our office").strip()
+ 
+    name = (state.get("name") or "").strip()
+    service_address = (state.get("service_address") or "").strip()
+    job_description = (state.get("job_description") or "").strip()
+    timing = (state.get("timing") or "").strip()
+ 
+    already = []
+    needed = []
+ 
+    if name: already.append(f"Name: {name}")
+    else: needed.append("full name")
+ 
+    if service_address: already.append(f"Address: {service_address}")
+    else: needed.append("full service address with zip code")
+ 
+    if job_description: already.append(f"Job: {job_description}")
+    else: needed.append("what work they need done")
+ 
+    if timing: already.append(f"Timing: {timing}")
+    else: needed.append("when they need it")
+ 
+    already_str = "\n".join(f"- {x}" for x in already) if already else "Nothing yet"
+    needed_str = "\n".join(f"- {x}" for x in needed) if needed else "All collected"
+ 
+    return f"""You are a friendly SMS intake assistant for {business_name}.
+Collect four pieces of info via text message to send a booking link.
+ 
+ALREADY COLLECTED:
+{already_str}
+ 
+STILL NEEDED:
+{needed_str}
+ 
+RULES:
+- This is SMS — keep ALL responses under 160 characters when possible
+- Never use line breaks in responses — single flowing sentence only
+- Ask for ONE piece of info at a time
+- Accept the first answer given — never ask follow-ups
+- For address: accept whatever they give, you will validate it
+- If they say emergency (flood, burst pipe, no heat): reply exactly EMERGENCY
+- If all four pieces collected: reply exactly INTAKE_COMPLETE followed by JSON on next line
+- Be warm but extremely brief — this is text not email
+ 
+WHEN COMPLETE output exactly:
+INTAKE_COMPLETE
+{{"name": "...", "service_address": "...", "job_description": "...", "timing": "...", "priority": "STANDARD"}}"""
+
+
 # ─────────────────────────────────────────────
 # Basic routes
 # ─────────────────────────────────────────────
