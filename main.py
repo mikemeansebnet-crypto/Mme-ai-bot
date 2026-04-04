@@ -579,12 +579,15 @@ def sms():
 
         if booking_link:
             reply = (
-                f"Got it! Book your estimate here: {booking_link} "
-                f"Reply STOP to opt out."
+                f"Got it {sms_state.get('name', '')}! Book your estimate here: "
+                f"{booking_link} Reply STOP to opt out."
+            
             )
+       
         else:
             reply = (
-                f"Got it! We have all your details and will follow up shortly. "
+                f"Got it {sms_state.get('name', '')}! We have all your details and "
+                f"someone from {business_name} will be in touch shortly to confirm. "
                 f"Reply STOP to opt out."
             )
 
