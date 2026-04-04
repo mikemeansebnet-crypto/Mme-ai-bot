@@ -585,10 +585,29 @@ def sms():
             mimetype="text/xml"
         )
  
-    # Normal response — save state and reply
-    messages.append({"role": "user", "content": incoming_msg})
-    messages.append({"role": "assistant", "content": claude_response})
-    sms_state["messages"] = messages[-20:]  # Keep last 20 messages
+    # Extract collected fields from this exchange before saving
+        last_bot_message = messages[-1].get("content", "") if messages else ""
+    
+        if not sms_state.get("name"):
+            if any(w in last_bot_message.lower() for w in ["name", "who"]):
+                sms_state["name"] = incoming_msg.split(".")[0].strip()
+
+        elif not sms_state.get("service_address"):
+            if any(w in last_bot_message.lower() for w in ["address", "location", "zip"]):
+                sms_state["service_address"] = incoming_msg.strip()
+
+        elif not sms_state.get("job_description"):
+            if any(w in last_bot_message.lower() for w in ["work", "done", "need", "service"]):
+                sms_state["job_description"] = incoming_msg.strip()
+
+        elif not sms_state.get("timing"):
+            if any(w in last_bot_message.lower() for w in ["when", "timing", "available"]):
+                sms_state["timing"] = incoming_msg.split(".")[0].strip()
+
+        # Normal response — save state and reply
+        messages.append({"role": "user", "content": incoming_msg})
+        messages.append({"role": "assistant", "content": claude_response})
+        sms_state["messages"] = messages[-20:]
  
     # Save state to Redis with 2 hour TTL
     if redis_client:
