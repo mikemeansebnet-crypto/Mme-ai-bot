@@ -338,26 +338,33 @@ def build_sms_system_prompt(contractor: dict, state: dict) -> str:
  
     return f"""You are a friendly SMS intake assistant for {business_name}.
 Collect four pieces of info via text message to send a booking link.
- 
+
 ALREADY COLLECTED:
 {already_str}
- 
+
 STILL NEEDED:
 {needed_str}
- 
+
 RULES:
-- This is SMS — keep ALL responses under 160 characters when possible
-- Never use line breaks in responses — single flowing sentence only
+- This is SMS - keep ALL responses under 160 characters
+- Single sentence only - no line breaks
 - Ask for ONE piece of info at a time
-- Accept the first answer given — never ask follow-ups
-- For address: accept whatever they give, you will validate it
-- If they say emergency (flood, burst pipe, no heat): reply exactly EMERGENCY
-- If all four pieces collected: reply exactly INTAKE_COMPLETE followed by JSON on next line
-- Be warm but extremely brief — this is text not email
- 
-WHEN COMPLETE output exactly:
-INTAKE_COMPLETE
-{{"name": "...", "service_address": "...", "job_description": "...", "timing": "...", "priority": "STANDARD"}}"""
+- Accept first answer given - never ask follow-ups
+- If emergency: reply exactly EMERGENCY
+- Be warm but brief
+
+RESPONSE FORMAT - you must ALWAYS reply with exactly two lines:
+LINE 1: Your SMS message to the customer
+LINE 2: JSON with what you just collected (use null if not collected this turn)
+
+Example:
+Thanks Mike! What's your service address including zip code?
+{{"collected_name": "Mike Smith", "collected_address": null, "collected_job": null, "collected_timing": null, "ready": false}}
+
+When all four fields are collected set ready to true:
+Great! We have everything we need.
+{{"collected_name": "Mike Smith", "collected_address": "123 Main St", "collected_job": "lawn mowing", "collected_timing": "next week", "ready": true}}"""
+
 
 
 # ─────────────────────────────────────────────
@@ -510,14 +517,113 @@ def sms():
  
     # Run Claude
     claude_response = run_sms_claude(system_prompt, messages, incoming_msg)
- 
+
     if not claude_response:
-        # Claude failed — send fallback
         reply = f"Thanks for contacting {business_name}! We received your message and will follow up shortly."
         return Response(
             f"<Response><Message>{reply}</Message></Response>",
             mimetype="text/xml"
         )
+
+    print("SMS CLAUDE RESPONSE |", claude_response)
+
+    # Parse Claude's two-line response
+    lines = claude_response.strip().split("\n")
+    reply = lines[0].strip() if lines else claude_response
+    
+    # Extract JSON from second line
+    collected = {}
+    if len(lines) > 1:
+        try:
+            import re
+            json_match = re.search(r"\{.*\}", lines[1], re.DOTALL)
+            if json_match:
+                collected = json.loads(json_match.group(0))
+        except Exception as e:
+            print("SMS JSON PARSE ERROR |", e)
+
+    # Update state with whatever Claude collected this turn
+    if collected.get("collected_name"):
+        sms_state["name"] = collected["collected_name"]
+        print("NAME SAVED |", sms_state["name"])
+    if collected.get("collected_address"):
+        sms_state["service_address"] = collected["collected_address"]
+        print("ADDRESS SAVED |", sms_state["service_address"])
+    if collected.get("collected_job"):
+        sms_state["job_description"] = collected["collected_job"]
+        print("JOB SAVED |", sms_state["job_description"])
+    if collected.get("collected_timing"):
+        sms_state["timing"] = collected["collected_timing"]
+        print("TIMING SAVED |", sms_state["timing"])
+
+    print("SMS STATE SAVING |", sms_state_key, 
+          "| name:", sms_state.get("name"), 
+          "| address:", sms_state.get("service_address"))
+
+    # Check if ready to complete
+    if collected.get("ready") and sms_state.get("name") and sms_state.get("service_address"):
+        # Fire INTAKE_COMPLETE flow
+        sms_state["priority"] = "STANDARD"
+        sms_state["call_sid"] = f"SMS-{from_number}-{int(time.time())}"
+
+        notify_email = (contractor.get("Notify Email") or os.getenv("TO_EMAIL") or "").strip()
+        try:
+            send_intake_summary(sms_state, notify_email=notify_email)
+        except Exception as e:
+            print("SMS INTAKE SUMMARY ERROR |", e)
+
+        booking_link = build_cal_booking_link(contractor, sms_state)
+
+        if booking_link:
+            reply = (
+                f"Got it! Book your estimate here: {booking_link} "
+                f"Reply STOP to opt out."
+            )
+        else:
+            reply = (
+                f"Got it! We have all your details and will follow up shortly. "
+                f"Reply STOP to opt out."
+            )
+
+        if redis_client:
+            redis_client.delete(sms_state_key)
+
+        print("SMS INTAKE COMPLETE |", sms_state.get("name"), "|", sms_state.get("service_address"))
+
+        return Response(
+            f"<Response><Message>{reply}</Message></Response>",
+            mimetype="text/xml"
+        )
+
+    # Handle emergency
+    if "EMERGENCY" in reply.upper():
+        emergency_phone = (contractor.get("Emergency Phone") or "").strip()
+        if emergency_phone:
+            reply = f"This sounds urgent! Please call us directly at {emergency_phone} for immediate assistance."
+        else:
+            reply = f"This sounds urgent! Please call {business_name} directly for immediate assistance."
+        if redis_client:
+            redis_client.delete(sms_state_key)
+        return Response(
+            f"<Response><Message>{reply}</Message></Response>",
+            mimetype="text/xml"
+        )
+
+    # Save state and reply
+    messages.append({"role": "user", "content": incoming_msg})
+    messages.append({"role": "assistant", "content": reply})
+    sms_state["messages"] = messages[-20:]
+
+    if redis_client:
+        try:
+            redis_client.setex(sms_state_key, 7200, json.dumps(sms_state))
+        except Exception as e:
+            print("SMS STATE SAVE ERROR |", e)
+
+    return Response(
+        f"<Response><Message>{reply}</Message></Response>",
+        mimetype="text/xml"
+    )
  
     print("SMS CLAUDE RESPONSE |", claude_response)
  
