@@ -722,7 +722,7 @@ def sms():
                     redis_client.delete(sms_state_key)
 
 
-                 print("SMS INTAKE COMPLETE |", sms_state.get("name"), "|", sms_state.get("service_address"))
+                print("SMS INTAKE COMPLETE |", sms_state.get("name"), "|", sms_state.get("service_address"))
  
         except Exception as e:
             print("SMS INTAKE COMPLETE ERROR |", e)
