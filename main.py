@@ -365,11 +365,171 @@ def book_redirect():
 
 @app.route("/sms", methods=["POST"])
 def sms():
-    incoming_msg = request.form.get("Body", "").strip()
-    from_number = request.form.get("From", "")
-    print(f"SMS from {from_number}: {incoming_msg}")
-    reply = "MME AI Bot received your message."
-    return Response(f"<Response><Message>{reply}</Message></Response>", mimetype="text/xml")
+    """
+    SMS intake handler — conversational lead capture via text.
+    Uses Claude to collect name, address, job, timing.
+    Stores conversation state in Redis between messages.
+    """
+    incoming_msg = (request.form.get("Body") or "").strip()
+    from_number = (request.form.get("From") or "").strip()
+    to_number = (request.form.get("To") or "").strip()
+ 
+    print(f"SMS FROM {from_number} | TO {to_number} | MSG: {incoming_msg}")
+ 
+    # Handle opt-out keywords immediately
+    if incoming_msg.lower() in ["stop", "unsubscribe", "cancel", "quit", "end"]:
+        return Response(
+            "<Response><Message>You have been unsubscribed. Reply START to resubscribe.</Message></Response>",
+            mimetype="text/xml"
+        )
+ 
+    if incoming_msg.lower() in ["start", "unstop"]:
+        return Response(
+            "<Response><Message>You are now subscribed to receive messages.</Message></Response>",
+            mimetype="text/xml"
+        )
+ 
+    # Look up contractor
+    contractor = {}
+    try:
+        contractor = get_contractor_by_twilio_number(to_number) or {}
+    except Exception as e:
+        print("SMS CONTRACTOR LOOKUP FAILED:", e)
+ 
+    business_name = (contractor.get("Business Name") or "our office").strip()
+ 
+    # Load or initialize SMS conversation state from Redis
+    sms_state_key = f"sms_state:{to_number}:{from_number}"
+    sms_state = {}
+ 
+    if redis_client:
+        try:
+            raw = redis_client.get(sms_state_key)
+            if raw:
+                sms_state = json.loads(raw)
+        except Exception as e:
+            print("SMS STATE LOAD ERROR |", e)
+ 
+    # Initialize state if new conversation
+    if not sms_state:
+        sms_state = {
+            "name": "",
+            "service_address": "",
+            "job_description": "",
+            "timing": "",
+            "messages": [],
+            "callback": from_number,
+            "to_number": to_number,
+            "from_number": from_number,
+            "started_at": int(time.time()),
+        }
+ 
+    # Build system prompt based on current state
+    system_prompt = build_sms_system_prompt(contractor, sms_state)
+    messages = sms_state.get("messages", [])
+ 
+    # Run Claude
+    claude_response = run_sms_claude(system_prompt, messages, incoming_msg)
+ 
+    if not claude_response:
+        # Claude failed — send fallback
+        reply = f"Thanks for contacting {business_name}! We received your message and will follow up shortly."
+        return Response(
+            f"<Response><Message>{reply}</Message></Response>",
+            mimetype="text/xml"
+        )
+ 
+    print("SMS CLAUDE RESPONSE |", claude_response)
+ 
+    # Handle emergency
+    if "EMERGENCY" in claude_response:
+        emergency_phone = (contractor.get("Emergency Phone") or "").strip()
+        if emergency_phone:
+            reply = f"This sounds urgent! Please call us directly at {emergency_phone} for immediate assistance."
+        else:
+            reply = f"This sounds urgent! Please call {business_name} directly for immediate assistance."
+ 
+        if redis_client:
+            redis_client.delete(sms_state_key)
+ 
+        return Response(
+            f"<Response><Message>{reply}</Message></Response>",
+            mimetype="text/xml"
+        )
+ 
+    # Handle intake complete
+    if "INTAKE_COMPLETE" in claude_response:
+        try:
+            import re
+            json_match = re.search(r"\{.*\}", claude_response, re.DOTALL)
+            if json_match:
+                intake_data = json.loads(json_match.group(0))
+ 
+                # Update state with final data
+                sms_state["name"] = intake_data.get("name", sms_state.get("name", ""))
+                sms_state["service_address"] = intake_data.get("service_address", "")
+                sms_state["job_description"] = intake_data.get("job_description", "")
+                sms_state["timing"] = intake_data.get("timing", "")
+                sms_state["priority"] = intake_data.get("priority", "STANDARD")
+                sms_state["call_sid"] = f"SMS-{from_number}-{int(time.time())}"
+ 
+                # Save lead to Airtable + send email
+                notify_email = (contractor.get("Notify Email") or os.getenv("TO_EMAIL") or "").strip()
+                try:
+                    send_intake_summary(sms_state, notify_email=notify_email)
+                except Exception as e:
+                    print("SMS INTAKE SUMMARY ERROR |", e)
+ 
+                # Build and send booking link
+                booking_link = build_cal_booking_link(contractor, sms_state)
+ 
+                if booking_link:
+                    reply = (
+                        f"Got it! Book your estimate here: {booking_link} "
+                        f"Reply STOP to opt out."
+                    )
+                else:
+                    reply = (
+                        f"Got it! We have all your details and will follow up shortly. "
+                        f"Reply STOP to opt out."
+                    )
+ 
+                # Clear SMS state
+                if redis_client:
+                    redis_client.delete(sms_state_key)
+ 
+                print("SMS INTAKE COMPLETE |", sms_state.get("name"), "|", sms_state.get("service_address"))
+ 
+        except Exception as e:
+            print("SMS INTAKE COMPLETE ERROR |", e)
+            reply = f"Thanks! We have your details and will follow up shortly."
+ 
+        return Response(
+            f"<Response><Message>{reply}</Message></Response>",
+            mimetype="text/xml"
+        )
+ 
+    # Normal response — save state and reply
+    messages.append({"role": "user", "content": incoming_msg})
+    messages.append({"role": "assistant", "content": claude_response})
+    sms_state["messages"] = messages[-20:]  # Keep last 20 messages
+ 
+    # Save state to Redis with 2 hour TTL
+    if redis_client:
+        try:
+            redis_client.setex(sms_state_key, 7200, json.dumps(sms_state))
+        except Exception as e:
+            print("SMS STATE SAVE ERROR |", e)
+ 
+    # Truncate reply to SMS safe length
+    reply = claude_response[:320] if len(claude_response) > 320 else claude_response
+ 
+    return Response(
+        f"<Response><Message>{reply}</Message></Response>",
+        mimetype="text/xml"
+    )
+ 
+ 
 
 @app.route("/cal-webhook", methods=["POST"])
 def cal_webhook():
