@@ -231,7 +231,7 @@ def send_intake_summary(state: dict, notify_email: str = None, reply_to_email: s
         "Call Back Number": state.get("callback", ""),
         "Service Address": state.get("service_address", ""),
         "Job Description": state.get("job_description", ""),
-        "Source": "AI Phone Call",
+        "Source": "AI SMS" if call_sid.startswith("SMS-") else "AI Phone Call",
         "Call SID": state.get("call_sid", ""),
         "Appointment Requested": state.get("timing", ""),
         "Lead Status": "New Lead",
@@ -578,11 +578,13 @@ def sms():
         booking_link = build_cal_booking_link(contractor, sms_state)
 
         if booking_link:
+            first_name = sms_state.get('name', '').split()[0] if sms_state.get('name') else ''
             reply = (
-                f"Got it {sms_state.get('name', '')}! Book your estimate here: "
-                f"{booking_link} Reply STOP to opt out."
-            
+                f"Perfect {first_name}! We have everything we need. "
+                f"Book your estimate here: {booking_link} "
+                f"We look forward to working with you! Reply STOP to opt out."
             )
+            
        
         else:
             reply = (
