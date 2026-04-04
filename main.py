@@ -589,38 +589,50 @@ def sms():
             mimetype="text/xml"
         )
  
-    # Don't save short confirmation words as field values
-        skip_words = {"yes", "no", "yeah", "nope", "correct", "yep", "ok", "okay", "sure"}
-        is_confirmation = incoming_msg.lower().strip().rstrip(".!?") in skip_words
+    # Extract collected fields — check what Claude just asked
+    # messages[-1] is the last BOT message (what Claude asked before this response)
+    all_bot_messages = " ".join([
+        m.get("content", "") 
+        for m in messages 
+        if m.get("role") == "assistant"
+    ]).lower()
 
-        # If customer confirmed address extract it from Claude's confirmation message
-        if is_confirmation and not sms_state.get("service_address"):
-            if any(w in last_bot_message.lower() for w in ["address", "confirm"]):
-                import re
-                addr_match = re.search(r"is (.+?) your service address", last_bot_message, re.IGNORECASE)
-                if addr_match:
-                    sms_state["service_address"] = addr_match.group(1).strip()
-                    print("ADDRESS CONFIRMED FROM BOT MESSAGE |", sms_state["service_address"])
+    last_bot_message = next(
+        (m.get("content", "") for m in reversed(messages) 
+         if m.get("role") == "assistant"), ""
+    ).lower()
 
-        if not sms_state.get("name"):
-            if any(w in last_bot_message.lower() for w in ["name", "who"]):
-                if not is_confirmation:
-                    sms_state["name"] = incoming_msg.split(".")[0].strip()
+    skip_words = {"yes", "no", "yeah", "nope", "correct", "yep", "ok", "okay", "sure"}
+    is_confirmation = incoming_msg.lower().strip().rstrip(".!?") in skip_words
 
-        elif not sms_state.get("service_address"):
-            if any(w in last_bot_message.lower() for w in ["address", "location", "zip"]):
-                if not is_confirmation:
-                    sms_state["service_address"] = incoming_msg.strip()
+    # If customer confirmed address extract it from Claude's message
+    if is_confirmation and not sms_state.get("service_address"):
+        if any(w in last_bot_message for w in ["address", "confirm"]):
+            import re
+            addr_match = re.search(r"is (.+?) your service address", last_bot_message, re.IGNORECASE)
+            if addr_match:
+                sms_state["service_address"] = addr_match.group(1).strip()
+                print("ADDRESS CONFIRMED |", sms_state["service_address"])
 
-        elif not sms_state.get("job_description"):
-            if any(w in last_bot_message.lower() for w in ["work", "done", "need", "service"]):
-                if not is_confirmation:
-                    sms_state["job_description"] = incoming_msg.strip()
+    if not sms_state.get("name") and not is_confirmation:
+        if any(w in last_bot_message for w in ["name", "who"]):
+            sms_state["name"] = incoming_msg.split(".")[0].strip()
+            print("NAME EXTRACTED |", sms_state["name"])
 
-        elif not sms_state.get("timing"):
-            if any(w in last_bot_message.lower() for w in ["when", "timing", "available"]):
-                if not is_confirmation:
-                    sms_state["timing"] = incoming_msg.split(".")[0].strip()
+    elif not sms_state.get("service_address") and not is_confirmation:
+        if any(w in last_bot_message for w in ["address", "location", "zip"]):
+            sms_state["service_address"] = incoming_msg.strip()
+            print("ADDRESS EXTRACTED |", sms_state["service_address"])
+
+    elif not sms_state.get("job_description") and not is_confirmation:
+        if any(w in last_bot_message for w in ["work", "done", "need", "service"]):
+            sms_state["job_description"] = incoming_msg.strip()
+            print("JOB EXTRACTED |", sms_state["job_description"])
+
+    elif not sms_state.get("timing") and not is_confirmation:
+        if any(w in last_bot_message for w in ["when", "timing", "available"]):
+            sms_state["timing"] = incoming_msg.split(".")[0].strip()
+            print("TIMING EXTRACTED |", sms_state["timing"])
 
         # Normal response — save state and reply
         messages.append({"role": "user", "content": incoming_msg})
