@@ -226,13 +226,16 @@ def send_intake_summary(state: dict, notify_email: str = None, reply_to_email: s
         f"Call SID: {state.get('call_sid', '')}\n"
     )
 
+    call_sid = state.get("call_sid", "")
+    source = "AI SMS" if call_sid.startswith("SMS-") else "AI Phone Call"
+
     airtable_fields = {
         "Client Name": state.get("name", ""),
         "Call Back Number": state.get("callback", ""),
         "Service Address": state.get("service_address", ""),
         "Job Description": state.get("job_description", ""),
-        "Source": "AI SMS" if call_sid.startswith("SMS-") else "AI Phone Call",
-        "Call SID": state.get("call_sid", ""),
+        "Source": source,
+        "Call SID": call_sid,
         "Appointment Requested": state.get("timing", ""),
         "Lead Status": "New Lead",
         "Priority": state.get("priority", "STANDARD"),
