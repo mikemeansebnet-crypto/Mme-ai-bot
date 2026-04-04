@@ -556,18 +556,6 @@ def book_redirect():
     return redirect(f"{base_url}{separator}{query_string}" if query_string else base_url, code=302)
 
 
-# ─────────────────────────────────────────────
-# SMS
-# ─────────────────────────────────────────────
-
-@app.route("/sms", methods=["POST"])
-def sms():
-    incoming_msg = request.form.get("Body", "").strip()
-    from_number = request.form.get("From", "")
-    print(f"SMS from {from_number}: {incoming_msg}")
-    reply = "MME AI Bot received your message."
-    return Response(f"<Response><Message>{reply}</Message></Response>", mimetype="text/xml")
-
 
 # ─────────────────────────────────────────────
 # Fallback
