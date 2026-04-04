@@ -140,9 +140,218 @@ def start_call_recording(call_sid: str, contractor: dict) -> dict:
         return {"ok": False, "error": str(e)}
 
 
-sms route
-# -------------------------------------------------------------------------
+def send_fallback_sms(to_number: str, body: str) -> dict:
+    try:
+        from_number = os.getenv("TWILIO_PHONE_NUMBER") or os.getenv("TWILIO_FROM_NUMBER")
+        if not from_number:
+            return {"ok": False, "error": "missing_twilio_from_number"}
+        return send_sms(to_number=to_number, body=body, from_number=from_number)
+    except Exception as e:
+        print("FALLBACK SMS ERROR |", str(e))
+        return {"ok": False, "error": str(e)}
+
+
+# ─────────────────────────────────────────────
+# Email helpers
+# ─────────────────────────────────────────────
+
+def send_email(subject: str, body: str, to_email: str = None, reply_to: str = None):
+    api_key = os.getenv("SENDGRID_API_KEY")
+    from_email = os.getenv("FROM_EMAIL")
+    default_to = os.getenv("TO_EMAIL")
+    to_email = (to_email or default_to or "").strip()
+
+    if not api_key:
+        raise Exception("Missing SENDGRID_API_KEY env var")
+    if not from_email:
+        raise Exception("Missing FROM_EMAIL env var")
+    if not to_email:
+        raise Exception("Missing TO_EMAIL env var")
+
+    message = Mail(
+        from_email=from_email,
+        to_emails=to_email,
+        subject=subject,
+        plain_text_content=body,
+    )
+    if reply_to:
+        message.reply_to = reply_to
+
+    sg = SendGridAPIClient(api_key)
+    response = sg.send(message)
+    print("EMAIL SENT:", response.status_code)
+
+
+def send_intake_summary(state: dict, notify_email: str = None, reply_to_email: str = None):
+    print("EMAIL DEBUG | entering send_intake_summary")
+
+    email_api_key = os.environ.get("SENDGRID_API_KEY", "")
+    print("EMAIL DEBUG | SENDGRID KEY EXISTS:", bool(email_api_key))
+    print("EMAIL DEBUG | SENDGRID KEY PREFIX:", email_api_key[:5] if email_api_key else "MISSING")
+
+    subject = "New MME AI Bot Intake"
+    body = (
+        "New lead captured by MME AI Bot:\n\n"
+        f"Client Name: {state.get('name', '')}\n"
+        f"Service Address: {state.get('service_address', '')}\n"
+        f"Job Requested: {state.get('job_description', '')}\n"
+        f"Timing Needed: {state.get('timing', '')}\n"
+        f"Callback Number: {state.get('callback', '')}\n"
+        f"Call SID: {state.get('call_sid', '')}\n"
+    )
+
+    airtable_fields = {
+        "Client Name": state.get("name", ""),
+        "Call Back Number": state.get("callback", ""),
+        "Service Address": state.get("service_address", ""),
+        "Job Description": state.get("job_description", ""),
+        "Source": "AI Phone Call",
+        "Call SID": state.get("call_sid", ""),
+        "Appointment Requested": state.get("timing", ""),
+        "Lead Status": "New Lead",
+        "Priority": state.get("priority", "STANDARD"),
+    }
+
+    appt_datetime = state.get("appointment")
+    if appt_datetime and "T" in appt_datetime:
+        airtable_fields["Appointment Date and Time"] = appt_datetime
+
+    airtable_result = airtable_create_record(airtable_fields)
+    print("Airtable result:", airtable_result)
+
+    send_email(subject, body, to_email=notify_email, reply_to=reply_to_email)
+
+
+# ─────────────────────────────────────────────
+# Contractor status monitoring
+# ─────────────────────────────────────────────
+
+def update_contractor_status(to_number: str, fields: dict):
+    try:
+        contractor = get_contractor_by_twilio_number(to_number)
+        if not contractor:
+            print("STATUS UPDATE SKIPPED | no contractor for", to_number)
+            return
+
+        record_id = (
+            contractor.get("Contractor Record ID", "").strip()
+            or contractor.get("airtable_id", "").strip()
+        )
+        if not record_id:
+            print("STATUS UPDATE SKIPPED | no record_id for", to_number)
+            return
+
+        fields["Last Call Time"] = datetime.now(timezone.utc).isoformat()
+        result = airtable_update_record(record_id, fields)
+        print("STATUS UPDATED |", to_number, "|", list(fields.keys()), "| result:", result.get("ok"))
+        return result
+
+    except Exception as e:
+        print("STATUS UPDATE ERROR |", str(e))
+        pass
+
+
  
+def run_sms_claude(system_prompt: str, messages: list, user_message: str) -> str:
+    """
+    Run a Claude turn for SMS conversation.
+    Shorter responses than phone — SMS needs to be concise.
+    """
+    try:
+        api_key = os.getenv("ANTHROPIC_API_KEY", "").strip()
+        client = anthropic.Anthropic(api_key=api_key)
+ 
+        messages_to_send = messages + [{"role": "user", "content": user_message}]
+ 
+        response = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=150,  # Keep SMS responses short
+            system=system_prompt,
+            messages=messages_to_send,
+        )
+        return response.content[0].text.strip()
+    except Exception as e:
+        print("SMS CLAUDE ERROR |", e)
+        return None
+ 
+ 
+def build_sms_system_prompt(contractor: dict, state: dict) -> str:
+    """
+    System prompt for SMS intake — shorter and more text-friendly than phone.
+    """
+    business_name = (contractor.get("Business Name") or "our office").strip()
+ 
+    name = (state.get("name") or "").strip()
+    service_address = (state.get("service_address") or "").strip()
+    job_description = (state.get("job_description") or "").strip()
+    timing = (state.get("timing") or "").strip()
+ 
+    already = []
+    needed = []
+ 
+    if name: already.append(f"Name: {name}")
+    else: needed.append("full name")
+ 
+    if service_address: already.append(f"Address: {service_address}")
+    else: needed.append("full service address with zip code")
+ 
+    if job_description: already.append(f"Job: {job_description}")
+    else: needed.append("what work they need done")
+ 
+    if timing: already.append(f"Timing: {timing}")
+    else: needed.append("when they need it")
+ 
+    already_str = "\n".join(f"- {x}" for x in already) if already else "Nothing yet"
+    needed_str = "\n".join(f"- {x}" for x in needed) if needed else "All collected"
+ 
+    return f"""You are a friendly SMS intake assistant for {business_name}.
+Collect four pieces of info via text message to send a booking link.
+ 
+ALREADY COLLECTED:
+{already_str}
+ 
+STILL NEEDED:
+{needed_str}
+ 
+RULES:
+- This is SMS — keep ALL responses under 160 characters when possible
+- Never use line breaks in responses — single flowing sentence only
+- Ask for ONE piece of info at a time
+- Accept the first answer given — never ask follow-ups
+- For address: accept whatever they give, you will validate it
+- If they say emergency (flood, burst pipe, no heat): reply exactly EMERGENCY
+- If all four pieces collected: reply exactly INTAKE_COMPLETE followed by JSON on next line
+- Be warm but extremely brief — this is text not email
+ 
+WHEN COMPLETE output exactly:
+INTAKE_COMPLETE
+{{"name": "...", "service_address": "...", "job_description": "...", "timing": "...", "priority": "STANDARD"}}"""
+
+
+# ─────────────────────────────────────────────
+# Basic routes
+# ─────────────────────────────────────────────
+
+@app.get("/")
+def home():
+    return jsonify({"status": "running", "message": "MME AI bot is live"})
+
+
+@app.get("/health")
+def health():
+    redis_ok = False
+    if redis_client:
+        try:
+            redis_client.ping()
+            redis_ok = True
+        except Exception as e:
+            print("Redis health check failed:", e)
+
+    return jsonify({
+        "status": "ok" if redis_ok else "degraded",
+        "redis_connected": redis_ok,
+    }), 200 if redis_ok else 500
+
 @app.route("/sms", methods=["POST"])
 def sms():
     """
@@ -308,223 +517,8 @@ def sms():
         f"<Response><Message>{reply}</Message></Response>",
         mimetype="text/xml"
     )
-
-
-def send_fallback_sms(to_number: str, body: str) -> dict:
-    try:
-        from_number = os.getenv("TWILIO_PHONE_NUMBER") or os.getenv("TWILIO_FROM_NUMBER")
-        if not from_number:
-            return {"ok": False, "error": "missing_twilio_from_number"}
-        return send_sms(to_number=to_number, body=body, from_number=from_number)
-    except Exception as e:
-        print("FALLBACK SMS ERROR |", str(e))
-        return {"ok": False, "error": str(e)}
-
-
-# ─────────────────────────────────────────────
-# Email helpers
-# ─────────────────────────────────────────────
-
-def send_email(subject: str, body: str, to_email: str = None, reply_to: str = None):
-    api_key = os.getenv("SENDGRID_API_KEY")
-    from_email = os.getenv("FROM_EMAIL")
-    default_to = os.getenv("TO_EMAIL")
-    to_email = (to_email or default_to or "").strip()
-
-    if not api_key:
-        raise Exception("Missing SENDGRID_API_KEY env var")
-    if not from_email:
-        raise Exception("Missing FROM_EMAIL env var")
-    if not to_email:
-        raise Exception("Missing TO_EMAIL env var")
-
-    message = Mail(
-        from_email=from_email,
-        to_emails=to_email,
-        subject=subject,
-        plain_text_content=body,
-    )
-    if reply_to:
-        message.reply_to = reply_to
-
-    sg = SendGridAPIClient(api_key)
-    response = sg.send(message)
-    print("EMAIL SENT:", response.status_code)
-
-
-def send_intake_summary(state: dict, notify_email: str = None, reply_to_email: str = None):
-    print("EMAIL DEBUG | entering send_intake_summary")
-
-    email_api_key = os.environ.get("SENDGRID_API_KEY", "")
-    print("EMAIL DEBUG | SENDGRID KEY EXISTS:", bool(email_api_key))
-    print("EMAIL DEBUG | SENDGRID KEY PREFIX:", email_api_key[:5] if email_api_key else "MISSING")
-
-    subject = "New MME AI Bot Intake"
-    body = (
-        "New lead captured by MME AI Bot:\n\n"
-        f"Client Name: {state.get('name', '')}\n"
-        f"Service Address: {state.get('service_address', '')}\n"
-        f"Job Requested: {state.get('job_description', '')}\n"
-        f"Timing Needed: {state.get('timing', '')}\n"
-        f"Callback Number: {state.get('callback', '')}\n"
-        f"Call SID: {state.get('call_sid', '')}\n"
-    )
-
-    airtable_fields = {
-        "Client Name": state.get("name", ""),
-        "Call Back Number": state.get("callback", ""),
-        "Service Address": state.get("service_address", ""),
-        "Job Description": state.get("job_description", ""),
-        "Source": "AI Phone Call",
-        "Call SID": state.get("call_sid", ""),
-        "Appointment Requested": state.get("timing", ""),
-        "Lead Status": "New Lead",
-        "Priority": state.get("priority", "STANDARD"),
-    }
-
-    appt_datetime = state.get("appointment")
-    if appt_datetime and "T" in appt_datetime:
-        airtable_fields["Appointment Date and Time"] = appt_datetime
-
-    airtable_result = airtable_create_record(airtable_fields)
-    print("Airtable result:", airtable_result)
-
-    send_email(subject, body, to_email=notify_email, reply_to=reply_to_email)
-
-
-# ─────────────────────────────────────────────
-# Contractor status monitoring
-# ─────────────────────────────────────────────
-
-def update_contractor_status(to_number: str, fields: dict):
-    try:
-        contractor = get_contractor_by_twilio_number(to_number)
-        if not contractor:
-            print("STATUS UPDATE SKIPPED | no contractor for", to_number)
-            return
-
-        record_id = (
-            contractor.get("Contractor Record ID", "").strip()
-            or contractor.get("airtable_id", "").strip()
-        )
-        if not record_id:
-            print("STATUS UPDATE SKIPPED | no record_id for", to_number)
-            return
-
-        fields["Last Call Time"] = datetime.now(timezone.utc).isoformat()
-        result = airtable_update_record(record_id, fields)
-        print("STATUS UPDATED |", to_number, "|", list(fields.keys()), "| result:", result.get("ok"))
-        return result
-
-    except Exception as e:
-        print("STATUS UPDATE ERROR |", str(e))
-        pass
-
-ction to main.py
-# Place it after update_contractor_status() and before the routes
-# =============================================================================
- 
-def run_sms_claude(system_prompt: str, messages: list, user_message: str) -> str:
-    """
-    Run a Claude turn for SMS conversation.
-    Shorter responses than phone — SMS needs to be concise.
-    """
-    try:
-        api_key = os.getenv("ANTHROPIC_API_KEY", "").strip()
-        client = anthropic.Anthropic(api_key=api_key)
- 
-        messages_to_send = messages + [{"role": "user", "content": user_message}]
- 
-        response = client.messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=150,  # Keep SMS responses short
-            system=system_prompt,
-            messages=messages_to_send,
-        )
-        return response.content[0].text.strip()
-    except Exception as e:
-        print("SMS CLAUDE ERROR |", e)
-        return None
  
  
-def build_sms_system_prompt(contractor: dict, state: dict) -> str:
-    """
-    System prompt for SMS intake — shorter and more text-friendly than phone.
-    """
-    business_name = (contractor.get("Business Name") or "our office").strip()
- 
-    name = (state.get("name") or "").strip()
-    service_address = (state.get("service_address") or "").strip()
-    job_description = (state.get("job_description") or "").strip()
-    timing = (state.get("timing") or "").strip()
- 
-    already = []
-    needed = []
- 
-    if name: already.append(f"Name: {name}")
-    else: needed.append("full name")
- 
-    if service_address: already.append(f"Address: {service_address}")
-    else: needed.append("full service address with zip code")
- 
-    if job_description: already.append(f"Job: {job_description}")
-    else: needed.append("what work they need done")
- 
-    if timing: already.append(f"Timing: {timing}")
-    else: needed.append("when they need it")
- 
-    already_str = "\n".join(f"- {x}" for x in already) if already else "Nothing yet"
-    needed_str = "\n".join(f"- {x}" for x in needed) if needed else "All collected"
- 
-    return f"""You are a friendly SMS intake assistant for {business_name}.
-Collect four pieces of info via text message to send a booking link.
- 
-ALREADY COLLECTED:
-{already_str}
- 
-STILL NEEDED:
-{needed_str}
- 
-RULES:
-- This is SMS — keep ALL responses under 160 characters when possible
-- Never use line breaks in responses — single flowing sentence only
-- Ask for ONE piece of info at a time
-- Accept the first answer given — never ask follow-ups
-- For address: accept whatever they give, you will validate it
-- If they say emergency (flood, burst pipe, no heat): reply exactly EMERGENCY
-- If all four pieces collected: reply exactly INTAKE_COMPLETE followed by JSON on next line
-- Be warm but extremely brief — this is text not email
- 
-WHEN COMPLETE output exactly:
-INTAKE_COMPLETE
-{{"name": "...", "service_address": "...", "job_description": "...", "timing": "...", "priority": "STANDARD"}}"""
-
-
-# ─────────────────────────────────────────────
-# Basic routes
-# ─────────────────────────────────────────────
-
-@app.get("/")
-def home():
-    return jsonify({"status": "running", "message": "MME AI bot is live"})
-
-
-@app.get("/health")
-def health():
-    redis_ok = False
-    if redis_client:
-        try:
-            redis_client.ping()
-            redis_ok = True
-        except Exception as e:
-            print("Redis health check failed:", e)
-
-    return jsonify({
-        "status": "ok" if redis_ok else "degraded",
-        "redis_connected": redis_ok,
-    }), 200 if redis_ok else 500
-
-
 @app.get("/test-email")
 def test_email():
     try:
