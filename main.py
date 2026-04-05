@@ -580,8 +580,7 @@ def sms():
 
         booking_link = build_cal_booking_link(contractor, sms_state)
 
-        if booking_link:
-            first_name = sms_state.get('name', '').split()[0] if sms_state.get('name') else ''
+                first_name = sms_state.get('name', '').split()[0] if sms_state.get('name') else ''
 
                 if booking_link:
                     reply = (
@@ -634,6 +633,7 @@ def sms():
                     f"<Response><Message>{reply}</Message></Response>",
                     mimetype="text/xml"
                 )
+                  
 
     # Handle emergency
     if "EMERGENCY" in reply.upper():
