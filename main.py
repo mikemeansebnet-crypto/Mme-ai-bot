@@ -210,9 +210,12 @@ def send_email(subject: str, body: str, to_email: str = None, reply_to: str = No
 
 def send_intake_summary(state: dict, notify_email: str = None, reply_to_email: str = None):
     print("EMAIL DEBUG | entering send_intake_summary")
-    email_api_key = os.environ.get("SENDGRID_API_KEY", "")
-    print("EMAIL DEBUG | SENDGRID KEY EXISTS:", bool(email_api_key))
-    print("EMAIL DEBUG | SENDGRID KEY PREFIX:", email_api_key[:5] if email_api_key else "MISSING")
+
+    # ── Pull contractor from Airtable ──────────────────────────────────
+    contractor_number = state.get("contractor_key", "") or state.get("to_number", "")
+    contractor = get_contractor_by_twilio_number(contractor_number) or {}
+    notify_email = contractor.get("Notify Email") or notify_email or os.getenv("TO_EMAIL")
+    cal_booking_url = (contractor.get("Cal Booking URL") or "").strip()
 
     subject = "New MME AI Bot Intake"
     body = (
@@ -257,19 +260,17 @@ def send_intake_summary(state: dict, notify_email: str = None, reply_to_email: s
 
     # ── SMS booking link to customer ───────────────────────────────────
     customer_number = state.get("callback", "")
-    contractor_number = state.get("contractor_key", "") or state.get("to_number", "")
 
-    if customer_number and contractor_number:
+    if customer_number and contractor_number and cal_booking_url:
         try:
             import urllib.parse
             cal_params = urllib.parse.urlencode({
-                "c": contractor_number,
                 "name": state.get("name", ""),
                 "attendeePhoneNumber": customer_number,
                 "service_address": state.get("service_address", ""),
                 "job_description": state.get("job_description", ""),
             })
-            booking_link = f"https://mme-ai-bot.onrender.com/book?{cal_params}"
+            booking_link = f"{cal_booking_url}?{cal_params}"
             first_name = state.get("name", "there").split()[0]
             booking_msg = (
                 f"Hi {first_name}! Thanks for reaching out. "
@@ -292,8 +293,8 @@ def send_intake_summary(state: dict, notify_email: str = None, reply_to_email: s
             print("BOOKING LINK SMS ERROR |", e)
     else:
         print("BOOKING LINK SMS SKIPPED | customer:", customer_number,
-              "| contractor:", contractor_number)
-
+              "| contractor:", contractor_number,
+              "| cal_url:", cal_booking_url)
 
 # ─────────────────────────────────────────────
 # Contractor status monitoring
