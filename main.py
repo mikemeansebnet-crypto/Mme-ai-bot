@@ -216,8 +216,10 @@ def send_intake_summary(state: dict, notify_email: str = None, reply_to_email: s
     contractor = get_contractor_by_twilio_number(contractor_number) or {}
     notify_email = contractor.get("Notify Email") or notify_email or os.getenv("TO_EMAIL")
     cal_booking_url = (contractor.get("Cal Booking URL") or "").strip()
+    notify_sms = (contractor.get("Notify SMS") or "").strip()
+    business_name = (contractor.get("Business Name") or "Your business").strip()
 
-    subject = "New MME AI Bot Intake"
+    subject = f"New Lead — {state.get('name', 'Unknown')}"
     body = (
         "New lead captured by MME AI Bot:\n\n"
         f"Client Name: {state.get('name', '')}\n"
@@ -255,8 +257,35 @@ def send_intake_summary(state: dict, notify_email: str = None, reply_to_email: s
         state["lead_airtable_id"] = lead_id
         print("LEAD AIRTABLE ID SAVED |", lead_id)
 
-    # ── Email the contractor ───────────────────────────────────────────
+    # ── Email contractor ───────────────────────────────────────────────
     send_email(subject, body, to_email=notify_email, reply_to=reply_to_email)
+
+    # ── SMS notification to contractor ─────────────────────────────────
+    if notify_sms and contractor_number:
+        try:
+            from twilio.rest import Client as TwilioClient
+            twilio_client = TwilioClient(
+                os.getenv("TWILIO_ACCOUNT_SID"),
+                os.getenv("TWILIO_AUTH_TOKEN")
+            )
+            lead_msg = (
+                f"🔔 New Lead — {business_name}\n"
+                f"👤 {state.get('name', 'Unknown')}\n"
+                f"📍 {state.get('service_address', '')}\n"
+                f"🔧 {state.get('job_description', '')}\n"
+                f"⏰ {state.get('timing', '')}\n"
+                f"📞 {state.get('callback', '')}"
+            )
+            twilio_client.messages.create(
+                body=lead_msg,
+                from_=contractor_number,
+                to=notify_sms
+            )
+            print("CONTRACTOR SMS SENT |", notify_sms)
+        except Exception as e:
+            print("CONTRACTOR SMS ERROR |", e)
+    else:
+        print("CONTRACTOR SMS SKIPPED | notify_sms:", notify_sms)
 
     # ── SMS booking link to customer ───────────────────────────────────
     customer_number = state.get("callback", "")
@@ -273,11 +302,9 @@ def send_intake_summary(state: dict, notify_email: str = None, reply_to_email: s
             booking_link = f"{cal_booking_url}?{cal_params}"
             first_name = state.get("name", "there").split()[0]
             booking_msg = (
-                f"Hi {first_name}! Thanks for reaching out. "
+                f"Hi {first_name}! Thanks for reaching out to {business_name}. "
                 f"Click here to book your appointment: {booking_link}"
             )
-
-            from twilio.rest import Client as TwilioClient
             twilio_client = TwilioClient(
                 os.getenv("TWILIO_ACCOUNT_SID"),
                 os.getenv("TWILIO_AUTH_TOKEN")
@@ -288,7 +315,6 @@ def send_intake_summary(state: dict, notify_email: str = None, reply_to_email: s
                 to=customer_number
             )
             print("BOOKING LINK SMS SENT |", customer_number, "|", booking_link)
-
         except Exception as e:
             print("BOOKING LINK SMS ERROR |", e)
     else:
@@ -296,6 +322,7 @@ def send_intake_summary(state: dict, notify_email: str = None, reply_to_email: s
               "| contractor:", contractor_number,
               "| cal_url:", cal_booking_url)
 
+        
 # ─────────────────────────────────────────────
 # Contractor status monitoring
 # ─────────────────────────────────────────────
