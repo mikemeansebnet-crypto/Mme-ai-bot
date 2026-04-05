@@ -210,7 +210,6 @@ def send_email(subject: str, body: str, to_email: str = None, reply_to: str = No
 
 def send_intake_summary(state: dict, notify_email: str = None, reply_to_email: str = None):
     print("EMAIL DEBUG | entering send_intake_summary")
-
     email_api_key = os.environ.get("SENDGRID_API_KEY", "")
     print("EMAIL DEBUG | SENDGRID KEY EXISTS:", bool(email_api_key))
     print("EMAIL DEBUG | SENDGRID KEY PREFIX:", email_api_key[:5] if email_api_key else "MISSING")
@@ -247,15 +246,53 @@ def send_intake_summary(state: dict, notify_email: str = None, reply_to_email: s
 
     airtable_result = airtable_create_record(airtable_fields)
     print("Airtable result:", airtable_result)
- 
-    # Save the new lead's Airtable record ID back to state
-    # so finalize_lead() can use it for the photo upload link
+
     if airtable_result.get("ok"):
         lead_id = airtable_result.get("data", {}).get("id", "")
         state["lead_airtable_id"] = lead_id
         print("LEAD AIRTABLE ID SAVED |", lead_id)
 
+    # ── Email the contractor ───────────────────────────────────────────
     send_email(subject, body, to_email=notify_email, reply_to=reply_to_email)
+
+    # ── SMS booking link to customer ───────────────────────────────────
+    customer_number = state.get("callback", "")
+    contractor_number = state.get("contractor_key", "") or state.get("to_number", "")
+
+    if customer_number and contractor_number:
+        try:
+            import urllib.parse
+            cal_params = urllib.parse.urlencode({
+                "c": contractor_number,
+                "name": state.get("name", ""),
+                "attendeePhoneNumber": customer_number,
+                "service_address": state.get("service_address", ""),
+                "job_description": state.get("job_description", ""),
+            })
+            booking_link = f"https://mme-ai-bot.onrender.com/book?{cal_params}"
+            first_name = state.get("name", "there").split()[0]
+            booking_msg = (
+                f"Hi {first_name}! Thanks for reaching out. "
+                f"Click here to book your appointment: {booking_link}"
+            )
+
+            from twilio.rest import Client as TwilioClient
+            twilio_client = TwilioClient(
+                os.getenv("TWILIO_ACCOUNT_SID"),
+                os.getenv("TWILIO_AUTH_TOKEN")
+            )
+            twilio_client.messages.create(
+                body=booking_msg,
+                from_=contractor_number,
+                to=customer_number
+            )
+            print("BOOKING LINK SMS SENT |", customer_number, "|", booking_link)
+
+        except Exception as e:
+            print("BOOKING LINK SMS ERROR |", e)
+    else:
+        print("BOOKING LINK SMS SKIPPED | customer:", customer_number,
+              "| contractor:", contractor_number)
 
 
 # ─────────────────────────────────────────────
