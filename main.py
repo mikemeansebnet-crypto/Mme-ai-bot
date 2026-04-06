@@ -260,7 +260,7 @@ def send_intake_summary(state: dict, notify_email: str = None, reply_to_email: s
     print("CONTRACTOR FIELDS |", list(contractor.keys()))  # TEMP DEBUG
     print("CAL URL RAW |", contractor.get("CAL Booking URL"))  # TEMP DEBUG
     notify_email = contractor.get("Notify Email") or notify_email or os.getenv("TO_EMAIL")
-    CAL_booking_url = (contractor.get("CAL Booking URL") or "").strip()
+    cal_booking_url = (contractor.get("CAL Booking URL") or "").strip()
     notify_sms = (contractor.get("Notify SMS") or "").strip()
     business_name = (contractor.get("Business Name") or "Your business").strip()
 
