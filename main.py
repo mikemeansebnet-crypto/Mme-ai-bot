@@ -65,7 +65,7 @@ from reportlab.lib.enums import TA_RIGHT, TA_CENTER
 app = Flask(__name__)
 app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "dev-secret-change-me")
 
-from app.app.conversation import conversation_bp, init_sock
+from app.app.conversation import conversation_bp, init_sock, get_claude_client
 app.register_blueprint(conversation_bp)
 init_sock(app)
 
