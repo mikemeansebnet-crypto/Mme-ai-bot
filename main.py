@@ -239,8 +239,8 @@ def send_intake_summary(state: dict, notify_email: str = None, reply_to_email: s
     print("CAL URL RAW |", contractor.get("Cal Booking URL"))  # TEMP DEBUG
 
     # ── Pull contractor from Airtable ──────────────────────────────────
-    contractor_number = state.get("contractor_key", "") or state.get("to_number", "")
-    contractor = get_contractor_by_twilio_number(contractor_number) or {}
+    twilio_number = state.get("contractor_key", "") or state.get("to_number", "")
+    contractor = get_contractor_by_twilio_number(twilio_number) or {}
     notify_email = contractor.get("Notify Email") or notify_email or os.getenv("TO_EMAIL")
     cal_booking_url = (contractor.get("Cal Booking URL") or "").strip()
     notify_sms = (contractor.get("Notify SMS") or "").strip()
@@ -288,7 +288,7 @@ def send_intake_summary(state: dict, notify_email: str = None, reply_to_email: s
     send_email(subject, body, to_email=notify_email, reply_to=reply_to_email)
 
     # ── SMS notification to contractor ─────────────────────────────────
-    if notify_sms and contractor_number:
+    if notify_sms and twilio_number:
         try:
             from twilio.rest import Client as TwilioClient
             twilio_client = TwilioClient(
@@ -305,7 +305,7 @@ def send_intake_summary(state: dict, notify_email: str = None, reply_to_email: s
             )
             twilio_client.messages.create(
                 body=lead_msg,
-                from_=contractor_number,
+                from_=twilio_number,
                 to=notify_sms
             )
             print("CONTRACTOR SMS SENT |", notify_sms)
@@ -317,7 +317,7 @@ def send_intake_summary(state: dict, notify_email: str = None, reply_to_email: s
     # ── SMS booking link to customer ───────────────────────────────────
     customer_number = state.get("callback", "")
 
-    if customer_number and contractor_number and cal_booking_url:
+    if customer_number and twilio_number and cal_booking_url:
         try:
             import urllib.parse
             cal_params = urllib.parse.urlencode({
@@ -338,7 +338,7 @@ def send_intake_summary(state: dict, notify_email: str = None, reply_to_email: s
             )
             twilio_client.messages.create(
                 body=booking_msg,
-                from_=contractor_number,
+                from_=twilio_number,
                 to=customer_number
             )
             print("BOOKING LINK SMS SENT |", customer_number, "|", booking_link)
@@ -346,7 +346,7 @@ def send_intake_summary(state: dict, notify_email: str = None, reply_to_email: s
             print("BOOKING LINK SMS ERROR |", e)
     else:
         print("BOOKING LINK SMS SKIPPED | customer:", customer_number,
-              "| contractor:", contractor_number,
+              "| contractor:", twilio_number,
               "| cal_url:", cal_booking_url)
 
         
