@@ -105,6 +105,15 @@ def flush_sms_state():
         return jsonify({"ok": True, "flushed": key})
     return jsonify({"ok": False, "error": "no redis"})
 
+@app.route("/flush-all-sms", methods=["GET"])
+def flush_all_sms():
+    if redis_client:
+        keys = redis_client.keys("sms_state:*")
+        if keys:
+            redis_client.delete(*keys)
+        return jsonify({"ok": True, "cleared": len(keys)})
+    return jsonify({"ok": False, "error": "no redis"})
+
 
 def address_in_service_area(contractor: dict, lat: float, lon: float) -> tuple[bool, str]:
     try:
