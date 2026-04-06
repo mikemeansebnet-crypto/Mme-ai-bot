@@ -306,13 +306,11 @@ def send_intake_summary(state: dict, notify_email: str = None, reply_to_email: s
     send_email(subject, body, to_email=notify_email, reply_to=reply_to_email)
 
     # ── SMS notification to contractor ─────────────────────────────────
+    twilio_account_sid = os.getenv("TWILIO_ACCOUNT_SID")
+    twilio_auth_token = os.getenv("TWILIO_AUTH_TOKEN")
+
     if notify_sms and twilio_number:
         try:
-            from twilio.rest import Client as TwilioClient
-            twilio_client = TwilioClient(
-                os.getenv("TWILIO_ACCOUNT_SID"),
-                os.getenv("TWILIO_AUTH_TOKEN")
-            )
             lead_msg = (
                 f"🔔 New Lead — {business_name}\n"
                 f"👤 {state.get('name', 'Unknown')}\n"
@@ -321,7 +319,7 @@ def send_intake_summary(state: dict, notify_email: str = None, reply_to_email: s
                 f"⏰ {state.get('timing', '')}\n"
                 f"📞 {state.get('callback', '')}"
             )
-            twilio_client.messages.create(
+            Client(twilio_account_sid, twilio_auth_token).messages.create(
                 body=lead_msg,
                 from_=twilio_number,
                 to=notify_sms
@@ -337,7 +335,6 @@ def send_intake_summary(state: dict, notify_email: str = None, reply_to_email: s
 
     if customer_number and twilio_number and cal_booking_url:
         try:
-            import urllib.parse
             cal_params = urllib.parse.urlencode({
                 "name": state.get("name", ""),
                 "attendeePhoneNumber": customer_number,
@@ -350,11 +347,7 @@ def send_intake_summary(state: dict, notify_email: str = None, reply_to_email: s
                 f"Hi {first_name}! Thanks for reaching out to {business_name}. "
                 f"Click here to book your appointment: {booking_link}"
             )
-            twilio_client = TwilioClient(
-                os.getenv("TWILIO_ACCOUNT_SID"),
-                os.getenv("TWILIO_AUTH_TOKEN")
-            )
-            twilio_client.messages.create(
+            Client(twilio_account_sid, twilio_auth_token).messages.create(
                 body=booking_msg,
                 from_=twilio_number,
                 to=customer_number
@@ -366,6 +359,9 @@ def send_intake_summary(state: dict, notify_email: str = None, reply_to_email: s
         print("BOOKING LINK SMS SKIPPED | customer:", customer_number,
               "| contractor:", twilio_number,
               "| cal_url:", cal_booking_url)
+
+
+   
 
         
 # ─────────────────────────────────────────────
