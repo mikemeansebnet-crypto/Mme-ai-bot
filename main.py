@@ -561,7 +561,7 @@ def handle_contractor_photo_estimate(request, contractor, from_number, to_number
             print(f"PHOTO DOWNLOAD ERROR | {i} |", e)
 
     if not photo_urls:
-        tc = TwilioClient(twilio_account_sid, twilio_auth_token)
+        tc = Client(twilio_account_sid, twilio_auth_token)
         tc.messages.create(
             body="Could not download your photos. Please try again.",
             from_=to_number,
@@ -629,7 +629,7 @@ def handle_contractor_photo_estimate(request, contractor, from_number, to_number
 
     except Exception as e:
         print("CLAUDE VISION ERROR |", e)
-        tc = TwilioClient(twilio_account_sid, twilio_auth_token)
+        tc = Client(twilio_account_sid, twilio_auth_token)
         tc.messages.create(
             body="Photos received but estimate generation failed. Please try again.",
             from_=to_number,
@@ -815,7 +815,7 @@ def handle_contractor_photo_estimate(request, contractor, from_number, to_number
 
     except Exception as e:
         print("PDF GENERATION ERROR |", e)
-        tc = TwilioClient(twilio_account_sid, twilio_auth_token)
+        tc = Client(twilio_account_sid, twilio_auth_token)
         tc.messages.create(
             body="Photos analyzed but PDF generation failed. Please try again.",
             from_=to_number,
@@ -841,7 +841,7 @@ def handle_contractor_photo_estimate(request, contractor, from_number, to_number
 
     # ── Step 6: Text PDF link to contractor ───────────────────────────
     try:
-        tc = TwilioClient(twilio_account_sid, twilio_auth_token)
+        tc = Client(twilio_account_sid, twilio_auth_token)
 
         if pdf_url:
             msg = (
