@@ -512,6 +512,367 @@ def book_redirect():
     
     return redirect(f"{base_url}{separator}{query_string}" if query_string else base_url, code=302)
 
+# ─────────────────────────────────────────────
+# Contractor on-site photo estimate flow
+# ─────────────────────────────────────────────
+
+def handle_contractor_photo_estimate(request, contractor, from_number, to_number, num_media):
+    """
+    Contractor texts photos to their own Twilio number.
+    Claude analyzes photos → generates PDF estimate → texts link back to contractor.
+    """
+    import urllib.parse
+    import io
+    import time
+    from reportlab.lib.pagesizes import letter
+    from reportlab.lib import colors
+    from reportlab.lib.units import inch
+    from reportlab.lib.styles import ParagraphStyle
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+    from reportlab.lib.enums import TA_RIGHT, TA_CENTER
+    from datetime import date
+
+    business_name = (contractor.get("Business Name") or "Your Business").strip()
+    notify_sms = (contractor.get("Notify SMS") or "").strip()
+    timestamp = int(time.time())
+
+    print(f"CONTRACTOR PHOTO ESTIMATE | from: {from_number} | photos: {num_media}")
+
+    # ── Step 1: Download photos from Twilio MMS ────────────────────────
+    photo_urls = []
+    cloudinary_urls = []
+    twilio_account_sid = os.getenv("TWILIO_ACCOUNT_SID")
+    twilio_auth_token = os.getenv("TWILIO_AUTH_TOKEN")
+
+    for i in range(num_media):
+        media_url = request.form.get(f"MediaUrl{i}", "")
+        if not media_url:
+            continue
+        try:
+            r = requests.get(media_url, auth=(twilio_account_sid, twilio_auth_token), timeout=15)
+            r.raise_for_status()
+            photo_urls.append(r.content)
+            print(f"PHOTO DOWNLOADED | {i+1} of {num_media} | {len(r.content)} bytes")
+        except Exception as e:
+            print(f"PHOTO DOWNLOAD ERROR | {i} |", e)
+
+    if not photo_urls:
+        tc = TwilioClient(twilio_account_sid, twilio_auth_token)
+        tc.messages.create(
+            body="Could not download your photos. Please try again.",
+            from_=to_number,
+            to=from_number
+        )
+        return Response("<Response></Response>", mimetype="text/xml")
+
+    # ── Step 2: Upload to Cloudinary ───────────────────────────────────
+    estimate_id = f"est_{timestamp}"
+    for i, photo_data in enumerate(photo_urls):
+        result = upload_photo(photo_data, estimate_id, i + 1)
+        if result.get("ok"):
+            cloudinary_urls.append(result["url"])
+            print(f"CLOUDINARY SAVED | photo {i+1} | {result['url']}")
+
+    # ── Step 3: Send photos to Claude Vision for analysis ──────────────
+    try:
+        claude_client = get_claude_client()
+
+        # Build image content blocks
+        image_blocks = []
+        for photo_data in photo_urls[:5]:  # max 5
+            b64 = base64.standard_b64encode(photo_data).decode("utf-8")
+            image_blocks.append({
+                "type": "image",
+                "source": {
+                    "type": "base64",
+                    "media_type": "image/jpeg",
+                    "data": b64
+                }
+            })
+
+        image_blocks.append({
+            "type": "text",
+            "text": (
+                f"You are an expert landscaping and contractor estimator for {business_name}. "
+                "Analyze these job site photos carefully. "
+                "Identify the scope of work needed and provide a detailed estimate breakdown. "
+                "Respond ONLY in this exact JSON format with no other text:\n"
+                "{\n"
+                '  "job_summary": "Brief description of what you see",\n'
+                '  "line_items": [\n'
+                '    {"description": "Item name", "detail": "Brief detail", "qty": "1", "unit": "Job", "amount": 150.00},\n'
+                '    {"description": "Item name", "detail": "Brief detail", "qty": "500", "unit": "sq ft", "amount": 200.00}\n'
+                "  ],\n"
+                '  "notes": "Any important notes about the job"\n'
+                "}"
+            )
+        })
+
+        vision_response = claude_client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=1500,
+            messages=[{"role": "user", "content": image_blocks}]
+        )
+
+        raw = vision_response.content[0].text.strip()
+        print("CLAUDE VISION RESPONSE |", raw[:200])
+
+        # Parse JSON
+        json_match = re.search(r"\{.*\}", raw, re.DOTALL)
+        if not json_match:
+            raise ValueError("No JSON in Claude response")
+        estimate_data = json.loads(json_match.group(0))
+
+    except Exception as e:
+        print("CLAUDE VISION ERROR |", e)
+        tc = TwilioClient(twilio_account_sid, twilio_auth_token)
+        tc.messages.create(
+            body="Photos received but estimate generation failed. Please try again.",
+            from_=to_number,
+            to=from_number
+        )
+        return Response("<Response></Response>", mimetype="text/xml")
+
+    # ── Step 4: Generate PDF estimate ──────────────────────────────────
+    try:
+        dark_green = colors.HexColor('#1A4D2E')
+        med_green = colors.HexColor('#2E7D4F')
+        light_green = colors.HexColor('#E8F5ED')
+        accent = colors.HexColor('#F4A828')
+        light_gray = colors.HexColor('#F7F7F7')
+        mid_gray = colors.HexColor('#CCCCCC')
+        dark_gray = colors.HexColor('#333333')
+        white = colors.white
+
+        pdf_buffer = io.BytesIO()
+        doc = SimpleDocTemplate(pdf_buffer, pagesize=letter,
+            leftMargin=0.65*inch, rightMargin=0.65*inch,
+            topMargin=0.6*inch, bottomMargin=0.65*inch)
+
+        story = []
+
+        # Header
+        header_data = [[
+            Paragraph(f"<font color='white'><b>{business_name}</b></font>",
+                ParagraphStyle('h', fontName='Helvetica-Bold', fontSize=20,
+                    textColor=white, leading=24)),
+            Paragraph("<font color='white'>ESTIMATE</font>",
+                ParagraphStyle('e', fontName='Helvetica-Bold', fontSize=28,
+                    textColor=accent, alignment=TA_RIGHT, leading=32))
+        ]]
+        header_table = Table(header_data, colWidths=[4.2*inch, 2.8*inch])
+        header_table.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,-1), dark_green),
+            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+            ('TOPPADDING', (0,0), (-1,-1), 18),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 18),
+            ('LEFTPADDING', (0,0), (0,0), 18),
+            ('RIGHTPADDING', (-1,0), (-1,0), 18),
+        ]))
+        story.append(header_table)
+        story.append(Spacer(1, 16))
+
+        # Meta
+        today = date.today()
+        meta = Table([[
+            Paragraph(f"<b>Date:</b> {today.strftime('%B %d, %Y')}",
+                ParagraphStyle('m', fontName='Helvetica', fontSize=10, textColor=dark_gray)),
+            Paragraph(f"<b>Estimate ID:</b> {estimate_id}",
+                ParagraphStyle('m2', fontName='Helvetica', fontSize=10,
+                    textColor=dark_gray, alignment=TA_RIGHT)),
+        ]], colWidths=[3.5*inch, 3.7*inch])
+        meta.setStyle(TableStyle([
+            ('TOPPADDING', (0,0), (-1,-1), 4),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+        ]))
+        story.append(meta)
+        story.append(Spacer(1, 8))
+
+        # Job summary
+        story.append(Paragraph("JOB SUMMARY",
+            ParagraphStyle('sh', fontName='Helvetica-Bold', fontSize=9,
+                textColor=med_green, spaceBefore=8, spaceAfter=6, letterSpacing=1.5)))
+        story.append(Paragraph(estimate_data.get("job_summary", ""),
+            ParagraphStyle('jb', fontName='Helvetica', fontSize=10,
+                textColor=dark_gray, leading=14, spaceAfter=12)))
+
+        # Line items table
+        border = {'style': 'SINGLE', 'size': 1, 'color': mid_gray}
+        col_widths = [3.8*inch, 0.9*inch, 0.8*inch, 1.5*inch]
+
+        header_row = [
+            Paragraph("DESCRIPTION", ParagraphStyle('lh', fontName='Helvetica-Bold',
+                fontSize=8, textColor=white)),
+            Paragraph("QTY", ParagraphStyle('lh2', fontName='Helvetica-Bold',
+                fontSize=8, textColor=white, alignment=TA_RIGHT)),
+            Paragraph("UNIT", ParagraphStyle('lh3', fontName='Helvetica-Bold',
+                fontSize=8, textColor=white, alignment=TA_RIGHT)),
+            Paragraph("AMOUNT", ParagraphStyle('lh4', fontName='Helvetica-Bold',
+                fontSize=8, textColor=white, alignment=TA_RIGHT)),
+        ]
+
+        rows = [header_row]
+        subtotal = 0.0
+        line_items = estimate_data.get("line_items", [])
+
+        for item in line_items:
+            amt = float(item.get("amount", 0))
+            subtotal += amt
+            rows.append([
+                [Paragraph(item.get("description", ""),
+                    ParagraphStyle('d', fontName='Helvetica-Bold', fontSize=10, textColor=dark_gray)),
+                 Paragraph(item.get("detail", ""),
+                    ParagraphStyle('dt', fontName='Helvetica', fontSize=8,
+                        textColor=colors.HexColor('#666666'), leading=12))],
+                Paragraph(str(item.get("qty", "1")),
+                    ParagraphStyle('q', fontName='Helvetica', fontSize=10,
+                        textColor=dark_gray, alignment=TA_RIGHT)),
+                Paragraph(str(item.get("unit", "")),
+                    ParagraphStyle('u', fontName='Helvetica', fontSize=10,
+                        textColor=dark_gray, alignment=TA_RIGHT)),
+                Paragraph(f"${amt:,.2f}",
+                    ParagraphStyle('a', fontName='Helvetica', fontSize=10,
+                        textColor=dark_gray, alignment=TA_RIGHT)),
+            ])
+
+        line_table = Table(rows, colWidths=col_widths, repeatRows=1)
+        ts = TableStyle([
+            ('BACKGROUND', (0,0), (-1,0), dark_green),
+            ('TOPPADDING', (0,0), (-1,-1), 10),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 10),
+            ('LEFTPADDING', (0,0), (0,-1), 12),
+            ('RIGHTPADDING', (-1,0), (-1,-1), 12),
+            ('VALIGN', (0,0), (-1,-1), 'TOP'),
+        ])
+        for i in range(1, len(rows)):
+            bg = light_green if i % 2 == 0 else white
+            ts.add('BACKGROUND', (0,i), (-1,i), bg)
+            ts.add('LINEBELOW', (0,i), (-1,i), 0.5, mid_gray)
+        line_table.setStyle(ts)
+        story.append(line_table)
+
+        # Totals
+        totals = Table([
+            [Paragraph("Subtotal", ParagraphStyle('tl', fontName='Helvetica',
+                fontSize=10, textColor=dark_gray, alignment=TA_RIGHT)),
+             Paragraph(f"${subtotal:,.2f}", ParagraphStyle('tv', fontName='Helvetica',
+                fontSize=10, textColor=dark_gray, alignment=TA_RIGHT))],
+            [Paragraph("<b>TOTAL (Estimate)</b>", ParagraphStyle('tl2',
+                fontName='Helvetica-Bold', fontSize=12, textColor=white, alignment=TA_RIGHT)),
+             Paragraph(f"<b>${subtotal:,.2f}</b>", ParagraphStyle('tv2',
+                fontName='Helvetica-Bold', fontSize=14, textColor=accent, alignment=TA_RIGHT))],
+        ], colWidths=[5.5*inch, 1.5*inch])
+        totals.setStyle(TableStyle([
+            ('TOPPADDING', (0,0), (-1,-1), 8),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 8),
+            ('RIGHTPADDING', (0,0), (-1,-1), 12),
+            ('BACKGROUND', (0,0), (-1,0), light_gray),
+            ('BACKGROUND', (0,1), (-1,1), dark_green),
+        ]))
+        story.append(totals)
+        story.append(Spacer(1, 16))
+
+        # Notes
+        notes = estimate_data.get("notes", "")
+        if notes:
+            story.append(Paragraph("NOTES",
+                ParagraphStyle('nh', fontName='Helvetica-Bold', fontSize=9,
+                    textColor=med_green, letterSpacing=1.5, spaceAfter=6)))
+            story.append(Paragraph(notes,
+                ParagraphStyle('nb', fontName='Helvetica', fontSize=9,
+                    textColor=dark_gray, leading=14)))
+            story.append(Spacer(1, 12))
+
+        # Disclaimer
+        story.append(Paragraph(
+            "⚠️  This is a ballpark estimate based on photos only. "
+            "Final pricing may vary after on-site inspection. "
+            "Adjust amounts as needed before sending to customer.",
+            ParagraphStyle('disc', fontName='Helvetica', fontSize=8,
+                textColor=colors.HexColor('#888888'), leading=12)))
+
+        # Footer
+        story.append(Spacer(1, 16))
+        footer = Table([[
+            Paragraph(f"{business_name}  •  Professional Contractor Services",
+                ParagraphStyle('ft', fontName='Helvetica', fontSize=8,
+                    textColor=white, alignment=TA_CENTER))
+        ]], colWidths=[7.2*inch])
+        footer.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,-1), dark_green),
+            ('TOPPADDING', (0,0), (-1,-1), 10),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 10),
+        ]))
+        story.append(footer)
+
+        doc.build(story)
+        pdf_bytes = pdf_buffer.getvalue()
+        print(f"PDF GENERATED | {len(pdf_bytes)} bytes")
+
+    except Exception as e:
+        print("PDF GENERATION ERROR |", e)
+        tc = TwilioClient(twilio_account_sid, twilio_auth_token)
+        tc.messages.create(
+            body="Photos analyzed but PDF generation failed. Please try again.",
+            from_=to_number,
+            to=from_number
+        )
+        return Response("<Response></Response>", mimetype="text/xml")
+
+    # ── Step 5: Upload PDF to Cloudinary ───────────────────────────────
+    try:
+        pdf_public_id = f"contractoros/estimates/{estimate_id}/estimate"
+        pdf_result = cloudinary.uploader.upload(
+            pdf_bytes,
+            public_id=pdf_public_id,
+            resource_type="raw",
+            format="pdf",
+            overwrite=True,
+        )
+        pdf_url = pdf_result.get("secure_url")
+        print("PDF UPLOADED TO CLOUDINARY |", pdf_url)
+    except Exception as e:
+        print("PDF CLOUDINARY UPLOAD ERROR |", e)
+        pdf_url = None
+
+    # ── Step 6: Text PDF link to contractor ───────────────────────────
+    try:
+        tc = TwilioClient(twilio_account_sid, twilio_auth_token)
+
+        if pdf_url:
+            msg = (
+                f"✅ Estimate ready — {business_name}\n"
+                f"📋 {estimate_data.get('job_summary', '')[:80]}\n"
+                f"💰 Total: ${subtotal:,.2f}\n\n"
+                f"Review & adjust PDF here:\n{pdf_url}\n\n"
+                f"Forward to customer when ready."
+            )
+        else:
+            # PDF upload failed — send the line items as text fallback
+            items_text = "\n".join([
+                f"• {i.get('description')}: ${float(i.get('amount',0)):,.2f}"
+                for i in line_items
+            ])
+            msg = (
+                f"✅ Estimate — {business_name}\n"
+                f"{estimate_data.get('job_summary', '')[:80]}\n\n"
+                f"{items_text}\n\n"
+                f"💰 Total: ${subtotal:,.2f}\n"
+                f"(PDF upload failed — review and send manually)"
+            )
+
+        tc.messages.create(
+            body=msg,
+            from_=to_number,
+            to=from_number
+        )
+        print("ESTIMATE SMS SENT TO CONTRACTOR |", from_number)
+
+    except Exception as e:
+        print("ESTIMATE SMS ERROR |", e)
+
+    return Response("<Response></Response>", mimetype="text/xml")
+
 
 # ─────────────────────────────────────────────
 # SMS
@@ -551,6 +912,14 @@ def sms():
         print("SMS CONTRACTOR LOOKUP FAILED:", e)
  
     business_name = (contractor.get("Business Name") or "our office").strip()
+
+    # ── Contractor photo estimate flow ─────────────────────────────
+    notify_sms = (contractor.get("Notify SMS") or "").strip()
+    num_media = int(request.form.get("NumMedia", 0))
+    if from_number == notify_sms and num_media > 0:
+        return handle_contractor_photo_estimate(request, contractor, from_number, to_number, num_media)
+
+
  
     # Load or initialize SMS conversation state from Redis
     sms_state_key = f"sms_state:{to_number}:{from_number}"
