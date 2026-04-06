@@ -8,7 +8,7 @@ import math
 import time
 import base64
 import urllib.parse
-from datetime import datetime, timezone
+from datetime import datetime, timezone, date
 
 from flask import Flask, request, jsonify, Response, session, redirect
 from flask import render_template_string
@@ -48,8 +48,6 @@ from app.app.photo_service import (
 # ── Standard library & PDF imports ────────────────────────────────
 import urllib.parse
 import io
-import time
-from datetime import date
 
 # ── ReportLab PDF generation ───────────────────────────────────────
 from reportlab.lib.pagesizes import letter
