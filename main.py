@@ -84,6 +84,17 @@ def haversine_miles(lat1, lon1, lat2, lon2) -> float:
     )
     return r * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
+# ─────────────────────────────────────────────
+# Cache management
+# ─────────────────────────────────────────────
+@app.route("/flush-contractor-cache/<twilio_number>", methods=["GET"])
+def flush_contractor_cache(twilio_number):
+    cache_key = f"mmeai:contractor_cache:{twilio_number}"
+    if redis_client:
+        redis_client.delete(cache_key)
+        return jsonify({"ok": True, "flushed": cache_key})
+    return jsonify({"ok": False, "error": "no redis"})
+
 
 def address_in_service_area(contractor: dict, lat: float, lon: float) -> tuple[bool, str]:
     try:
