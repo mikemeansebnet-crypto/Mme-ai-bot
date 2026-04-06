@@ -9,6 +9,8 @@ import math
 import time
 import base64
 import urllib.parse
+import cloudinary
+import cloudinary.uploader
 from datetime import datetime, timezone, date
 
 from flask import Flask, request, jsonify, Response, session, redirect
