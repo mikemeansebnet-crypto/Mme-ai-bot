@@ -253,13 +253,12 @@ def send_email(subject: str, body: str, to_email: str = None, reply_to: str = No
 
 def send_intake_summary(state: dict, notify_email: str = None, reply_to_email: str = None):
     print("EMAIL DEBUG | entering send_intake_summary")
-    contractor = get_contractor_by_twilio_number(contractor_number) or {}
-    print("CONTRACTOR FIELDS |", list(contractor.keys()))  # TEMP DEBUG
-    print("CAL URL RAW |", contractor.get("Cal Booking URL"))  # TEMP DEBUG
 
     # ── Pull contractor from Airtable ──────────────────────────────────
     twilio_number = state.get("contractor_key", "") or state.get("to_number", "")
     contractor = get_contractor_by_twilio_number(twilio_number) or {}
+    print("CONTRACTOR FIELDS |", list(contractor.keys()))  # TEMP DEBUG
+    print("CAL URL RAW |", contractor.get("Cal Booking URL"))  # TEMP DEBUG
     notify_email = contractor.get("Notify Email") or notify_email or os.getenv("TO_EMAIL")
     cal_booking_url = (contractor.get("Cal Booking URL") or "").strip()
     notify_sms = (contractor.get("Notify SMS") or "").strip()
