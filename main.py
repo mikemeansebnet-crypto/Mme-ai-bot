@@ -95,6 +95,19 @@ def flush_contractor_cache(twilio_number):
         return jsonify({"ok": True, "flushed": cache_key})
     return jsonify({"ok": False, "error": "no redis"})
 
+@app.route("/flush-sms-state/<to_number>/<from_number>", methods=["GET"])
+def flush_sms_state(to_number, from_number):
+    key = f"sms_state:{to_number}:{from_number}"
+    if redis_client:
+        redis_client.delete(key)
+        return jsonify({"ok": True, "flushed": key})
+    return jsonify({"ok": False, "error": "no redis"})
+```
+
+Then hit:
+```
+https://mme-ai-bot.onrender.com/flush-sms-state/+12408686702/+17632132731
+
 
 def address_in_service_area(contractor: dict, lat: float, lon: float) -> tuple[bool, str]:
     try:
