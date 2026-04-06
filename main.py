@@ -44,6 +44,20 @@ from app.app.photo_service import (
     build_photo_upload_link,
 )
 
+# ── Standard library & PDF imports ────────────────────────────────
+import urllib.parse
+import io
+import time
+from datetime import date
+
+# ── ReportLab PDF generation ───────────────────────────────────────
+from reportlab.lib.pagesizes import letter
+from reportlab.lib import colors
+from reportlab.lib.units import inch
+from reportlab.lib.styles import ParagraphStyle
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.lib.enums import TA_RIGHT, TA_CENTER
+
 # ─────────────────────────────────────────────
 # App setup
 # ─────────────────────────────────────────────
@@ -521,17 +535,7 @@ def handle_contractor_photo_estimate(request, contractor, from_number, to_number
     Contractor texts photos to their own Twilio number.
     Claude analyzes photos → generates PDF estimate → texts link back to contractor.
     """
-    import urllib.parse
-    import io
-    import time
-    from reportlab.lib.pagesizes import letter
-    from reportlab.lib import colors
-    from reportlab.lib.units import inch
-    from reportlab.lib.styles import ParagraphStyle
-    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
-    from reportlab.lib.enums import TA_RIGHT, TA_CENTER
-    from datetime import date
-
+   
     business_name = (contractor.get("Business Name") or "Your Business").strip()
     notify_sms = (contractor.get("Notify SMS") or "").strip()
     timestamp = int(time.time())
