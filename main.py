@@ -6,6 +6,7 @@ import os
 import json
 import math
 import time
+import base64
 import urllib.parse
 from datetime import datetime, timezone
 
