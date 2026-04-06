@@ -258,9 +258,9 @@ def send_intake_summary(state: dict, notify_email: str = None, reply_to_email: s
     twilio_number = state.get("contractor_key", "") or state.get("to_number", "")
     contractor = get_contractor_by_twilio_number(twilio_number) or {}
     print("CONTRACTOR FIELDS |", list(contractor.keys()))  # TEMP DEBUG
-    print("CAL URL RAW |", contractor.get("Cal Booking URL"))  # TEMP DEBUG
+    print("CAL URL RAW |", contractor.get("CAL Booking URL"))  # TEMP DEBUG
     notify_email = contractor.get("Notify Email") or notify_email or os.getenv("TO_EMAIL")
-    cal_booking_url = (contractor.get("Cal Booking URL") or "").strip()
+    CAL_booking_url = (contractor.get("CAL Booking URL") or "").strip()
     notify_sms = (contractor.get("Notify SMS") or "").strip()
     business_name = (contractor.get("Business Name") or "Your business").strip()
 
