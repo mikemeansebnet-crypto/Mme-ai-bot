@@ -37,3 +37,4 @@ anthropic
 flask-sock
 cloudinary
 Pillow
+reportlab
