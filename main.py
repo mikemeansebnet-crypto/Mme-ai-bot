@@ -843,6 +843,14 @@ def handle_contractor_photo_estimate(request, contractor, from_number, to_number
         pdf_bytes = pdf_buffer.getvalue()
         print(f"PDF GENERATED | {len(pdf_bytes)} bytes")
 
+
+        doc.build(story)
+        pdf_bytes = pdf_buffer.getvalue()
+        print(f"PDF GENERATED | {len(pdf_bytes)} bytes")
+        if len(pdf_bytes) < 10000:
+            print("PDF TOO SMALL | likely a build error — check line items")
+            print("LINE ITEMS RAW |", estimate_data.get("line_items"))
+
     except Exception as e:
         print("PDF GENERATION ERROR |", e)
         tc = Client(twilio_account_sid, twilio_auth_token)
