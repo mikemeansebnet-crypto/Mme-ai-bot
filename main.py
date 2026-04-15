@@ -560,7 +560,7 @@ def book_redirect():
 # Contractor on-site photo estimate flow
 # ─────────────────────────────────────────────
 
-def handle_contractor_photo_estimate(request, contractor, from_number, to_number, num_media):
+def handle_contractor_photo_estimate(request, contractor, from_number, to_number, num_media, incoming_msg=""):
     """
     Contractor texts photos to their own Twilio number.
     Claude analyzes photos → generates PDF estimate → texts link back to contractor.
@@ -627,9 +627,13 @@ def handle_contractor_photo_estimate(request, contractor, from_number, to_number
         image_blocks.append({
             "type": "text",
             "text": (
-                f"You are an expert landscaping and contractor estimator for {business_name}. "
-                "Analyze these job site photos carefully. "
-                "Identify the scope of work needed and provide a detailed estimate breakdown. "
+                f"You are an expert contractor estimator for {business_name}. "
+                f"The contractor's description of the job: '{incoming_msg}'. "
+                "Analyze these job site photos carefully along with the description. "
+                "Identify the scope of work and provide a detailed estimate breakdown. "
+                "IMPORTANT: Always provide realistic contractor pricing for each line item. "
+                "Base prices on current US labor and material rates. Never use 0 as an amount. "
+                "If a photo is unclear, use the contractor's text description to guide your estimate. "
                 "Respond ONLY in this exact JSON format with no other text:\n"
                 "{\n"
                 '  "job_summary": "Brief description of what you see",\n'
@@ -957,7 +961,7 @@ def sms():
     notify_sms = (contractor.get("Notify SMS") or "").strip()
     num_media = int(request.form.get("NumMedia", 0))
     if from_number == notify_sms and num_media > 0:
-        return handle_contractor_photo_estimate(request, contractor, from_number, to_number, num_media)
+        return handle_contractor_photo_estimate(request, contractor, from_number, to_number, num_media, incoming_msg)
 
 
  
