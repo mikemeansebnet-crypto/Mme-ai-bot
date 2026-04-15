@@ -839,11 +839,7 @@ def handle_contractor_photo_estimate(request, contractor, from_number, to_number
         ]))
         story.append(footer)
 
-        doc.build(story)
-        pdf_bytes = pdf_buffer.getvalue()
-        print(f"PDF GENERATED | {len(pdf_bytes)} bytes")
-
-
+        
         doc.build(story)
         pdf_bytes = pdf_buffer.getvalue()
         print(f"PDF GENERATED | {len(pdf_bytes)} bytes")
@@ -853,6 +849,7 @@ def handle_contractor_photo_estimate(request, contractor, from_number, to_number
 
     except Exception as e:
         print("PDF GENERATION ERROR |", e)
+        traceback.print_exc()
         tc = Client(twilio_account_sid, twilio_auth_token)
         tc.messages.create(
             body="Photos analyzed but PDF generation failed. Please try again.",
@@ -871,7 +868,8 @@ def handle_contractor_photo_estimate(request, contractor, from_number, to_number
             format="pdf",
             overwrite=True,
         )
-        pdf_url = pdf_result.get("secure_url")
+        raw_url = pdf_result.get("secure_url", "")
+        pdf_url = raw_url.replace("/upload/", "/upload/fl_attachment/")
         print("PDF UPLOADED TO CLOUDINARY |", pdf_url)
     except Exception as e:
         print("PDF CLOUDINARY UPLOAD ERROR |", e)
