@@ -844,7 +844,14 @@ def handle_contractor_photo_estimate(request, contractor, from_number, to_number
         story.append(footer)
 
         
-        doc.build(story)
+        import traceback
+        try:
+            doc.build(story)
+        except Exception as build_err:
+            print("DOC BUILD ERROR |", build_err)
+            traceback.print_exc()
+            raise
+
         pdf_bytes = pdf_buffer.getvalue()
         print(f"PDF GENERATED | {len(pdf_bytes)} bytes")
         if len(pdf_bytes) < 10000:
@@ -861,6 +868,7 @@ def handle_contractor_photo_estimate(request, contractor, from_number, to_number
             to=from_number
         )
         return Response("<Response></Response>", mimetype="text/xml")
+        
 
     # ── Step 5: Upload PDF to Cloudinary ───────────────────────────────
     try:
