@@ -756,12 +756,11 @@ def handle_contractor_photo_estimate(request, contractor, from_number, to_number
         for item in line_items:
             amt = float(item.get("amount", 0))
             subtotal += amt
+            desc_text = f"<b>{item.get('description', '')}</b><br/><font size=8 color='#666666'>{item.get('detail', '')}</font>"
             rows.append([
-                [Paragraph(item.get("description", ""),
-                    ParagraphStyle('d', fontName='Helvetica-Bold', fontSize=10, textColor=dark_gray)),
-                 Paragraph(item.get("detail", ""),
-                    ParagraphStyle('dt', fontName='Helvetica', fontSize=8,
-                        textColor=colors.HexColor('#666666'), leading=12))],
+                Paragraph(desc_text,
+                    ParagraphStyle('d', fontName='Helvetica', fontSize=10,
+                        textColor=dark_gray, leading=14)),
                 Paragraph(str(item.get("qty", "1")),
                     ParagraphStyle('q', fontName='Helvetica', fontSize=10,
                         textColor=dark_gray, alignment=TA_RIGHT)),
@@ -772,6 +771,7 @@ def handle_contractor_photo_estimate(request, contractor, from_number, to_number
                     ParagraphStyle('a', fontName='Helvetica', fontSize=10,
                         textColor=dark_gray, alignment=TA_RIGHT)),
             ])
+                        
 
         line_table = Table(rows, colWidths=col_widths, repeatRows=1)
         ts = TableStyle([
@@ -843,7 +843,8 @@ def handle_contractor_photo_estimate(request, contractor, from_number, to_number
         ]))
         story.append(footer)
 
-        
+        print(f"STORY LENGTH | {len(story)} elements")
+
         import traceback
         try:
             doc.build(story)
