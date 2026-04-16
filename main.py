@@ -673,194 +673,166 @@ def handle_contractor_photo_estimate(request, contractor, from_number, to_number
 
     # ── Step 4: Generate PDF estimate ──────────────────────────────────
     try:
-        dark_green = colors.HexColor('#1A4D2E')
-        med_green = colors.HexColor('#2E7D4F')
-        light_green = colors.HexColor('#E8F5ED')
-        accent = colors.HexColor('#F4A828')
-        light_gray = colors.HexColor('#F7F7F7')
-        mid_gray = colors.HexColor('#CCCCCC')
-        dark_gray = colors.HexColor('#333333')
-        white = colors.white
+        from reportlab.pdfgen import canvas
+        from reportlab.lib.pagesizes import letter
 
         pdf_buffer = io.BytesIO()
-        doc = SimpleDocTemplate(pdf_buffer, pagesize=letter,
-            leftMargin=0.65*inch, rightMargin=0.65*inch,
-            topMargin=0.6*inch, bottomMargin=0.65*inch)
+        c = canvas.Canvas(pdf_buffer, pagesize=letter)
+        width, height = letter
+        y = height - 60
 
-        story = []
+        # Header bar
+        c.setFillColor(colors.HexColor('#1A4D2E'))
+        c.rect(0, height - 80, width, 80, fill=1, stroke=0)
+        c.setFillColor(colors.white)
+        c.setFont("Helvetica-Bold", 22)
+        c.drawString(40, height - 50, business_name)
+        c.setFont("Helvetica-Bold", 28)
+        c.setFillColor(colors.HexColor('#F4A828'))
+        c.drawRightString(width - 40, height - 52, "ESTIMATE")
 
-        # Header
-        header_data = [[
-            Paragraph(f"<font color='white'><b>{business_name}</b></font>",
-                ParagraphStyle('h', fontName='Helvetica-Bold', fontSize=20,
-                    textColor=white, leading=24)),
-            Paragraph("<font color='white'>ESTIMATE</font>",
-                ParagraphStyle('e', fontName='Helvetica-Bold', fontSize=28,
-                    textColor=accent, alignment=TA_RIGHT, leading=32))
-        ]]
-        header_table = Table(header_data, colWidths=[4.2*inch, 2.8*inch])
-        header_table.setStyle(TableStyle([
-            ('BACKGROUND', (0,0), (-1,-1), dark_green),
-            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-            ('TOPPADDING', (0,0), (-1,-1), 18),
-            ('BOTTOMPADDING', (0,0), (-1,-1), 18),
-            ('LEFTPADDING', (0,0), (0,0), 18),
-            ('RIGHTPADDING', (-1,0), (-1,0), 18),
-        ]))
-        story.append(header_table)
-        story.append(Spacer(1, 16))
+        y = height - 110
 
-        # Meta
-        today = date.today()
-        meta = Table([[
-            Paragraph(f"<b>Date:</b> {today.strftime('%B %d, %Y')}",
-                ParagraphStyle('m', fontName='Helvetica', fontSize=10, textColor=dark_gray)),
-            Paragraph(f"<b>Estimate ID:</b> {estimate_id}",
-                ParagraphStyle('m2', fontName='Helvetica', fontSize=10,
-                    textColor=dark_gray, alignment=TA_RIGHT)),
-        ]], colWidths=[3.5*inch, 3.7*inch])
-        meta.setStyle(TableStyle([
-            ('TOPPADDING', (0,0), (-1,-1), 4),
-            ('BOTTOMPADDING', (0,0), (-1,-1), 4),
-        ]))
-        story.append(meta)
-        story.append(Spacer(1, 8))
+        # Date and estimate ID
+        c.setFillColor(colors.HexColor('#333333'))
+        c.setFont("Helvetica", 10)
+        c.drawString(40, y, f"Date: {date.today().strftime('%B %d, %Y')}")
+        c.drawRightString(width - 40, y, f"Estimate ID: {estimate_id}")
+        y -= 20
+
+        # Divider
+        c.setStrokeColor(colors.HexColor('#2E7D4F'))
+        c.setLineWidth(1.5)
+        c.line(40, y, width - 40, y)
+        y -= 20
 
         # Job summary
-        story.append(Paragraph("JOB SUMMARY",
-            ParagraphStyle('sh', fontName='Helvetica-Bold', fontSize=9,
-                textColor=med_green, spaceBefore=8, spaceAfter=6, letterSpacing=1.5)))
-        story.append(Paragraph(estimate_data.get("job_summary", ""),
-            ParagraphStyle('jb', fontName='Helvetica', fontSize=10,
-                textColor=dark_gray, leading=14, spaceAfter=12)))
+        c.setFont("Helvetica-Bold", 10)
+        c.setFillColor(colors.HexColor('#2E7D4F'))
+        c.drawString(40, y, "JOB SUMMARY")
+        y -= 16
+        c.setFont("Helvetica", 10)
+        c.setFillColor(colors.HexColor('#333333'))
 
-        # Line items table
-        border = {'style': 'SINGLE', 'size': 1, 'color': mid_gray}
-        col_widths = [3.8*inch, 0.9*inch, 0.8*inch, 1.5*inch]
+        # Word wrap job summary
+        summary = estimate_data.get("job_summary", "")
+        words = summary.split()
+        line = ""
+        for word in words:
+            test = f"{line} {word}".strip()
+            if c.stringWidth(test, "Helvetica", 10) < width - 80:
+                line = test
+            else:
+                c.drawString(40, y, line)
+                y -= 14
+                line = word
+        if line:
+            c.drawString(40, y, line)
+        y -= 24
 
-        header_row = [
-            Paragraph("DESCRIPTION", ParagraphStyle('lh', fontName='Helvetica-Bold',
-                fontSize=8, textColor=white)),
-            Paragraph("QTY", ParagraphStyle('lh2', fontName='Helvetica-Bold',
-                fontSize=8, textColor=white, alignment=TA_RIGHT)),
-            Paragraph("UNIT", ParagraphStyle('lh3', fontName='Helvetica-Bold',
-                fontSize=8, textColor=white, alignment=TA_RIGHT)),
-            Paragraph("AMOUNT", ParagraphStyle('lh4', fontName='Helvetica-Bold',
-                fontSize=8, textColor=white, alignment=TA_RIGHT)),
-        ]
+        # Line items header
+        c.setFillColor(colors.HexColor('#1A4D2E'))
+        c.rect(40, y - 4, width - 80, 22, fill=1, stroke=0)
+        c.setFillColor(colors.white)
+        c.setFont("Helvetica-Bold", 9)
+        c.drawString(48, y + 4, "DESCRIPTION")
+        c.drawRightString(width - 160, y + 4, "QTY")
+        c.drawRightString(width - 100, y + 4, "UNIT")
+        c.drawRightString(width - 44, y + 4, "AMOUNT")
+        y -= 26
 
-        rows = [header_row]
+        # Line items
         subtotal = 0.0
         line_items = estimate_data.get("line_items", [])
-
-        for item in line_items:
+        for i, item in enumerate(line_items):
             amt = float(item.get("amount", 0))
             subtotal += amt
-            desc_text = f"<b>{item.get('description', '')}</b><br/><font size=8 color='#666666'>{item.get('detail', '')}</font>"
-            rows.append([
-                Paragraph(desc_text,
-                    ParagraphStyle('d', fontName='Helvetica', fontSize=10,
-                        textColor=dark_gray, leading=14)),
-                Paragraph(str(item.get("qty", "1")),
-                    ParagraphStyle('q', fontName='Helvetica', fontSize=10,
-                        textColor=dark_gray, alignment=TA_RIGHT)),
-                Paragraph(str(item.get("unit", "")),
-                    ParagraphStyle('u', fontName='Helvetica', fontSize=10,
-                        textColor=dark_gray, alignment=TA_RIGHT)),
-                Paragraph(f"${amt:,.2f}",
-                    ParagraphStyle('a', fontName='Helvetica', fontSize=10,
-                        textColor=dark_gray, alignment=TA_RIGHT)),
-            ])
-                        
 
-        line_table = Table(rows, colWidths=col_widths, repeatRows=1)
-        ts = TableStyle([
-            ('BACKGROUND', (0,0), (-1,0), dark_green),
-            ('TOPPADDING', (0,0), (-1,-1), 10),
-            ('BOTTOMPADDING', (0,0), (-1,-1), 10),
-            ('LEFTPADDING', (0,0), (0,-1), 12),
-            ('RIGHTPADDING', (-1,0), (-1,-1), 12),
-            ('VALIGN', (0,0), (-1,-1), 'TOP'),
-        ])
-        for i in range(1, len(rows)):
-            bg = light_green if i % 2 == 0 else white
-            ts.add('BACKGROUND', (0,i), (-1,i), bg)
-            ts.add('LINEBELOW', (0,i), (-1,i), 0.5, mid_gray)
-        line_table.setStyle(ts)
-        story.append(line_table)
+            # Alternating row background
+            if i % 2 == 0:
+                c.setFillColor(colors.HexColor('#E8F5ED'))
+                c.rect(40, y - 6, width - 80, 20, fill=1, stroke=0)
 
-        # Totals
-        totals = Table([
-            [Paragraph("Subtotal", ParagraphStyle('tl', fontName='Helvetica',
-                fontSize=10, textColor=dark_gray, alignment=TA_RIGHT)),
-             Paragraph(f"${subtotal:,.2f}", ParagraphStyle('tv', fontName='Helvetica',
-                fontSize=10, textColor=dark_gray, alignment=TA_RIGHT))],
-            [Paragraph("<b>TOTAL (Estimate)</b>", ParagraphStyle('tl2',
-                fontName='Helvetica-Bold', fontSize=12, textColor=white, alignment=TA_RIGHT)),
-             Paragraph(f"<b>${subtotal:,.2f}</b>", ParagraphStyle('tv2',
-                fontName='Helvetica-Bold', fontSize=14, textColor=accent, alignment=TA_RIGHT))],
-        ], colWidths=[5.5*inch, 1.5*inch])
-        totals.setStyle(TableStyle([
-            ('TOPPADDING', (0,0), (-1,-1), 8),
-            ('BOTTOMPADDING', (0,0), (-1,-1), 8),
-            ('RIGHTPADDING', (0,0), (-1,-1), 12),
-            ('BACKGROUND', (0,0), (-1,0), light_gray),
-            ('BACKGROUND', (0,1), (-1,1), dark_green),
-        ]))
-        story.append(totals)
-        story.append(Spacer(1, 16))
+            c.setFillColor(colors.HexColor('#333333'))
+            c.setFont("Helvetica-Bold", 10)
+            c.drawString(48, y + 4, item.get("description", "")[:45])
+            c.setFont("Helvetica", 10)
+            c.drawRightString(width - 160, y + 4, str(item.get("qty", "1")))
+            c.drawRightString(width - 100, y + 4, str(item.get("unit", ""))[:10])
+            c.drawRightString(width - 44, y + 4, f"${amt:,.2f}")
+
+            # Detail text
+            y -= 16
+            c.setFont("Helvetica", 8)
+            c.setFillColor(colors.HexColor('#666666'))
+            detail = item.get("detail", "")[:80]
+            c.drawString(48, y, detail)
+            y -= 16
+
+        # Divider before total
+        y -= 8
+        c.setStrokeColor(colors.HexColor('#CCCCCC'))
+        c.setLineWidth(0.5)
+        c.line(40, y, width - 40, y)
+        y -= 18
+
+        # Total
+        c.setFillColor(colors.HexColor('#1A4D2E'))
+        c.rect(40, y - 6, width - 80, 26, fill=1, stroke=0)
+        c.setFillColor(colors.HexColor('#F4A828'))
+        c.setFont("Helvetica-Bold", 14)
+        c.drawRightString(width - 44, y + 6, f"${subtotal:,.2f}")
+        c.setFillColor(colors.white)
+        c.setFont("Helvetica-Bold", 11)
+        c.drawString(48, y + 6, "TOTAL ESTIMATE")
+        y -= 40
 
         # Notes
         notes = estimate_data.get("notes", "")
         if notes:
-            story.append(Paragraph("NOTES",
-                ParagraphStyle('nh', fontName='Helvetica-Bold', fontSize=9,
-                    textColor=med_green, letterSpacing=1.5, spaceAfter=6)))
-            story.append(Paragraph(notes,
-                ParagraphStyle('nb', fontName='Helvetica', fontSize=9,
-                    textColor=dark_gray, leading=14)))
-            story.append(Spacer(1, 12))
+            c.setFont("Helvetica-Bold", 9)
+            c.setFillColor(colors.HexColor('#2E7D4F'))
+            c.drawString(40, y, "NOTES")
+            y -= 14
+            c.setFont("Helvetica", 9)
+            c.setFillColor(colors.HexColor('#333333'))
+            words = notes.split()
+            line = ""
+            for word in words:
+                test = f"{line} {word}".strip()
+                if c.stringWidth(test, "Helvetica", 9) < width - 80:
+                    line = test
+                else:
+                    c.drawString(40, y, line)
+                    y -= 13
+                    line = word
+            if line:
+                c.drawString(40, y, line)
+            y -= 20
 
         # Disclaimer
-        story.append(Paragraph(
-            "⚠️  This is a ballpark estimate based on photos only. "
-            "Final pricing may vary after on-site inspection. "
-            "Adjust amounts as needed before sending to customer.",
-            ParagraphStyle('disc', fontName='Helvetica', fontSize=8,
-                textColor=colors.HexColor('#888888'), leading=12)))
+        c.setFont("Helvetica", 8)
+        c.setFillColor(colors.HexColor('#888888'))
+        c.drawString(40, y, "⚠ Ballpark estimate based on photos only. Final pricing may vary after on-site inspection.")
 
         # Footer
-        story.append(Spacer(1, 16))
-        footer = Table([[
-            Paragraph(f"{business_name}  •  Professional Contractor Services",
-                ParagraphStyle('ft', fontName='Helvetica', fontSize=8,
-                    textColor=white, alignment=TA_CENTER))
-        ]], colWidths=[7.2*inch])
-        footer.setStyle(TableStyle([
-            ('BACKGROUND', (0,0), (-1,-1), dark_green),
-            ('TOPPADDING', (0,0), (-1,-1), 10),
-            ('BOTTOMPADDING', (0,0), (-1,-1), 10),
-        ]))
-        story.append(footer)
+        c.setFillColor(colors.HexColor('#1A4D2E'))
+        c.rect(0, 0, width, 36, fill=1, stroke=0)
+        c.setFillColor(colors.white)
+        c.setFont("Helvetica", 9)
+        c.drawCentredString(width / 2, 13, f"{business_name}  •  Professional Contractor Services")
 
-        print(f"STORY LENGTH | {len(story)} elements")
-
-        import traceback
-        try:
-            doc.build(story)
-        except Exception as build_err:
-            print("DOC BUILD ERROR |", build_err)
-            traceback.print_exc()
-            raise
-
+        c.save()
         pdf_buffer.seek(0)
         pdf_bytes = pdf_buffer.read()
         print(f"PDF GENERATED | {len(pdf_bytes)} bytes")
+
         if len(pdf_bytes) < 10000:
             print("PDF TOO SMALL | likely a build error — check line items")
             print("LINE ITEMS RAW |", estimate_data.get("line_items"))
 
     except Exception as e:
+        import traceback
         print("PDF GENERATION ERROR |", e)
         traceback.print_exc()
         tc = Client(twilio_account_sid, twilio_auth_token)
@@ -870,8 +842,8 @@ def handle_contractor_photo_estimate(request, contractor, from_number, to_number
             to=from_number
         )
         return Response("<Response></Response>", mimetype="text/xml")
-        
-
+       
+      
     # ── Step 5: Upload PDF to Cloudinary ───────────────────────────────
     try:
         pdf_public_id = f"contractoros/estimates/{estimate_id}/estimate"
