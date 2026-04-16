@@ -827,9 +827,7 @@ def handle_contractor_photo_estimate(request, contractor, from_number, to_number
         pdf_bytes = pdf_buffer.read()
         print(f"PDF GENERATED | {len(pdf_bytes)} bytes")
 
-        if len(pdf_bytes) < 10000:
-            print("PDF TOO SMALL | likely a build error — check line items")
-            print("LINE ITEMS RAW |", estimate_data.get("line_items"))
+       
 
     except Exception as e:
         import traceback
