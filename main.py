@@ -48,6 +48,14 @@ from app.app.photo_service import (
     build_photo_upload_link,
 )
 
+from app.app.quickbooks_service import (
+    save_qb_tokens, get_valid_access_token, create_qb_invoice, 
+    is_qb_connected, QB_CLIENT_ID, QB_REDIRECT_URI, QB_AUTH_URL, 
+    QB_TOKEN_URL, QB_SCOPES, QB_CLIENT_SECRET,
+)
+from base64 import b64encode
+import secrets
+
 # ── Standard library & PDF imports ────────────────────────────────
 import urllib.parse
 import io
