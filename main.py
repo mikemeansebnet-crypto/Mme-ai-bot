@@ -206,7 +206,7 @@ def quickbooks_callback():
             <div class="card">
                 <div class="icon">✅</div>
                 <h1>QuickBooks Connected!</h1>
-                <p>ContractorOS is now linked to your QuickBooks Online account.
+                <p>CrewCachePro is now linked to your QuickBooks Online account.
                    Invoices will be created automatically when jobs are marked complete.</p>
             </div></body></html>
         ''')
