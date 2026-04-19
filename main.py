@@ -125,6 +125,178 @@ def flush_all_sms():
         return jsonify({"ok": True, "cleared": len(keys)})
     return jsonify({"ok": False, "error": "no redis"})
 
+"""
+# ── Step 1: Initiate QuickBooks OAuth connection ──────────────────────────
+@app.route("/quickbooks/connect", methods=["GET"])
+def quickbooks_connect():
+    state = secrets.token_urlsafe(16)
+    if redis_client:
+        redis_client.setex(f"qb_oauth_state:{state}", 600, "pending")
+ 
+    params = urllib.parse.urlencode({
+        "client_id":     QB_CLIENT_ID,
+        "redirect_uri":  QB_REDIRECT_URI,
+        "response_type": "code",
+        "scope":         QB_SCOPES,
+        "state":         state,
+    })
+    auth_url = f"{QB_AUTH_URL}?{params}"
+    print("QB OAUTH REDIRECT |", auth_url)
+    return redirect(auth_url, code=302)
+ 
+ 
+# ── Step 2: QuickBooks OAuth callback ─────────────────────────────────────
+@app.route("/quickbooks/callback", methods=["GET"])
+def quickbooks_callback():
+    code     = request.args.get("code", "")
+    state    = request.args.get("state", "")
+    realm_id = request.args.get("realmId", "")
+    error    = request.args.get("error", "")
+ 
+    if error:
+        print("QB OAUTH ERROR |", error)
+        return f"QuickBooks connection failed: {error}", 400
+ 
+    # Verify state
+    if redis_client:
+        stored = redis_client.get(f"qb_oauth_state:{state}")
+        if not stored:
+            print("QB OAUTH STATE MISMATCH |", state)
+            return "Invalid OAuth state — please try connecting again.", 400
+        redis_client.delete(f"qb_oauth_state:{state}")
+ 
+    # Exchange code for tokens
+    credentials = b64encode(f"{QB_CLIENT_ID}:{QB_CLIENT_SECRET}".encode()).decode()
+    headers = {
+        "Authorization": f"Basic {credentials}",
+        "Content-Type":  "application/x-www-form-urlencoded",
+        "Accept":        "application/json",
+    }
+    data = {
+        "grant_type":   "authorization_code",
+        "code":         code,
+        "redirect_uri": QB_REDIRECT_URI,
+    }
+    try:
+        r = requests.post(QB_TOKEN_URL, headers=headers, data=data, timeout=15)
+        if r.status_code != 200:
+            print("QB TOKEN EXCHANGE ERROR |", r.status_code, r.text)
+            return f"Token exchange failed: {r.text}", 400
+ 
+        token_data = r.json()
+        save_qb_tokens(
+            realm_id=realm_id,
+            access_token=token_data["access_token"],
+            refresh_token=token_data["refresh_token"],
+            expires_in=token_data.get("expires_in", 3600),
+        )
+        print("QB CONNECTED | realm_id:", realm_id)
+        return render_template_string('''
+            <!doctype html><html><head>
+            <meta name="viewport" content="width=device-width,initial-scale=1">
+            <style>
+                body{font-family:Arial,sans-serif;display:flex;align-items:center;
+                     justify-content:center;min-height:100vh;background:#f0f4f8;margin:0}
+                .card{background:#fff;border-radius:16px;padding:40px;text-align:center;
+                      max-width:400px;box-shadow:0 4px 24px rgba(0,0,0,.08)}
+                .icon{font-size:48px;margin-bottom:16px}
+                h1{color:#1A4D2E;margin:0 0 12px}
+                p{color:#555;line-height:1.6}
+            </style></head><body>
+            <div class="card">
+                <div class="icon">✅</div>
+                <h1>QuickBooks Connected!</h1>
+                <p>ContractorOS is now linked to your QuickBooks Online account.
+                   Invoices will be created automatically when jobs are marked complete.</p>
+            </div></body></html>
+        ''')
+    except Exception as e:
+        print("QB CALLBACK EXCEPTION |", e)
+        return f"Connection error: {e}", 500
+ 
+ 
+# ── Step 3: QuickBooks connection status ──────────────────────────────────
+@app.route("/quickbooks/status", methods=["GET"])
+def quickbooks_status():
+    connected = is_qb_connected()
+    return jsonify({
+        "connected": connected,
+        "message": "QuickBooks Online connected" if connected else "Not connected — visit /quickbooks/connect"
+    })
+ 
+ 
+# ── Step 4: Airtable webhook — auto-create invoice when job completed ─────
+@app.route("/airtable/job-complete", methods=["POST"])
+def airtable_job_complete():
+    \"""
+    Airtable automation calls this webhook when Job Status changes to 'Completed'.
+    Set up in Airtable: Automations > When record updated > Job Status = Completed
+    > Send webhook to: https://mme-ai-bot.onrender.com/airtable/job-complete
+    \"""
+    try:
+        data = request.get_json(force=True) or {}
+        print("AIRTABLE WEBHOOK | job complete |", data)
+ 
+        # Airtable sends the record fields in the webhook body
+        record  = data.get("record", {}) or data
+        fields  = record.get("fields", {}) or record
+ 
+        state = {
+            "name":            fields.get("Client Name", ""),
+            "service_address": fields.get("Service Address", ""),
+            "job_description": fields.get("Job Description", ""),
+            "callback":        fields.get("Call Back Number", ""),
+            "timing":          fields.get("Appointment Requested", ""),
+            "contractor_key":  fields.get("Contractor Twilio Number", ""),
+            "to_number":       fields.get("Contractor Twilio Number", ""),
+        }
+ 
+        if not state["name"]:
+            return jsonify({"ok": False, "error": "No client name in webhook payload"}), 400
+ 
+        # Create QuickBooks invoice
+        result = create_qb_invoice(state)
+        print("QB INVOICE RESULT |", result)
+ 
+        if result.get("ok"):
+            # SMS alert to contractor
+            contractor_number = state.get("contractor_key", "") or state.get("to_number", "")
+            notify_sms = ""
+            if contractor_number:
+                try:
+                    contractor = get_contractor_by_twilio_number(contractor_number) or {}
+                    notify_sms = (contractor.get("Notify SMS") or "").strip()
+                except Exception:
+                    pass
+ 
+            if notify_sms and contractor_number:
+                try:
+                    Client(
+                        os.getenv("TWILIO_ACCOUNT_SID"),
+                        os.getenv("TWILIO_AUTH_TOKEN")
+                    ).messages.create(
+                        body=(
+                            f"📋 Invoice Ready — {state['name']}\n"
+                            f"Job: {state['job_description']}\n"
+                            f"Invoice #{result.get('invoice_num', '')}\n"
+                            f"Review and set amount in QuickBooks, then send."
+                        ),
+                        from_=contractor_number,
+                        to=notify_sms
+                    )
+                    print("QB INVOICE SMS SENT |", notify_sms)
+                except Exception as e:
+                    print("QB INVOICE SMS ERROR |", e)
+ 
+            return jsonify({"ok": True, "invoice_id": result.get("invoice_id")}), 200
+        else:
+            return jsonify({"ok": False, "error": result.get("error")}), 500
+ 
+    except Exception as e:
+        print("AIRTABLE WEBHOOK ERROR |", e)
+        return jsonify({"ok": False, "error": str(e)}), 500
+"""
+
 
 def address_in_service_area(contractor: dict, lat: float, lon: float) -> tuple[bool, str]:
     try:
