@@ -242,7 +242,7 @@ def airtable_job_complete():
             "service_address": fields.get("Service Address", ""),
             "job_description": fields.get("Job Description", ""),
             "callback":        fields.get("Call Back Number", ""),
-            "timing":          fields.get("Appointment Requested", ""),
+            "timing":          fields.get("Appointment Date and Time", ""),
             "contractor_key":  fields.get("Contractor Twilio Number", ""),
             "to_number":       fields.get("Contractor Twilio Number", ""),
         }
