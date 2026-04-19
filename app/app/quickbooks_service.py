@@ -251,7 +251,7 @@ def create_qb_invoice(state: dict) -> dict:
             }
         ],
         "DocNumber": f"INV-{int(time.time())}",
-        "PrivateNote": f"Auto-created by ContractorOS from lead capture. Callback: {callback}",
+        "PrivateNote": f"Auto-created by CrewCachePro from lead capture. Callback: {callback}",
     }
 
     try:
