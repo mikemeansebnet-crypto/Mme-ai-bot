@@ -229,10 +229,6 @@ def quickbooks_status():
 @app.route("/airtable/job-complete", methods=["POST"])
 def airtable_job_complete():
     
-    Airtable automation calls this webhook when Job Status changes to 'Completed'.
-    Set up in Airtable: Automations > When record updated > Job Status = Completed
-    > Send webhook to: https://mme-ai-bot.onrender.com/airtable/job-complete
-    
     try:
         data = request.get_json(force=True) or {}
         print("AIRTABLE WEBHOOK | job complete |", data)
