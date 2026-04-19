@@ -125,7 +125,7 @@ def flush_all_sms():
         return jsonify({"ok": True, "cleared": len(keys)})
     return jsonify({"ok": False, "error": "no redis"})
 
-"""
+
 # ── Step 1: Initiate QuickBooks OAuth connection ──────────────────────────
 @app.route("/quickbooks/connect", methods=["GET"])
 def quickbooks_connect():
@@ -228,11 +228,11 @@ def quickbooks_status():
 # ── Step 4: Airtable webhook — auto-create invoice when job completed ─────
 @app.route("/airtable/job-complete", methods=["POST"])
 def airtable_job_complete():
-    \"""
+    
     Airtable automation calls this webhook when Job Status changes to 'Completed'.
     Set up in Airtable: Automations > When record updated > Job Status = Completed
     > Send webhook to: https://mme-ai-bot.onrender.com/airtable/job-complete
-    \"""
+    
     try:
         data = request.get_json(force=True) or {}
         print("AIRTABLE WEBHOOK | job complete |", data)
@@ -295,7 +295,7 @@ def airtable_job_complete():
     except Exception as e:
         print("AIRTABLE WEBHOOK ERROR |", e)
         return jsonify({"ok": False, "error": str(e)}), 500
-"""
+
 
 
 def address_in_service_area(contractor: dict, lat: float, lon: float) -> tuple[bool, str]:
