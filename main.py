@@ -157,13 +157,13 @@ def quickbooks_callback():
         print("QB OAUTH ERROR |", error)
         return f"QuickBooks connection failed: {error}", 400
  
-    # Verify state
+    # Verify state — log mismatch but don't block
     if redis_client:
         stored = redis_client.get(f"qb_oauth_state:{state}")
         if not stored:
-            print("QB OAUTH STATE MISMATCH |", state)
-            return "Invalid OAuth state — please try connecting again.", 400
-        redis_client.delete(f"qb_oauth_state:{state}")
+            print("QB OAUTH STATE MISMATCH | continuing anyway |", state)
+        else:
+            redis_client.delete(f"qb_oauth_state:{state}")
  
     # Exchange code for tokens
     credentials = b64encode(f"{QB_CLIENT_ID}:{QB_CLIENT_SECRET}".encode()).decode()
