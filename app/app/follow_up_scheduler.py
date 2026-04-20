@@ -49,6 +49,18 @@ def update_airtable_record(record_id, fields):
         json={"fields": fields}
     )
 
+def fetch_leads_needing_followup():
+    response = requests.get(AIRTABLE_URL, headers=HEADERS)
+    print(f"Airtable response: {response.status_code} - {response.text[:500]}")
+    return response.json().get("records", [])
+
+
+def run_follow_up_job():
+    print(f"[{datetime.now()}] Running follow-up job...")
+    records = fetch_leads_needing_followup()
+    print(f"Records found: {len(records)}")
+    ...
+
 
 
 def run_follow_up_job():
