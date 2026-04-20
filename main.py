@@ -608,6 +608,7 @@ def build_sms_system_prompt(contractor: dict, state: dict) -> str:
     service_address = (state.get("service_address") or "").strip()
     job_description = (state.get("job_description") or "").strip()
     timing = (state.get("timing") or "").strip()
+    email = (state.get("client_email") or "").strip()
  
     already = []
     needed = []
@@ -623,12 +624,14 @@ def build_sms_system_prompt(contractor: dict, state: dict) -> str:
  
     if timing: already.append(f"Timing: {timing}")
     else: needed.append("when they need it")
+
+    if email: already.append(f"Email: {email}")
  
     already_str = "\n".join(f"- {x}" for x in already) if already else "Nothing yet"
     needed_str = "\n".join(f"- {x}" for x in needed) if needed else "All collected"
  
     return f"""You are a friendly SMS intake assistant for {business_name}.
-Collect four pieces of info via text message to send a booking link.
+Collect five pieces of info via text message to send a booking link.
 
 ALREADY COLLECTED:
 {already_str}
