@@ -132,7 +132,7 @@ def refresh_qb_token(refresh_token: str) -> dict | None:
 # QuickBooks Customer Lookup / Create
 # ─────────────────────────────────────────────
 
-def find_or_create_qb_customer(access_token: str, realm_id: str, name: str, phone: str = "", address: str = "") -> str | None:
+def find_or_create_qb_customer(access_token: str, realm_id: str, name: str, phone: str = "", address: str = "", email: str = "") -> str | None:
     """
     Find existing QuickBooks customer by name or create new one.
     Returns QuickBooks customer ID or None on failure.
@@ -173,15 +173,15 @@ def find_or_create_qb_customer(access_token: str, realm_id: str, name: str, phon
     customer_payload = {
         "DisplayName": name,
         "PrimaryPhone": {"FreeFormNumber": phone} if phone else None,
+        "PrimaryEmailAddr": {"Address": email} if email else None,
         "BillAddr": {
-            "Line1":                street,
-            "City":                 city,
+            "Line1": street,
+            "City":  city,
             "CountrySubDivisionCode": state,
-            "PostalCode":           zipcode,
-            "Country":              "US",
+            "PostalCode": zipcode,
+            "Country": "US",
         } if street else None,
     }
-    # Remove None values
     customer_payload = {k: v for k, v in customer_payload.items() if v is not None}
 
     try:
@@ -209,19 +209,17 @@ def find_or_create_qb_customer(access_token: str, realm_id: str, name: str, phon
 # ─────────────────────────────────────────────
 
 def create_qb_invoice(state: dict) -> dict:
-    """
-    Create a QuickBooks Online invoice from a completed lead state.
-    Returns {"ok": True, "invoice_id": "...", "invoice_url": "..."} or {"ok": False, "error": "..."}
-    """
     access_token, realm_id = get_valid_access_token()
     if not access_token:
-        return {"ok": False, "error": "QuickBooks not connected — visit /quickbooks/connect"}
+        return {"ok": False, "error": "QuickBooks not connected"}
 
     name        = state.get("name", "Unknown Customer")
     address     = state.get("service_address", "")
     job_desc    = state.get("job_description", "")
     callback    = state.get("callback", "")
     timing      = state.get("timing", "")
+    email       = state.get("client_email", "")
+    amount      = float(state.get("estimate_amount") or 0.00)
 
     headers = {
         "Authorization": f"Bearer {access_token}",
@@ -229,30 +227,35 @@ def create_qb_invoice(state: dict) -> dict:
         "Content-Type":  "application/json",
     }
 
-    # Find or create customer
-    customer_id = find_or_create_qb_customer(access_token, realm_id, name, callback, address)
+    customer_id = find_or_create_qb_customer(
+        access_token, realm_id, name, callback, address, email
+    )
     if not customer_id:
         return {"ok": False, "error": "Could not find or create QuickBooks customer"}
 
-    # Build invoice payload
     invoice_payload = {
         "CustomerRef": {"value": customer_id},
-        "BillAddr": {"Line1": address},
-        "CustomerMemo": {"value": f"Job: {job_desc}\nRequested Timing: {timing}\nService Address: {address}"},
+        "BillAddr":    {"Line1": address},
+        "BillEmail":   {"Address": email} if email else None,
+        "CustomerMemo": {"value": f"Job: {job_desc}\nTiming: {timing}\nAddress: {address}"},
         "Line": [
             {
-                "DetailType":       "SalesItemLineDetail",
-                "Amount":           0.00,  # Contractor fills in amount before sending
-                "Description":      job_desc,
+                "DetailType": "SalesItemLineDetail",
+                "Amount": amount,
+                "Description": job_desc,
                 "SalesItemLineDetail": {
                     "ItemRef": {"value": "1", "name": "Services"},
-                    "Qty":     1,
+                    "Qty": 1,
+                    "UnitPrice": amount,
                 },
             }
         ],
-        "DocNumber": f"INV-{int(time.time())}",
-        "PrivateNote": f"Auto-created by CrewCachePro from lead capture. Callback: {callback}",
+        "DocNumber":   f"INV-{int(time.time())}",
+        "PrivateNote": f"Auto-created by CrewCachePro. Callback: {callback}",
     }
+
+    # Remove None values
+    invoice_payload = {k: v for k, v in invoice_payload.items() if v is not None}
 
     try:
         r = requests.post(
@@ -266,12 +269,13 @@ def create_qb_invoice(state: dict) -> dict:
             invoice = r.json().get("Invoice", {})
             invoice_id  = invoice.get("Id", "")
             invoice_num = invoice.get("DocNumber", "")
-            print("QB INVOICE CREATED | ID:", invoice_id, "| Num:", invoice_num, "| Customer:", name)
+            print("QB INVOICE CREATED | ID:", invoice_id, "| Num:", invoice_num, "| Customer:", name, "| Amount: $", amount)
             return {
                 "ok":          True,
                 "invoice_id":  invoice_id,
                 "invoice_num": invoice_num,
                 "customer_id": customer_id,
+                "amount":      amount,
             }
         else:
             print("QB INVOICE CREATE ERROR |", r.status_code, r.text)
