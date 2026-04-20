@@ -156,25 +156,25 @@ def find_or_create_qb_customer(access_token: str, realm_id: str, name: str, phon
             customers = r.json().get("QueryResponse", {}).get("Customer", [])
             
             if customers:
-            cust_id = customers[0]["Id"]
-            print("QB CUSTOMER FOUND |", name, "| ID:", cust_id)
+                cust_id = customers[0]["Id"]
+                print("QB CUSTOMER FOUND |", name, "| ID:", cust_id)
             
-            # Update email if provided and missing
-            if email and not customers[0].get("PrimaryEmailAddr"):
-                try:
-                    update_payload = customers[0].copy()
-                    update_payload["PrimaryEmailAddr"] = {"Address": email}
-                    requests.post(
-                        f"{QB_API_BASE}/{realm_id}/customer",
-                        headers=headers,
-                        params={"minorversion": "65"},
-                        json=update_payload,
-                        timeout=15,
-                    )
-                    print("QB CUSTOMER EMAIL UPDATED |", name, "|", email)
-                except Exception as e:
-                    print("QB CUSTOMER EMAIL UPDATE ERROR |", e)
-            return cust_id
+                # Update email if provided and missing
+                if email and not customers[0].get("PrimaryEmailAddr"):
+                    try:
+                        update_payload = customers[0].copy()
+                        update_payload["PrimaryEmailAddr"] = {"Address": email}
+                        requests.post(
+                            f"{QB_API_BASE}/{realm_id}/customer",
+                            headers=headers,
+                            params={"minorversion": "65"},
+                            json=update_payload,
+                            timeout=15,
+                        )
+                        print("QB CUSTOMER EMAIL UPDATED |", name, "|", email)
+                    except Exception as e:
+                        print("QB CUSTOMER EMAIL UPDATE ERROR |", e)
+                return cust_id
             
     except Exception as e:
         print("QB CUSTOMER SEARCH ERROR |", e)
