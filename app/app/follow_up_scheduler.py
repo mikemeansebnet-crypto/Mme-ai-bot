@@ -79,7 +79,7 @@ def run_follow_up_job():
         hours_elapsed = (datetime.now(created_dt.tzinfo) - created_dt).total_seconds() / 3600
 
         # TEMP TEST: 0.033 = ~2 minutes. Change back to 24 for production
-        required_hours = (follow_up_count + 1) * 0.033
+        required_hours = (follow_up_count + 1) * 24
 
         print(f"Lead: {name} | Hours elapsed: {hours_elapsed:.2f} | Required: {required_hours:.2f} | Follow Up Count: {follow_up_count}")
 
@@ -101,6 +101,6 @@ def run_follow_up_job():
 def start_scheduler():
     scheduler = BackgroundScheduler()
     # TEMP TEST: minutes=2. Change to hours=1 for production
-    scheduler.add_job(run_follow_up_job, "interval", minutes=2)
+    scheduler.add_job(run_follow_up_job, "interval", hours=1)
     scheduler.start()
     print("Follow-up scheduler started.")
