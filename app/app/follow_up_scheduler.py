@@ -96,6 +96,6 @@ def run_follow_up_job():
 
 def start_scheduler():
     scheduler = BackgroundScheduler()
-    scheduler.add_job(run_follow_up_job, "interval", hours=1)
+    scheduler.add_job(run_follow_up_job, "interval", minutes=2)
     scheduler.start()
     print("Follow-up scheduler started.")
