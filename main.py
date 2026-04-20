@@ -57,6 +57,8 @@ from base64 import b64encode
 import secrets
 
 from app.app.follow_up_scheduler import start_scheduler
+start_scheduler() 
+
 
 # ── Standard library & PDF imports ────────────────────────────────
 import urllib.parse
