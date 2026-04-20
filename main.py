@@ -56,6 +56,9 @@ from app.app.quickbooks_service import (
 from base64 import b64encode
 import secrets
 
+from follow_up_scheduler import start_scheduler
+start_scheduler()
+
 # ── Standard library & PDF imports ────────────────────────────────
 import urllib.parse
 import io
