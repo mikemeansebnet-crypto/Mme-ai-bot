@@ -77,7 +77,7 @@ def run_follow_up_job():
         hours_elapsed = (datetime.now(created_dt.tzinfo) - created_dt).total_seconds() / 3600
 
         # Follow-up 1 at 24hrs, 2 at 48hrs, 3 at 72hrs
-        required_hours = (follow_up_count + 1) * 24
+        required_hours = (follow_up_count + 1) * 0.0
 
         if hours_elapsed >= required_hours and follow_up_count < 3:
             message = FOLLOW_UP_MESSAGES[follow_up_count + 1].format(name=name.split()[0])
