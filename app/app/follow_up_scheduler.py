@@ -9,6 +9,8 @@ from datetime import datetime
 import os
 import requests
 
+print("follow_up_scheduler.py loaded")
+
 
 AIRTABLE_API_KEY = os.environ.get("AIRTABLE_API_KEY")
 AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
@@ -92,6 +94,8 @@ def run_follow_up_job():
                 print(f"Follow-up {new_count} sent to {name}")
             except Exception as e:
                 print(f"Failed to send to {name}: {e}")
+
+                print("About to start scheduler...")
 
 
 def start_scheduler():
