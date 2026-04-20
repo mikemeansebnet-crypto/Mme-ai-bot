@@ -67,7 +67,7 @@ def run_follow_up_job():
         record_id = record.get("id")
 
         name = fields.get("Client Name", "there")
-        phone = fields.get("Phone Number")
+        phone = fields.get("Call Back Number")
         follow_up_count = int(fields.get("Follow Up Count", 0))
         created_time = record.get("createdTime")
 
