@@ -38,3 +38,4 @@ flask-sock
 cloudinary
 Pillow
 reportlab
+apscheduler
