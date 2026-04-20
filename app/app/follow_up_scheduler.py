@@ -50,14 +50,6 @@ def update_airtable_record(record_id, fields):
     )
 
 
-def fetch_leads_needing_followup():
-    params = {
-        "filterByFormula": "OR({Lead Status} = 'New Lead', {Lead Status} = 'Contacted')"
-    }
-    response = requests.get(AIRTABLE_URL, headers=HEADERS, params=params)
-    print(f"Airtable response: {response.status_code} - {response.text[:500]}")
-    return response.json().get("records", [])
-
 
 def run_follow_up_job():
     print(f"[{datetime.now()}] Running follow-up job...")
