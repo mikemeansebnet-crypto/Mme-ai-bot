@@ -1,7 +1,7 @@
 # -----------------------------------------------
 # FILE: app/app/follow_up_scheduler.py
-# What it does: Runs every hour, checks Airtable
-# for leads that need follow-up SMS via Twilio
+# What it does: Runs every 2 min (test), checks
+# Airtable for leads that need follow-up via Twilio
 # -----------------------------------------------
 
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -10,7 +10,6 @@ import os
 import requests
 
 print("follow_up_scheduler.py loaded")
-
 
 AIRTABLE_API_KEY = os.environ.get("AIRTABLE_API_KEY")
 AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
@@ -49,9 +48,13 @@ def update_airtable_record(record_id, fields):
         json={"fields": fields}
     )
 
+
 def fetch_leads_needing_followup():
-    response = requests.get(AIRTABLE_URL, headers=HEADERS)
-    print(f"Airtable response: {response.status_code} - {response.text[:500]}")
+    params = {
+        "filterByFormula": "OR({Lead Status} = 'New Lead', {Lead Status} = 'Contacted')"
+    }
+    response = requests.get(AIRTABLE_URL, headers=HEADERS, params=params)
+    print(f"Airtable status: {response.status_code} | Records raw: {response.text[:300]}")
     return response.json().get("records", [])
 
 
@@ -59,19 +62,6 @@ def run_follow_up_job():
     print(f"[{datetime.now()}] Running follow-up job...")
     records = fetch_leads_needing_followup()
     print(f"Records found: {len(records)}")
-    ...
-
-
-
-def run_follow_up_job():
-    print(f"[{datetime.now()}] Running follow-up job...")
-    records = fetch_leads_needing_followup()
-
-def run_follow_up_job():
-    print(f"[{datetime.now()}] Running follow-up job...")
-    records = fetch_leads_needing_followup()
-    print(f"Records found: {len(records)}")  # ← add this line
-    print(f"Airtable URL: {AIRTABLE_URL}")   # ← and this line
 
     for record in records:
         fields = record.get("fields", {})
@@ -83,14 +73,16 @@ def run_follow_up_job():
         created_time = record.get("createdTime")
 
         if not phone:
+            print(f"No phone for record {record_id}, skipping")
             continue
 
-        # Calculate hours since record was created
         created_dt = datetime.fromisoformat(created_time.replace("Z", "+00:00"))
         hours_elapsed = (datetime.now(created_dt.tzinfo) - created_dt).total_seconds() / 3600
 
-        # Follow-up 1 at 24hrs, 2 at 48hrs, 3 at 72hrs
+        # TEMP TEST: 0.033 = ~2 minutes. Change back to 24 for production
         required_hours = (follow_up_count + 1) * 0.033
+
+        print(f"Lead: {name} | Hours elapsed: {hours_elapsed:.2f} | Required: {required_hours:.2f} | Follow Up Count: {follow_up_count}")
 
         if hours_elapsed >= required_hours and follow_up_count < 3:
             message = FOLLOW_UP_MESSAGES[follow_up_count + 1].format(name=name.split()[0])
@@ -106,11 +98,10 @@ def run_follow_up_job():
             except Exception as e:
                 print(f"Failed to send to {name}: {e}")
 
-                print("About to start scheduler...")
-
 
 def start_scheduler():
     scheduler = BackgroundScheduler()
+    # TEMP TEST: minutes=2. Change to hours=1 for production
     scheduler.add_job(run_follow_up_job, "interval", minutes=2)
     scheduler.start()
     print("Follow-up scheduler started.")
