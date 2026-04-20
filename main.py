@@ -1,4 +1,4 @@
-# main.py — ContractorOS AI Bot
+# main.py — CrewCachePro AI Bot
 # Architecture: ConversationRelay + Claude Haiku (conversation.py)
 # Legacy step-based flow moved to branch: legacy-voice-stepflow
 
@@ -243,9 +243,12 @@ def airtable_job_complete():
             "job_description": fields.get("Job Description", ""),
             "callback":        fields.get("Call Back Number", ""),
             "timing":          fields.get("Appointment Date and Time", ""),
+            "client_email":    fields.get("Client Email", ""),
+            "estimate_amount": fields.get("Estimate Amount", 0.00),
             "contractor_key":  fields.get("Contractor Twilio Number", ""),
             "to_number":       fields.get("Contractor Twilio Number", ""),
         }
+            
  
         if not state["name"]:
             return jsonify({"ok": False, "error": "No client name in webhook payload"}), 400
