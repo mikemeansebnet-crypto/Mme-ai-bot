@@ -10,8 +10,7 @@ import os
 import requests
 
 print("follow_up_scheduler.py loaded")
-
-AIRTABLE_API_KEY = os.environ.get("AIRTABLE_API_KEY")
+AIRTABLE_API_KEY = os.environ.get("AIRTABLE_TOKEN")
 AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
 AIRTABLE_TABLE_NAME = os.environ.get("AIRTABLE_TABLE_NAME")
 TWILIO_ACCOUNT_SID = os.environ.get("TWILIO_ACCOUNT_SID")
