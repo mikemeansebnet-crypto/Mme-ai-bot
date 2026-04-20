@@ -62,6 +62,12 @@ def run_follow_up_job():
     print(f"[{datetime.now()}] Running follow-up job...")
     records = fetch_leads_needing_followup()
 
+def run_follow_up_job():
+    print(f"[{datetime.now()}] Running follow-up job...")
+    records = fetch_leads_needing_followup()
+    print(f"Records found: {len(records)}")  # ← add this line
+    print(f"Airtable URL: {AIRTABLE_URL}")   # ← and this line
+
     for record in records:
         fields = record.get("fields", {})
         record_id = record.get("id")
