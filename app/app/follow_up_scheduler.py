@@ -55,6 +55,7 @@ def fetch_leads_needing_followup():
         "filterByFormula": "OR({Lead Status} = 'New Lead', {Lead Status} = 'Contacted')"
     }
     response = requests.get(AIRTABLE_URL, headers=HEADERS, params=params)
+    print(f"Airtable response: {response.status_code} - {response.text[:500]}")
     return response.json().get("records", [])
 
 
