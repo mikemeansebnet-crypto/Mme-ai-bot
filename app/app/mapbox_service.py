@@ -99,3 +99,70 @@ def mapbox_geocode_one(query: str, country: str = "US", proximity: str | None = 
     except Exception as e:
         print("MAPBOX GEOCODE ONE ERROR |", e)
         return {"ok": False, "error": str(e)}
+
+# -----------------------------------------------
+
+
+from math import radians, sin, cos, sqrt, atan2
+
+
+def haversine_miles(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Calculate distance in miles between two lat/lon points."""
+    R = 3958.8  # Earth radius in miles
+    lat1, lon1, lat2, lon2 = map(radians, [lat1, lon1, lat2, lon2])
+    dlat = lat2 - lat1
+    dlon = lon2 - lon1
+    a = sin(dlat / 2) ** 2 + cos(lat1) * cos(lat2) * sin(dlon / 2) ** 2
+    return R * 2 * atan2(sqrt(a), sqrt(1 - a))
+
+
+def is_address_in_service_area(
+    address: str,
+    home_base_lat: float,
+    home_base_lon: float,
+    max_radius_miles: float,
+    hard_max_miles: float = None
+) -> dict:
+    """
+    Geocodes an address and checks if it falls within the service radius.
+
+    Returns:
+    {
+        "ok": True/False,
+        "in_range": True/False,
+        "distance_miles": float,
+        "place_name": str,
+        "lat": float,
+        "lon": float,
+        "error": str  # only if ok=False
+    }
+    """
+    result = mapbox_geocode_one(address)
+
+    if not result.get("ok"):
+        return {"ok": False, "error": result.get("error", "Geocoding failed")}
+
+    feature = result.get("feature")
+    if not feature:
+        return {"ok": False, "error": "Address not found"}
+
+    addr_lat = feature.get("lat")
+    addr_lon = feature.get("lon")
+
+    if addr_lat is None or addr_lon is None:
+        return {"ok": False, "error": "Could not get coordinates"}
+
+    distance = haversine_miles(home_base_lat, home_base_lon, addr_lat, addr_lon)
+
+    # Use hard_max_miles if provided, otherwise use max_radius_miles
+    limit = hard_max_miles if hard_max_miles else max_radius_miles
+    in_range = distance <= limit
+
+    return {
+        "ok": True,
+        "in_range": in_range,
+        "distance_miles": round(distance, 1),
+        "place_name": feature.get("place_name"),
+        "lat": addr_lat,
+        "lon": addr_lon,
+    }
