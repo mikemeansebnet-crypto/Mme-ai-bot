@@ -1191,32 +1191,32 @@ def sms():
         sms_state["name"] = collected["collected_name"]
         print("NAME SAVED |", sms_state["name"])
     if collected.get("collected_address"):
-    from app.app.mapbox_service import is_address_in_service_area
-    addr = collected["collected_address"]
-    home_lat = float(contractor.get("Home Base Lat") or 38.9427)
-    home_lon = float(contractor.get("Home Base Lon") or -76.7300)
-    max_miles = float(contractor.get("Max Radius Miles") or 50.0)
-    hard_max = float(contractor.get("Hard Max Miles") or 35.0)
+        from app.app.mapbox_service import is_address_in_service_area
+        addr = collected["collected_address"]
+        home_lat = float(contractor.get("Home Base Lat") or 38.9427)
+        home_lon = float(contractor.get("Home Base Lon") or -76.7300)
+        max_miles = float(contractor.get("Max Radius Miles") or 50.0)
+        hard_max = float(contractor.get("Hard Max Miles") or 35.0)
 
-    check = is_address_in_service_area(addr, home_lat, home_lon, max_miles, hard_max)
+        check = is_address_in_service_area(addr, home_lat, home_lon, max_miles, hard_max)
 
-    if check.get("ok") and check.get("in_range"):
-        sms_state["service_address"] = check.get("place_name") or addr
-        print("ADDRESS VALIDATED |", addr, "|", check.get("distance_miles"), "miles away")
-    elif check.get("ok") and not check.get("in_range"):
-        miles = check.get("distance_miles")
-        reply = (
-            f"Thanks for reaching out! Unfortunately that address is outside our "
-            f"service area ({miles} miles away). We currently serve within "
-            f"{int(hard_max)} miles of Bowie, Maryland."
-        )
-        return Response(
-            f"<Response><Message>{reply}</Message></Response>",
-            mimetype="text/xml"
-        )
-    else:
-        sms_state["service_address"] = addr
-        print("MAPBOX FAILED | Accepting address anyway |", addr)
+        if check.get("ok") and check.get("in_range"):
+            sms_state["service_address"] = check.get("place_name") or addr
+            print("ADDRESS VALIDATED |", addr, "|", check.get("distance_miles"), "miles away")
+        elif check.get("ok") and not check.get("in_range"):
+            miles = check.get("distance_miles")
+            reply = (
+                f"Thanks for reaching out! Unfortunately that address is outside our "
+                f"service area ({miles} miles away). We currently serve within "
+                f"{int(hard_max)} miles of Bowie, Maryland."
+            )
+            return Response(
+                f"<Response><Message>{reply}</Message></Response>",
+                mimetype="text/xml"
+            )
+        else:
+            sms_state["service_address"] = addr
+            print("MAPBOX FAILED | Accepting address anyway |", addr)
     if collected.get("collected_job"):
         sms_state["job_description"] = collected["collected_job"]
         print("JOB SAVED |", sms_state["job_description"])
