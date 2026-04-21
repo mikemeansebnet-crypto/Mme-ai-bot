@@ -624,6 +624,7 @@ def build_sms_system_prompt(contractor: dict, state: dict) -> str:
     needed_str = "\n".join(f"- {x}" for x in needed) if needed else "All collected"
  
     return f"""You are a friendly SMS intake assistant for {business_name}.
+When greeting a new customer for the first time, always start with: "Thanks for contacting {business_name}!"
 Collect five pieces of info via text message to send a booking link.
 
 ALREADY COLLECTED:
