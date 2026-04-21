@@ -1,5 +1,6 @@
 # app/app/mapbox_service.py
 import os
+import math
 import requests
 from urllib.parse import quote_plus
 from typing import Optional 
@@ -106,14 +107,16 @@ def mapbox_geocode_one(query: str, country: str = "US", proximity: str | None = 
 from math import radians, sin, cos, sqrt, atan2
 
 
-def haversine_miles(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
-    """Calculate distance in miles between two lat/lon points."""
-    R = 3958.8  # Earth radius in miles
-    lat1, lon1, lat2, lon2 = map(radians, [lat1, lon1, lat2, lon2])
-    dlat = lat2 - lat1
-    dlon = lon2 - lon1
-    a = sin(dlat / 2) ** 2 + cos(lat1) * cos(lat2) * sin(dlon / 2) ** 2
-    return R * 2 * atan2(sqrt(a), sqrt(1 - a))
+def haversine_miles(lat1, lon1, lat2, lon2) -> float:
+    r = 3958.7613
+    phi1, phi2 = math.radians(float(lat1)), math.radians(float(lat2))
+    dphi = math.radians(float(lat2) - float(lat1))
+    dlambda = math.radians(float(lon2) - float(lon1))
+    a = (
+        math.sin(dphi / 2) ** 2
+        + math.cos(phi1) * math.cos(phi2) * math.sin(dlambda / 2) ** 2
+    )
+    return r * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
 
 def is_address_in_service_area(
