@@ -25,7 +25,7 @@ HEADERS = {
 
 FOLLOW_UP_MESSAGES = {
     1: "Hey {name}, just checking in — still interested in a quote? Reply YES to confirm or let us know a better time.",
-    2: "Hi {name}, we have limited availability this week. Reply to hold your spot or we'll open it up for other customers.",
+    2: "Hi {name}, we have limited availability this week. Reply to hold your spot or we'll open it up for other customers. Reply CANCEL APPOINTMENT to cancel.",
     3: "No worries {name}, whenever the timing is right just reply and we'll get you taken care of. — CrewCachePro"
 }
 
