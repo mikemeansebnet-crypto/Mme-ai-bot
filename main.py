@@ -59,6 +59,8 @@ import secrets
 from app.app.follow_up_scheduler import start_scheduler
 start_scheduler() 
 
+from app.app.cancel_reschedule import handle_cancel_reschedule
+
 
 # ── Standard library & PDF imports ────────────────────────────────
 import urllib.parse
@@ -1102,7 +1104,7 @@ def sms():
     print(f"SMS FROM {from_number} | TO {to_number} | MSG: {incoming_msg}")
  
     # Handle opt-out keywords immediately
-    if incoming_msg.lower() in ["stop", "unsubscribe", "cancel", "quit", "end"]:
+    if incoming_msg.lower() in ["stop", "unsubscribe", "quit", "end"]:
         return Response(
             "<Response><Message>You have been unsubscribed. Reply START to resubscribe.</Message></Response>",
             mimetype="text/xml"
@@ -1113,6 +1115,11 @@ def sms():
             "<Response><Message>You are now subscribed to receive messages.</Message></Response>",
             mimetype="text/xml"
         )
+
+    # ── Cancel / Reschedule handler ────────────────────────────────
+    if incoming_msg.upper() in ["CANCEL APPOINTMENT", "RESCHEDULE", "RESCHEDULE APPOINTMENT"]:
+        from app.app.cancel_reschedule import handle_cancel_reschedule
+        return handle_cancel_reschedule()
  
     # Look up contractor
     contractor = {}
