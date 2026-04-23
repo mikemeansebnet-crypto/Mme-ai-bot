@@ -1553,6 +1553,47 @@ def cal_webhook():
     except Exception as e:
         print("WEBHOOK ERROR:", e)
         return "", 500
+
+@app.route("/cal-booking-notify", methods=["POST"])
+def cal_booking_notify():
+    try:
+        data = request.get_json(silent=True) or {}
+        trigger = data.get("triggerEvent", "")
+        payload = data.get("payload", {})
+
+        attendees = payload.get("attendees", [])
+        customer_name = attendees[0].get("name", "Unknown") if attendees else "Unknown"
+        customer_phone = attendees[0].get("phoneNumber", "") if attendees else ""
+        start_time = payload.get("startTime", "")
+        title = payload.get("title", "Appointment")
+
+        if trigger == "BOOKING_CREATED":
+            emoji = "📅"
+            action = "New Booking"
+        elif trigger == "BOOKING_CANCELLED":
+            emoji = "❌"
+            action = "Booking Cancelled"
+        elif trigger == "BOOKING_RESCHEDULED":
+            emoji = "🔄"
+            action = "Booking Rescheduled"
+        else:
+            return {"ok": True}
+
+        msg = (
+            f"{emoji} {action}\n"
+            f"Customer: {customer_name}\n"
+            f"Phone: {customer_phone}\n"
+            f"Time: {start_time}\n"
+            f"Event: {title}"
+        )
+
+        notify_sms = os.getenv("NOTIFY_SMS") or os.getenv("TWILIO_PHONE_NUMBER")
+        send_fallback_sms(to_number=notify_sms, body=msg)
+
+        return {"ok": True}
+    except Exception as e:
+        print("CAL BOOKING NOTIFY ERROR |", e)
+        return {"ok": False}
   
 
 
