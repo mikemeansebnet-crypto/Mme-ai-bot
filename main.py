@@ -1587,7 +1587,14 @@ def cal_booking_notify():
             f"Event: {title}"
         )
 
-        notify_sms = os.getenv("NOTIFY_SMS") or os.getenv("TWILIO_PHONE_NUMBER")
+        # Pull notify SMS from contractors table based on Twilio number
+        to_number = request.headers.get("X-Forwarded-For", "")
+        contractor = {}
+        try:
+            contractor = get_contractor_by_twilio_number(os.getenv("TWILIO_PHONE_NUMBER")) or {}
+        except:
+            pass
+        notify_sms = contractor.get("Notify SMS") or os.getenv("NOTIFY_SMS")
         send_fallback_sms(to_number=notify_sms, body=msg)
 
         return {"ok": True}
