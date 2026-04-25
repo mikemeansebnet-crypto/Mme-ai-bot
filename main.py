@@ -1564,7 +1564,14 @@ def cal_booking_notify():
         attendees = payload.get("attendees", [])
         customer_name = attendees[0].get("name", "Unknown") if attendees else "Unknown"
         customer_phone = attendees[0].get("phoneNumber", "") if attendees else ""
-        start_time = payload.get("startTime", "")
+        from datetime import datetime, timedelta
+        raw_time = payload.get("startTime", "")
+        try:
+            dt = datetime.fromisoformat(raw_time.replace("Z", "+00:00"))
+            dt_eastern = dt - timedelta(hours=4)
+            start_time = dt_eastern.strftime("%A %B %d at %I:%M %p EST")
+        except:
+            start_time = raw_time
         title = payload.get("title", "Appointment")
 
         if trigger == "BOOKING_CREATED":
