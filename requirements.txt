@@ -39,3 +39,4 @@ cloudinary
 Pillow
 reportlab
 apscheduler
+stripe
