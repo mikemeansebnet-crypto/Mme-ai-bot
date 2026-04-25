@@ -62,6 +62,8 @@ start_scheduler()
 
 from app.app.cancel_reschedule import handle_cancel_reschedule
 
+from app.app.stripe_service import create_payment_link
+
 
 # ── Standard library & PDF imports ────────────────────────────────
 import urllib.parse
