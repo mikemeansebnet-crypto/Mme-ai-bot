@@ -1495,6 +1495,51 @@ def sms():
         f"<Response><Message>{reply}</Message></Response>",
         mimetype="text/xml"
     )
+
+@app.route("/create-payment-link", methods=["POST"])
+def create_payment_link_route():
+    try:
+        data = request.get_json(silent=True) or {}
+        record_id = data.get("record_id")
+        amount = data.get("amount")
+        customer_name = data.get("customer_name")
+        job_description = data.get("job_description")
+        customer_phone = data.get("customer_phone")
+
+        from app.app.stripe_service import create_payment_link
+        result = create_payment_link(amount, customer_name, job_description, record_id)
+
+        if result.get("ok"):
+            # Text the payment link to the customer
+            msg = (
+                f"Hi {customer_name.split()[0]}! Your job is complete. "
+                f"Please pay your balance of ${amount} here: {result['url']} "
+                f"Thank you for choosing MME Lawn Care and More!"
+            )
+            send_fallback_sms(to_number=customer_phone, body=msg)
+
+        return result
+    except Exception as e:
+        print(f"CREATE PAYMENT LINK ERROR | {e}")
+        return {"ok": False, "error": str(e)}
+
+
+@app.route("/stripe-webhook", methods=["POST"])
+def stripe_webhook():
+    try:
+        from app.app.stripe_service import handle_stripe_webhook
+        payload = request.get_data()
+        sig_header = request.headers.get("Stripe-Signature")
+        result = handle_stripe_webhook(payload, sig_header)
+        return result
+    except Exception as e:
+        print(f"STRIPE WEBHOOK ERROR | {e}")
+        return {"ok": False}
+
+
+@app.route("/payment-success")
+def payment_success():
+    return "<h2>✅ Payment received! Thank you for choosing MME Lawn Care and More.</h2>"
  
  
 
