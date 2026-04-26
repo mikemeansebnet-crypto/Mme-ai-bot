@@ -1530,11 +1530,15 @@ def stripe_webhook():
         from app.app.stripe_service import handle_stripe_webhook
         payload = request.data
         sig_header = request.headers.get("Stripe-Signature")
+        print(f"STRIPE WEBHOOK HIT | payload length: {len(payload)} | sig: {sig_header[:20] if sig_header else 'NONE'}")
         result = handle_stripe_webhook(payload, sig_header)
         return jsonify(result), 200
     except Exception as e:
+        import traceback
         print(f"STRIPE WEBHOOK ERROR | {type(e).__name__} | {e}")
+        print(traceback.format_exc())
         return jsonify({"ok": False}), 200
+
 
 
 @app.route("/payment-success")
