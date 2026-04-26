@@ -1528,7 +1528,7 @@ def create_payment_link_route():
 def stripe_webhook():
     try:
         from app.app.stripe_service import handle_stripe_webhook
-        payload = request.get_data()
+        payload = request.data
         sig_header = request.headers.get("Stripe-Signature")
         result = handle_stripe_webhook(payload, sig_header)
         return result
