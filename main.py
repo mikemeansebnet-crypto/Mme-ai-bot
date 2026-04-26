@@ -1533,7 +1533,7 @@ def stripe_webhook():
         result = handle_stripe_webhook(payload, sig_header)
         return result
     except Exception as e:
-        print(f"STRIPE WEBHOOK ERROR | {e}")
+        print(f"STRIPE WEBHOOK ERROR | {type(e).__name__} | {e}")
         return {"ok": False}
 
 
