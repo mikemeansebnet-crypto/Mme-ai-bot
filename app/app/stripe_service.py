@@ -28,10 +28,8 @@ def create_payment_link(amount: float, customer_name: str, job_description: str,
     Returns the payment link URL.
     """
     try:
-        # Convert amount to cents for Stripe
         amount_cents = int(float(amount) * 100)
 
-        # Create a Stripe price on the fly
         price = stripe.Price.create(
             currency="usd",
             unit_amount=amount_cents,
@@ -40,7 +38,6 @@ def create_payment_link(amount: float, customer_name: str, job_description: str,
             },
         )
 
-        # Create payment link
         payment_link = stripe.PaymentLink.create(
             line_items=[{"price": price.id, "quantity": 1}],
             metadata={
@@ -63,6 +60,24 @@ def create_payment_link(amount: float, customer_name: str, job_description: str,
 
 def update_airtable_paid(record_id: str) -> None:
     """Updates Airtable payment status to Paid when Stripe confirms payment."""
+    try:
+        requests.patch(
+            f"{PAYMENTS_URL}/{record_id}",
+            headers=HEADERS,
+            json={"fields": {"Payment Status": "Paid"}}
+        )
+        print(f"AIRTABLE PAYMENT STATUS UPDATED | {record_id} | Paid")
+    except Exception as e:
+        print(f"AIRTABLE UPDATE ERROR | {e}")
+
+
+def handle_stripe_webhook(payload: bytes, sig_header: str) -> dict:
+    """
+    Verifies and processes Stripe webhook events.
+    Called from the /stripe-webhook Flask route.
+    """
+    webhook_secret = os.environ.get("STRIPE_WEBHOOK_SECRET")
+
     try:
         event = stripe.Webhook.construct_event(payload, sig_header, webhook_secret)
     except stripe.error.SignatureVerificationError as e:
@@ -90,22 +105,4 @@ def update_airtable_paid(record_id: str) -> None:
             update_airtable_paid(record_id)
 
     return {"ok": True}
-        requests.patch(
-            f"{PAYMENTS_URL}/{record_id}",
-            headers=HEADERS,
-            json={"fields": {"Payment Status": "Paid"}}
-        )
-        print(f"AIRTABLE PAYMENT STATUS UPDATED | {record_id} | Paid")
-    except Exception as e:
-        print(f"AIRTABLE UPDATE ERROR | {e}")
-
-
-def handle_stripe_webhook(payload: bytes, sig_header: str) -> dict:
-    """
-    Verifies and processes Stripe webhook events.
-    Called from the /stripe-webhook Flask route.
-    """
-    webhook_secret = os.environ.get("STRIPE_WEBHOOK_SECRET")
-
-    try:
         
