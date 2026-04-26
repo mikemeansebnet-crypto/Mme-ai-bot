@@ -87,12 +87,12 @@ def handle_stripe_webhook(payload: bytes, sig_header: str) -> dict:
         print(f"STRIPE WEBHOOK SIGNATURE ERROR | {e}")
         return {"ok": False, "error": "Invalid signature"}
 
-    if event["type"] == "checkout.session.completed":
-        session = event["data"]["object"]
-        record_id = session.get("metadata", {}).get("airtable_record_id")
-        if record_id:
-            update_airtable_paid(record_id)
-            print(f"PAYMENT CONFIRMED | Record: {record_id}")
+    elif event["type"] == "payment_intent.succeeded":
+    session = event["data"]["object"]
+    record_id = session.get("metadata", {}).get("airtable_record_id")
+    if record_id:
+        update_airtable_paid(record_id)
+        print(f"PAYMENT INTENT CONFIRMED | Record: {record_id}")
 
     elif event["type"] == "payment_link.completed":
         link = event["data"]["object"]
