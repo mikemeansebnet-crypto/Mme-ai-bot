@@ -1402,34 +1402,36 @@ def sms():
                         f"Reply STOP to opt out."
                     )
 
-                # Schedule photo upload SMS 6 minutes later
-                try:
-                    messaging_service_sid = os.getenv("TWILIO_MESSAGING_SERVICE_SID", "").strip()
-                    lead_id = sms_state.get("lead_airtable_id", "")
-                    base_url = os.getenv("RENDER_EXTERNAL_URL", "https://mme-ai-bot.onrender.com").rstrip("/")
-                    photo_link = f"{base_url}/upload-photos/{lead_id}" if lead_id else ""
+                # Schedule photo upload SMS 6 minutes later — Pro only
+                if has_feature(contractor, "photo_estimates"):
+                    try:
+                        messaging_service_sid = os.getenv("TWILIO_MESSAGING_SERVICE_SID", "").strip()
+                        lead_id = sms_state.get("lead_airtable_id", "")
+                        base_url = os.getenv("RENDER_EXTERNAL_URL", "https://mme-ai-bot.onrender.com").rstrip("/")
+                        photo_link = f"{base_url}/upload-photos/{lead_id}" if lead_id else ""
 
-                    if messaging_service_sid and photo_link:
-                        from datetime import timedelta
-                        photo_send_time = datetime.now(timezone.utc) + timedelta(minutes=6)
-                        tc = twilio_client()
-                        if tc.get("ok"):
-                            tc["client"].messages.create(
-                                body=(
-                                    f"One more thing {first_name} — send us photos "
-                                    f"of the job so we can prepare a better estimate: "
-                                    f"{photo_link} "
-                                    f"The more we see, the faster we can quote you."
-                                ),
-                                from_=to_number,
-                                to=from_number,
-                                send_at=photo_send_time.strftime("%Y-%m-%dT%H:%M:%SZ"),
-                                schedule_type="fixed",
-                                messaging_service_sid=messaging_service_sid,
-                            )
-                            print("SMS PHOTO SCHEDULED | 6 min delay | to:", from_number)
-                except Exception as e:
-                    print("SMS PHOTO SCHEDULE ERROR |", e)
+                        if messaging_service_sid and photo_link:
+                            from datetime import timedelta
+                            photo_send_time = datetime.now(timezone.utc) + timedelta(minutes=6)
+                            tc = twilio_client()
+                            if tc.get("ok"):
+                                tc["client"].messages.create(
+                                    body=(
+                                        f"One more thing {first_name} — send us photos "
+                                        f"of the job so we can prepare a better estimate: "
+                                        f"{photo_link} "
+                                        f"The more we see, the faster we can quote you."
+                                    ),
+                                    from_=to_number,
+                                    to=from_number,
+                                    send_at=photo_send_time.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                                    schedule_type="fixed",
+                                    messaging_service_sid=messaging_service_sid,
+                                )
+                                print("SMS PHOTO SCHEDULED | 6 min delay | to:", from_number)
+                    except Exception as e:
+                        print("SMS PHOTO SCHEDULE ERROR |", e)
+                    
 
                 # Clear SMS state
                 if redis_client:
