@@ -1276,7 +1276,8 @@ def sms():
                 f"Reply STOP to opt out."
             )
 
-        # Schedule photo SMS 6 minutes later
+    # Schedule photo SMS 6 minutes later — Pro only
+    if has_feature(contractor, "photo_estimates"):
         try:
             messaging_service_sid = os.getenv("TWILIO_MESSAGING_SERVICE_SID", "").strip()
             lead_id = sms_state.get("lead_airtable_id", "")
