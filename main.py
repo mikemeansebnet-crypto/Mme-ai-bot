@@ -1122,10 +1122,24 @@ def sms():
  
     business_name = (contractor.get("Business Name") or "our office").strip()
 
+    # ── Subscription tier check ────────────────────────────────────
+    from app.app.subscription_service import has_feature, get_upgrade_message
+    subscription_active = has_feature(contractor, "sms_intake")
+    if contractor and not subscription_active:
+        return Response(
+            "<Response><Message>This service is currently unavailable. Please contact your contractor directly.</Message></Response>",
+            mimetype="text/xml"
+        )
+
     # ── Contractor photo estimate flow ─────────────────────────────
     notify_sms = (contractor.get("Notify SMS") or "").strip()
     num_media = int(request.form.get("NumMedia", 0))
     if from_number == notify_sms and num_media > 0:
+        if not has_feature(contractor, "photo_estimates"):
+            return Response(
+                f"<Response><Message>{get_upgrade_message('photo_estimates')}</Message></Response>",
+                mimetype="text/xml"
+            )
         return handle_contractor_photo_estimate(request, contractor, from_number, to_number, num_media, incoming_msg)
 
 
