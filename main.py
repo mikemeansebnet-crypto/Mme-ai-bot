@@ -1721,6 +1721,14 @@ def voice():
     except Exception:
         pass
 
+    # ── Subscription tier check ────────────────────────────────────
+    from app.app.subscription_service import has_feature, get_upgrade_message
+    if contractor and not has_feature(contractor, "voice_intake"):
+        vr2 = VoiceResponse()
+        vr2.say(get_upgrade_message("voice_intake"))
+        vr2.hangup()
+        return Response(str(vr2), mimetype="text/xml")
+
     # Route to ConversationRelay
     vr.redirect("/voice-cr", method="POST")
     return Response(str(vr), mimetype="text/xml")
