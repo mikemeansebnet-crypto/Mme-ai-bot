@@ -4,27 +4,29 @@
 # and blocks features based on plan level
 # -----------------------------------------------
 
-# Feature access by tier
 TIER_FEATURES = {
     "Basic": [
         "sms_intake",
+        "voice_intake",
         "lead_followup",
         "cal_booking",
         "payment_notifications",
         "cancel_reschedule",
+        "stripe_payments",
     ],
     "Pro": [
         "sms_intake",
+        "voice_intake",
         "lead_followup",
         "cal_booking",
         "payment_notifications",
         "cancel_reschedule",
-        "voice_intake",
-        "photo_estimates",
         "stripe_payments",
+        "photo_estimates",
     ],
     "Trial": [
         "sms_intake",
+        "voice_intake",
         "lead_followup",
         "cal_booking",
         "cancel_reschedule",
