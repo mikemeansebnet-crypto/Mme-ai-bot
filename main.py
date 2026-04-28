@@ -66,6 +66,8 @@ from app.app.stripe_service import create_payment_link
 
 from app.app.subscription_service import has_feature, get_upgrade_message
 
+from app.app.contractor_onboarding import create_checkout_session, handle_subscription_webhook
+
 
 # ── Standard library & PDF imports ────────────────────────────────
 import urllib.parse
@@ -1549,8 +1551,16 @@ def stripe_webhook():
         from app.app.stripe_service import handle_stripe_webhook
         payload = request.data
         sig_header = request.headers.get("Stripe-Signature")
-        print(f"STRIPE WEBHOOK HIT | payload length: {len(payload)} | sig: {sig_header[:20] if sig_header else 'NONE'}")
+        
+        # Handle payment webhooks
         result = handle_stripe_webhook(payload, sig_header)
+        
+        # Also handle subscription webhooks
+        import stripe
+        webhook_secret = os.environ.get("STRIPE_WEBHOOK_SECRET")
+        event = stripe.Webhook.construct_event(payload, sig_header, webhook_secret)
+        handle_subscription_webhook(event)
+        
         return jsonify(result), 200
     except Exception as e:
         import traceback
@@ -1560,9 +1570,36 @@ def stripe_webhook():
 
 
 
+
 @app.route("/payment-success")
 def payment_success():
     return "<h2>✅ Payment received! Thank you for choosing MME Lawn Care and More.</h2>"
+
+
+@app.route("/subscribe/<tier>", methods=["GET"])
+def subscribe(tier):
+    """Generates a Stripe checkout link for contractor signup."""
+    from app.app.contractor_onboarding import create_checkout_session
+    business_name = request.args.get("business", "New Contractor")
+    email = request.args.get("email", "")
+    record_id = request.args.get("record_id", "")
+    tier = tier.capitalize()
+    if tier not in ["Basic", "Pro"]:
+        return jsonify({"error": "Invalid tier"}), 400
+    result = create_checkout_session(tier, business_name, email, record_id)
+    if result.get("ok"):
+        return redirect(result["url"])
+    return jsonify(result), 500
+
+
+@app.route("/subscription-success")
+def subscription_success():
+    return "<h2>✅ Welcome to CrewCachePro! Your subscription is active. We'll be in touch shortly to get you set up.</h2>"
+
+
+@app.route("/subscription-cancel")
+def subscription_cancel():
+    return "<h2>No problem! If you have questions about CrewCachePro, reply to this message anytime.</h2>"
  
  
 
