@@ -1547,59 +1547,114 @@ def create_payment_link_route():
 
 @app.route("/stripe-webhook", methods=["POST"])
 def stripe_webhook():
+    payload = request.data
+    sig_header = request.headers.get("Stripe-Signature")
+    webhook_secret = os.environ.get("STRIPE_WEBHOOK_SECRET")
+
+    # Verify signature ONCE here — do not re-verify inside handlers
     try:
-        from app.app.stripe_service import handle_stripe_webhook
-        payload = request.data
-        sig_header = request.headers.get("Stripe-Signature")
-        
-        # Handle payment webhooks
-        result = handle_stripe_webhook(payload, sig_header)
-        
-        # Also handle subscription webhooks
         import stripe
-        webhook_secret = os.environ.get("STRIPE_WEBHOOK_SECRET")
         event = stripe.Webhook.construct_event(payload, sig_header, webhook_secret)
-        handle_subscription_webhook(event)
-        
-        return jsonify(result), 200
+    except stripe.error.SignatureVerificationError as e:
+        print(f"STRIPE WEBHOOK | Invalid signature | {e}")
+        return jsonify({"error": "Invalid signature"}), 400
+    except Exception as e:
+        print(f"STRIPE WEBHOOK | Payload error | {e}")
+        return jsonify({"error": "Bad payload"}), 400
+
+    # Route to the correct handler — pass the already-verified event
+    try:
+        from app.app.stripe_service import handle_stripe_event
+        from app.app.subscription_service import handle_subscription_event
+
+        # Payment events (charges, payment intents)
+        payment_result = handle_stripe_event(event)
+        if not payment_result.get("ok"):
+            print(f"STRIPE WEBHOOK | Payment handler error | {payment_result}")
+
+        # Subscription lifecycle events
+        sub_result = handle_subscription_event(event)
+        if not sub_result.get("ok"):
+            print(f"STRIPE WEBHOOK | Subscription handler error | {sub_result}")
+
+        return jsonify({"ok": True}), 200
+
     except Exception as e:
         import traceback
         print(f"STRIPE WEBHOOK ERROR | {type(e).__name__} | {e}")
         print(traceback.format_exc())
-        return jsonify({"ok": False}), 200
-
-
+        # Return 500 so Stripe retries — do NOT return 200 on a crash
+        return jsonify({"ok": False}), 500
 
 
 @app.route("/payment-success")
 def payment_success():
-    return "<h2>✅ Payment received! Thank you for choosing MME Lawn Care and More.</h2>"
+    return """
+    <html>
+    <body style="font-family:sans-serif;text-align:center;padding:60px;">
+        <h2>✅ Payment received!</h2>
+        <p>Thank you for your business. Your contractor will be in touch shortly.</p>
+        <p style="color:#888;font-size:13px;">Powered by CrewCachePro</p>
+    </body>
+    </html>
+    """
 
 
 @app.route("/subscribe/<tier>", methods=["GET"])
 def subscribe(tier):
     """Generates a Stripe checkout link for contractor signup."""
     from app.app.contractor_onboarding import create_checkout_session
+
     business_name = request.args.get("business", "New Contractor")
     email = request.args.get("email", "")
     record_id = request.args.get("record_id", "")
     tier = tier.capitalize()
+
+    # Trial signups do not go through this route
+    if tier == "Trial":
+        return jsonify({"error": "Trial signups are handled separately."}), 400
+
     if tier not in ["Basic", "Pro"]:
-        return jsonify({"error": "Invalid tier"}), 400
+        return jsonify({"error": "Invalid tier. Choose Basic or Pro."}), 400
+
     result = create_checkout_session(tier, business_name, email, record_id)
     if result.get("ok"):
         return redirect(result["url"])
+
+    print(f"SUBSCRIBE | Checkout session failed | {result}")
     return jsonify(result), 500
 
 
 @app.route("/subscription-success")
 def subscription_success():
-    return "<h2>✅ Welcome to CrewCachePro! Your subscription is active. We'll be in touch shortly to get you set up.</h2>"
+    return """
+    <html>
+    <body style="font-family:sans-serif;text-align:center;padding:60px;">
+        <h2>✅ You're in!</h2>
+        <p>Welcome to CrewCachePro. Your subscription is active.</p>
+        <p>We'll be in touch shortly to get your account set up.</p>
+        <p style="color:#888;font-size:13px;">CrewCachePro</p>
+    </body>
+    </html>
+    """
 
 
 @app.route("/subscription-cancel")
 def subscription_cancel():
-    return "<h2>No problem! If you have questions about CrewCachePro, reply to this message anytime.</h2>"
+    return """
+    <html>
+    <body style="font-family:sans-serif;text-align:center;padding:60px;">
+        <h2>No problem!</h2>
+        <p>If you have questions about CrewCachePro, reply to this message anytime.</p>
+        <p style="color:#888;font-size:13px;">CrewCachePro</p>
+    </body>
+    </html>
+    """
+ 
+        
+  
+
+
  
  
 
