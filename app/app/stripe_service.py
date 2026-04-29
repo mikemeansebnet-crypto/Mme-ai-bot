@@ -34,7 +34,8 @@ def create_payment_link(amount: float, customer_name: str, job_description: str,
             currency="usd",
             unit_amount=amount_cents,
             product_data={
-                "name": f"MME Lawn Care - {job_description or 'Service Payment'}",
+                # FIXED: Rebranded from MME Lawn Care to CrewCachePro
+                "name": f"CrewCachePro - {job_description or 'Service Payment'}",
             },
         )
 
@@ -46,7 +47,8 @@ def create_payment_link(amount: float, customer_name: str, job_description: str,
             },
             after_completion={
                 "type": "redirect",
-                "redirect": {"url": "https://mme-ai-bot.onrender.com/payment-success"}
+                # FIXED: Update this to your live Render URL before go-live
+                "redirect": {"url": os.environ.get("APP_BASE_URL", "https://mme-ai-bot.onrender.com") + "/payment-success"}
             }
         )
 
@@ -61,50 +63,82 @@ def create_payment_link(amount: float, customer_name: str, job_description: str,
 def update_airtable_paid(record_id: str) -> None:
     """Updates Airtable payment status to Paid when Stripe confirms payment."""
     try:
-        requests.patch(
+        response = requests.patch(
             f"{PAYMENTS_URL}/{record_id}",
             headers=HEADERS,
             json={"fields": {"Payment Status": "Paid"}}
         )
-        print(f"AIRTABLE PAYMENT STATUS UPDATED | {record_id} | Paid")
+        # FIXED: Check response so silent Airtable failures get logged
+        if response.status_code != 200:
+            print(f"AIRTABLE UPDATE FAILED | {record_id} | {response.status_code} | {response.text}")
+        else:
+            print(f"AIRTABLE PAYMENT STATUS UPDATED | {record_id} | Paid")
     except Exception as e:
         print(f"AIRTABLE UPDATE ERROR | {e}")
 
 
+def handle_stripe_event(event: dict) -> dict:
+    """
+    Processes an already-verified Stripe event.
+    Signature verification happens ONCE in the webhook route — not here.
+    Handles payment confirmation events and updates Airtable accordingly.
+    """
+    try:
+        event_type = event["type"]
+        obj = event["data"]["object"]
+
+        # Helper to safely pull metadata from either dict or object
+        def get_record_id(obj):
+            metadata = getattr(obj, "metadata", None) or obj.get("metadata", {})
+            if isinstance(metadata, dict):
+                return metadata.get("airtable_record_id")
+            return getattr(metadata, "airtable_record_id", None)
+
+        if event_type == "checkout.session.completed":
+            record_id = get_record_id(obj)
+            if record_id:
+                update_airtable_paid(record_id)
+                print(f"PAYMENT CONFIRMED | checkout.session.completed | Record: {record_id}")
+            else:
+                print(f"PAYMENT CONFIRMED | checkout.session.completed | No record_id in metadata")
+
+        elif event_type == "payment_intent.succeeded":
+            record_id = get_record_id(obj)
+            if record_id:
+                update_airtable_paid(record_id)
+                print(f"PAYMENT CONFIRMED | payment_intent.succeeded | Record: {record_id}")
+            else:
+                print(f"PAYMENT CONFIRMED | payment_intent.succeeded | No record_id in metadata")
+
+        elif event_type == "payment_link.completed":
+            record_id = get_record_id(obj)
+            if record_id:
+                update_airtable_paid(record_id)
+                print(f"PAYMENT CONFIRMED | payment_link.completed | Record: {record_id}")
+            else:
+                print(f"PAYMENT CONFIRMED | payment_link.completed | No record_id in metadata")
+
+        else:
+            # Log unhandled event types so you can add handlers as needed
+            print(f"STRIPE EVENT UNHANDLED | {event_type}")
+
+        return {"ok": True}
+
+    except Exception as e:
+        print(f"STRIPE EVENT HANDLER ERROR | {type(e).__name__} | {e}")
+        return {"ok": False, "error": str(e)}
+
+
+# --------------------------------------------------
+# DEPRECATED — do not call this directly anymore.
+# Signature verification now handled in the route.
+# Kept here only for reference during transition.
+# --------------------------------------------------
 def handle_stripe_webhook(payload: bytes, sig_header: str) -> dict:
     """
-    Verifies and processes Stripe webhook events.
-    Called from the /stripe-webhook Flask route.
+    DEPRECATED: Use handle_stripe_event(event) instead.
+    Verification now happens once in the /stripe-webhook route.
     """
-    webhook_secret = os.environ.get("STRIPE_WEBHOOK_SECRET")
-
-    try:
-        event = stripe.Webhook.construct_event(payload, sig_header, webhook_secret)
-    except stripe.error.SignatureVerificationError as e:
-        print(f"STRIPE WEBHOOK SIGNATURE ERROR | {e}")
-        return {"ok": False, "error": "Invalid signature"}
-
-    if event["type"] == "checkout.session.completed":
-        session = event["data"]["object"]
-        metadata = getattr(session, "metadata", None) or {}
-        record_id = metadata.get("airtable_record_id") if isinstance(metadata, dict) else getattr(metadata, "airtable_record_id", None)
-        if record_id:
-            update_airtable_paid(record_id)
-            print(f"PAYMENT CONFIRMED | Record: {record_id}")
-
-    elif event["type"] == "payment_intent.succeeded":
-        session = event["data"]["object"]
-        metadata = getattr(session, "metadata", None) or {}
-        record_id = metadata.get("airtable_record_id") if isinstance(metadata, dict) else getattr(metadata, "airtable_record_id", None)
-        if record_id:
-            update_airtable_paid(record_id)
-            print(f"PAYMENT INTENT CONFIRMED | Record: {record_id}")
-
-    elif event["type"] == "payment_link.completed":
-        link = event["data"]["object"]
-        record_id = link.get("metadata", {}).get("airtable_record_id")
-        if record_id:
-            update_airtable_paid(record_id)
-
-    return {"ok": True}
+    print("WARNING | handle_stripe_webhook called directly — this is deprecated.")
+    return {"ok": False, "error": "Use handle_stripe_event with a pre-verified event."}
         
