@@ -22,7 +22,7 @@ HEADERS = {
 }
 
 
-def create_payment_link(amount: float, customer_name: str, job_description: str, record_id: str) -> dict:
+def create_payment_link(amount: float, customer_name: str, job_description: str, record_id: str, business_name: str = "Your Contractor") -> dict:
     """
     Creates a Stripe payment link for a completed job.
     Returns the payment link URL.
@@ -34,8 +34,8 @@ def create_payment_link(amount: float, customer_name: str, job_description: str,
             currency="usd",
             unit_amount=amount_cents,
             product_data={
-                # FIXED: Rebranded from MME Lawn Care to CrewCachePro
-                "name": f"CrewCachePro - {job_description or 'Service Payment'}",
+                # FIXED: Uses contractor's business name so customer recognizes who is charging them
+                "name": f"{business_name} - {job_description or 'Service Payment'}",
             },
         )
 
@@ -47,12 +47,11 @@ def create_payment_link(amount: float, customer_name: str, job_description: str,
             },
             after_completion={
                 "type": "redirect",
-                # FIXED: Update this to your live Render URL before go-live
                 "redirect": {"url": os.environ.get("APP_BASE_URL", "https://mme-ai-bot.onrender.com") + "/payment-success"}
             }
         )
 
-        print(f"STRIPE PAYMENT LINK CREATED | {customer_name} | ${amount} | {payment_link.url}")
+        print(f"STRIPE PAYMENT LINK CREATED | {business_name} | {customer_name} | ${amount} | {payment_link.url}")
         return {"ok": True, "url": payment_link.url, "link_id": payment_link.id}
 
     except Exception as e:
