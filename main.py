@@ -1526,23 +1526,27 @@ def create_payment_link_route():
         customer_name = data.get("customer_name")
         job_description = data.get("job_description")
         customer_phone = data.get("customer_phone")
+        # FIXED: Pull business_name from request so Stripe shows correct contractor name
+        business_name = data.get("business_name", "Your Contractor")
 
         from app.app.stripe_service import create_payment_link
-        result = create_payment_link(amount, customer_name, job_description, record_id)
+        result = create_payment_link(amount, customer_name, job_description, record_id, business_name)
 
         if result.get("ok"):
-            # Text the payment link to the customer
+            # FIXED: Uses contractor's business name instead of hardcoded MME
             msg = (
                 f"Hi {customer_name.split()[0]}! Your job is complete. "
                 f"Please pay your balance of ${amount} here: {result['url']} "
-                f"Thank you for choosing MME Lawn Care and More!"
+                f"Thank you for choosing {business_name}!"
             )
             send_fallback_sms(to_number=customer_phone, body=msg)
 
         return result
+
     except Exception as e:
         print(f"CREATE PAYMENT LINK ERROR | {e}")
         return {"ok": False, "error": str(e)}
+   
 
 
 @app.route("/stripe-webhook", methods=["POST"])
