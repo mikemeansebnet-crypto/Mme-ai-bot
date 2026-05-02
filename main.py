@@ -1531,6 +1531,13 @@ def cal_webhook():
 
             print("WEBHOOK PARSED | name:", name, "| phone:", phone, "| start:", start_time)
 
+            # ADDED: Write appointment date back to Airtable lead record
+            if phone and start_time:
+                try:
+                    update_lead_appointment_date(phone, start_time, name)
+                except Exception as e:
+                    print("CAL WEBHOOK AIRTABLE UPDATE ERROR |", e)
+
             if phone:
                 try:
                     from zoneinfo import ZoneInfo
@@ -1548,11 +1555,50 @@ def cal_webhook():
             else:
                 print("WEBHOOK NOTICE | No phone found in payload")
 
+        elif trigger in {"BOOKING_CANCELLED", "BOOKING.CANCELLED"}:
+            # ADDED: Update lead status to Cancelled in Airtable
+            attendee = payload.get("attendees", [])
+            attendee0 = attendee[0] if attendee and isinstance(attendee[0], dict) else {}
+            phone = (
+                response_value("attendeePhoneNumber")
+                or str(attendee0.get("phoneNumber") or "")
+                or str(attendee0.get("phone") or "")
+            ).strip()
+            if phone:
+                try:
+                    update_lead_status_by_phone(phone, "Cancelled")
+                    print("CAL WEBHOOK | Booking cancelled | phone:", phone)
+                except Exception as e:
+                    print("CAL WEBHOOK CANCEL UPDATE ERROR |", e)
+
+        elif trigger in {"BOOKING_RESCHEDULED", "BOOKING.RESCHEDULED"}:
+            # ADDED: Update appointment date in Airtable when rescheduled
+            attendee = payload.get("attendees", [])
+            attendee0 = attendee[0] if attendee and isinstance(attendee[0], dict) else {}
+            phone = (
+                response_value("attendeePhoneNumber")
+                or str(attendee0.get("phoneNumber") or "")
+                or str(attendee0.get("phone") or "")
+            ).strip()
+            start_time = str(
+                payload.get("startTime")
+                or payload.get("start")
+                or ""
+            ).strip()
+            name = str(attendee0.get("name") or "").strip()
+            if phone and start_time:
+                try:
+                    update_lead_appointment_date(phone, start_time, name)
+                    print("CAL WEBHOOK | Booking rescheduled | phone:", phone)
+                except Exception as e:
+                    print("CAL WEBHOOK RESCHEDULE UPDATE ERROR |", e)
+
         return "", 200
 
     except Exception as e:
         print("WEBHOOK ERROR:", e)
         return "", 500
+
 
 @app.route("/cal-booking-notify", methods=["POST"])
 def cal_booking_notify():
@@ -1564,14 +1610,16 @@ def cal_booking_notify():
         attendees = payload.get("attendees", [])
         customer_name = attendees[0].get("name", "Unknown") if attendees else "Unknown"
         customer_phone = attendees[0].get("phoneNumber", "") if attendees else ""
-        from datetime import datetime, timedelta
+
         raw_time = payload.get("startTime", "")
         try:
+            from zoneinfo import ZoneInfo
             dt = datetime.fromisoformat(raw_time.replace("Z", "+00:00"))
-            dt_eastern = dt - timedelta(hours=4)
-            start_time = dt_eastern.strftime("%A %B %d at %I:%M %p EST")
-        except:
+            eastern = dt.astimezone(ZoneInfo("America/New_York"))
+            start_time = eastern.strftime("%A %B %d at %I:%M %p EST")
+        except Exception:
             start_time = raw_time
+
         title = payload.get("title", "Appointment")
 
         if trigger == "BOOKING_CREATED":
@@ -1594,21 +1642,115 @@ def cal_booking_notify():
             f"Event: {title}"
         )
 
-        # Pull notify SMS from contractors table based on Twilio number
-        to_number = request.headers.get("X-Forwarded-For", "")
-        contractor = {}
+        # FIXED: Look up contractor by Twilio number properly
         try:
             contractor = get_contractor_by_twilio_number(os.getenv("TWILIO_PHONE_NUMBER")) or {}
-        except:
-            pass
+        except Exception:
+            contractor = {}
+
         notify_sms = contractor.get("Notify SMS") or os.getenv("NOTIFY_SMS")
-        send_fallback_sms(to_number=notify_sms, body=msg)
+        if notify_sms:
+            send_fallback_sms(to_number=notify_sms, body=msg)
 
         return {"ok": True}
+
     except Exception as e:
         print("CAL BOOKING NOTIFY ERROR |", e)
         return {"ok": False}
-  
+
+
+def update_lead_appointment_date(phone: str, start_time: str, name: str = "") -> None:
+    """
+    Finds a lead in Airtable by phone number and updates
+    the Appointment Date field with the confirmed booking time.
+    """
+    try:
+        AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
+        AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
+        LEADS_TABLE = "Leads"
+
+        leads_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{LEADS_TABLE}"
+        headers = {
+            "Authorization": f"Bearer {AIRTABLE_TOKEN}",
+            "Content-Type": "application/json"
+        }
+
+        # Normalize phone for search
+        normalized = phone.replace("+1", "").replace("-", "").replace(" ", "").strip()
+
+        # FIXED: Correct field name and bracket syntax
+        params = {"filterByFormula": f"FIND('{normalized}', {{Callback Number}})"}
+        response = requests.get(leads_url, headers=headers, params=params)
+        records = response.json().get("records", [])
+
+        if not records:
+            print(f"CAL WEBHOOK | No lead found for phone {phone}")
+            return
+
+        record_id = records[0]["id"]
+
+        try:
+            from zoneinfo import ZoneInfo
+            dt = datetime.fromisoformat(start_time.replace("Z", "+00:00"))
+            eastern = dt.astimezone(ZoneInfo("America/New_York"))
+            airtable_date = eastern.strftime("%Y-%m-%dT%H:%M:%S.000Z")
+            formatted_display = eastern.strftime("%A, %B %-d at %-I:%M %p")
+        except Exception:
+            airtable_date = start_time
+            formatted_display = start_time
+
+        update_response = requests.patch(
+            f"{leads_url}/{record_id}",
+            headers=headers,
+            json={"fields": {
+                "Appointment Date": airtable_date,
+                "Lead Status": "Booked"
+            }}
+        )
+
+        if update_response.status_code == 200:
+            print(f"CAL WEBHOOK | Appointment Date updated | {record_id} | {formatted_display}")
+        else:
+            print(f"CAL WEBHOOK | Airtable update failed | {update_response.status_code} | {update_response.text}")
+
+    except Exception as e:
+        print(f"UPDATE LEAD APPOINTMENT ERROR | {e}")
+
+
+def update_lead_status_by_phone(phone: str, status: str) -> None:
+    """Updates Lead Status in Airtable when a booking is cancelled."""
+    try:
+        AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
+        AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
+        LEADS_TABLE = "Leads"
+
+        leads_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{LEADS_TABLE}"
+        headers = {
+            "Authorization": f"Bearer {AIRTABLE_TOKEN}",
+            "Content-Type": "application/json"
+        }
+
+        normalized = phone.replace("+1", "").replace("-", "").replace(" ", "").strip()
+
+        # FIXED: Correct field name and bracket syntax
+        params = {"filterByFormula": f"FIND('{normalized}', {{Callback Number}})"}
+        response = requests.get(leads_url, headers=headers, params=params)
+        records = response.json().get("records", [])
+
+        if not records:
+            print(f"CAL WEBHOOK | No lead found for cancel | phone {phone}")
+            return
+
+        record_id = records[0]["id"]
+        requests.patch(
+            f"{leads_url}/{record_id}",
+            headers=headers,
+            json={"fields": {"Lead Status": status}}
+        )
+        print(f"LEAD STATUS UPDATED | {record_id} | {status}")
+
+    except Exception as e:
+        print(f"UPDATE LEAD STATUS ERROR | {e}")
 
 
 # ─────────────────────────────────────────────
