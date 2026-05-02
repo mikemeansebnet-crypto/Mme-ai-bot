@@ -1251,7 +1251,6 @@ def sms():
 
     # Check if ready to complete
     if collected.get("ready") and sms_state.get("name") and sms_state.get("service_address"):
-        # Fire INTAKE_COMPLETE flow
         sms_state["priority"] = "STANDARD"
         sms_state["call_sid"] = f"SMS-{from_number}-{int(time.time())}"
 
@@ -1262,7 +1261,6 @@ def sms():
             print("SMS INTAKE SUMMARY ERROR |", e)
 
         booking_link = build_cal_booking_link(contractor, sms_state)
-
         first_name = sms_state.get('name', '').split()[0] if sms_state.get('name') else ''
 
         if booking_link:
@@ -1278,36 +1276,38 @@ def sms():
                 f"Reply STOP to opt out."
             )
 
-    # Schedule photo SMS 6 minutes later — Pro only
-    if has_feature(contractor, "photo_estimates"):
-        try:
-            messaging_service_sid = os.getenv("TWILIO_MESSAGING_SERVICE_SID", "").strip()
-            lead_id = sms_state.get("lead_airtable_id", "")
-            base_url = os.getenv("RENDER_EXTERNAL_URL", "https://mme-ai-bot.onrender.com").rstrip("/")
-            photo_link = f"{base_url}/upload-photos/{lead_id}" if lead_id else ""
+        # Schedule photo SMS 6 minutes later — Pro only
+        # FIXED: This block is now INSIDE the ready check, not outside it
+        if has_feature(contractor, "photo_estimates"):
+            try:
+                messaging_service_sid = os.getenv("TWILIO_MESSAGING_SERVICE_SID", "").strip()
+                lead_id = sms_state.get("lead_airtable_id", "")
+                base_url = os.getenv("RENDER_EXTERNAL_URL", "https://mme-ai-bot.onrender.com").rstrip("/")
+                photo_link = f"{base_url}/upload-photos/{lead_id}" if lead_id else ""
 
-            if messaging_service_sid and photo_link:
-                from datetime import timedelta
-                photo_send_time = datetime.now(timezone.utc) + timedelta(minutes=6)
-                tc = twilio_client()
-                if tc.get("ok"):
-                    tc["client"].messages.create(
-                        body=(
-                            f"One more thing {first_name} — send us photos "
-                            f"of the job so we can prepare a better estimate: "
-                            f"{photo_link} "
-                            f"The more we see, the faster we can quote you."
-                        ),
-                        from_=to_number,
-                        to=from_number,
-                        send_at=photo_send_time.strftime("%Y-%m-%dT%H:%M:%SZ"),
-                        schedule_type="fixed",
-                        messaging_service_sid=messaging_service_sid,
-                    )
-                    print("SMS PHOTO SCHEDULED | 6 min delay | to:", from_number)
-        except Exception as e:
-            print("SMS PHOTO SCHEDULE ERROR |", e)
+                if messaging_service_sid and photo_link:
+                    from datetime import timedelta
+                    photo_send_time = datetime.now(timezone.utc) + timedelta(minutes=6)
+                    tc = twilio_client()
+                    if tc.get("ok"):
+                        tc["client"].messages.create(
+                            body=(
+                                f"One more thing {first_name} — send us photos "
+                                f"of the job so we can prepare a better estimate: "
+                                f"{photo_link} "
+                                f"The more we see, the faster we can quote you."
+                            ),
+                            from_=to_number,
+                            to=from_number,
+                            send_at=photo_send_time.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                            schedule_type="fixed",
+                            messaging_service_sid=messaging_service_sid,
+                        )
+                        print("SMS PHOTO SCHEDULED | 6 min delay | to:", from_number)
+            except Exception as e:
+                print("SMS PHOTO SCHEDULE ERROR |", e)
 
+        # FIXED: Delete state and return ONLY when intake is complete
         if redis_client:
             redis_client.delete(sms_state_key)
 
@@ -1315,9 +1315,8 @@ def sms():
 
         return Response(
             f"<Response><Message>{reply}</Message></Response>",
-             mimetype="text/xml"
+            mimetype="text/xml"
         )
-                  
 
     # Handle emergency
     if "EMERGENCY" in reply.upper():
@@ -1333,14 +1332,16 @@ def sms():
             mimetype="text/xml"
         )
 
-    # Save state and reply
+    # Normal mid-conversation — save state and reply
     messages.append({"role": "user", "content": incoming_msg})
     messages.append({"role": "assistant", "content": reply})
     sms_state["messages"] = messages[-20:]
 
+    # FIXED: State saves on every normal message now
     if redis_client:
         try:
             redis_client.setex(sms_state_key, 7200, json.dumps(sms_state))
+            print("SMS STATE SAVED |", sms_state_key, "| name:", sms_state.get("name"), "| address:", sms_state.get("service_address"))
         except Exception as e:
             print("SMS STATE SAVE ERROR |", e)
 
@@ -1348,174 +1349,7 @@ def sms():
         f"<Response><Message>{reply}</Message></Response>",
         mimetype="text/xml"
     )
- 
-    print("SMS CLAUDE RESPONSE |", claude_response)
- 
-    # Handle emergency
-    if "EMERGENCY" in claude_response:
-        emergency_phone = (contractor.get("Emergency Phone") or "").strip()
-        if emergency_phone:
-            reply = f"This sounds urgent! Please call us directly at {emergency_phone} for immediate assistance."
-        else:
-            reply = f"This sounds urgent! Please call {business_name} directly for immediate assistance."
- 
-        if redis_client:
-            redis_client.delete(sms_state_key)
- 
-        return Response(
-            f"<Response><Message>{reply}</Message></Response>",
-            mimetype="text/xml"
-        )
- 
-    # Handle intake complete
-    if "INTAKE_COMPLETE" in claude_response:
-        try:
-            import re
-            json_match = re.search(r"\{.*\}", claude_response, re.DOTALL)
-            if json_match:
-                intake_data = json.loads(json_match.group(0))
- 
-                # Update state with final data
-                sms_state["name"] = intake_data.get("name", sms_state.get("name", ""))
-                sms_state["service_address"] = intake_data.get("service_address", "")
-                sms_state["job_description"] = intake_data.get("job_description", "")
-                sms_state["timing"] = intake_data.get("timing", "")
-                sms_state["priority"] = intake_data.get("priority", "STANDARD")
-                sms_state["call_sid"] = f"SMS-{from_number}-{int(time.time())}"
- 
-                # Save lead to Airtable + send email
-                notify_email = (contractor.get("Notify Email") or os.getenv("TO_EMAIL") or "").strip()
-                try:
-                    send_intake_summary(sms_state, notify_email=notify_email)
-                except Exception as e:
-                    print("SMS INTAKE SUMMARY ERROR |", e)
- 
-                # Build and send booking link
-                booking_link = build_cal_booking_link(contractor, sms_state)
- 
-                if booking_link:
-                    reply = (
-                        f"Got it! Book your estimate here: {booking_link} "
-                        f"Reply STOP to opt out."
-                    )
-                else:
-                    reply = (
-                        f"Got it! We have all your details and will follow up shortly. "
-                        f"Reply STOP to opt out."
-                    )
-
-                # Schedule photo upload SMS 6 minutes later — Pro only
-                if has_feature(contractor, "photo_estimates"):
-                    try:
-                        messaging_service_sid = os.getenv("TWILIO_MESSAGING_SERVICE_SID", "").strip()
-                        lead_id = sms_state.get("lead_airtable_id", "")
-                        base_url = os.getenv("RENDER_EXTERNAL_URL", "https://mme-ai-bot.onrender.com").rstrip("/")
-                        photo_link = f"{base_url}/upload-photos/{lead_id}" if lead_id else ""
-
-                        if messaging_service_sid and photo_link:
-                            from datetime import timedelta
-                            photo_send_time = datetime.now(timezone.utc) + timedelta(minutes=6)
-                            tc = twilio_client()
-                            if tc.get("ok"):
-                                tc["client"].messages.create(
-                                    body=(
-                                        f"One more thing {first_name} — send us photos "
-                                        f"of the job so we can prepare a better estimate: "
-                                        f"{photo_link} "
-                                        f"The more we see, the faster we can quote you."
-                                    ),
-                                    from_=to_number,
-                                    to=from_number,
-                                    send_at=photo_send_time.strftime("%Y-%m-%dT%H:%M:%SZ"),
-                                    schedule_type="fixed",
-                                    messaging_service_sid=messaging_service_sid,
-                                )
-                                print("SMS PHOTO SCHEDULED | 6 min delay | to:", from_number)
-                    except Exception as e:
-                        print("SMS PHOTO SCHEDULE ERROR |", e)
-                    
-
-                # Clear SMS state
-                if redis_client:
-                    redis_client.delete(sms_state_key)
-
-
-                print("SMS INTAKE COMPLETE |", sms_state.get("name"), "|", sms_state.get("service_address"))
- 
-        except Exception as e:
-            print("SMS INTAKE COMPLETE ERROR |", e)
-            reply = f"Thanks! We have your details and will follow up shortly."
- 
-        return Response(
-            f"<Response><Message>{reply}</Message></Response>",
-            mimetype="text/xml"
-        )
- 
-    # Extract collected fields — check what Claude just asked
-    # messages[-1] is the last BOT message (what Claude asked before this response)
-    all_bot_messages = " ".join([
-        m.get("content", "") 
-        for m in messages 
-        if m.get("role") == "assistant"
-    ]).lower()
-
-    last_bot_message = next(
-        (m.get("content", "") for m in reversed(messages) 
-         if m.get("role") == "assistant"), ""
-    ).lower()
-
-    skip_words = {"yes", "no", "yeah", "nope", "correct", "yep", "ok", "okay", "sure"}
-    is_confirmation = incoming_msg.lower().strip().rstrip(".!?") in skip_words
-
-    # If customer confirmed address extract it from Claude's message
-    if is_confirmation and not sms_state.get("service_address"):
-        if any(w in last_bot_message for w in ["address", "confirm"]):
-            import re
-            addr_match = re.search(r"is (.+?) your service address", last_bot_message, re.IGNORECASE)
-            if addr_match:
-                sms_state["service_address"] = addr_match.group(1).strip()
-                print("ADDRESS CONFIRMED |", sms_state["service_address"])
-
-    if not sms_state.get("name") and not is_confirmation:
-        if any(w in last_bot_message for w in ["name", "who"]):
-            sms_state["name"] = incoming_msg.split(".")[0].strip()
-            print("NAME EXTRACTED |", sms_state["name"])
-
-    elif not sms_state.get("service_address") and not is_confirmation:
-        if any(w in last_bot_message for w in ["address", "location", "zip"]):
-            sms_state["service_address"] = incoming_msg.strip()
-            print("ADDRESS EXTRACTED |", sms_state["service_address"])
-
-    elif not sms_state.get("job_description") and not is_confirmation:
-        if any(w in last_bot_message for w in ["work", "done", "need", "service"]):
-            sms_state["job_description"] = incoming_msg.strip()
-            print("JOB EXTRACTED |", sms_state["job_description"])
-
-    elif not sms_state.get("timing") and not is_confirmation:
-        if any(w in last_bot_message for w in ["when", "timing", "available"]):
-            sms_state["timing"] = incoming_msg.split(".")[0].strip()
-            print("TIMING EXTRACTED |", sms_state["timing"])
-
-        # Normal response — save state and reply
-        messages.append({"role": "user", "content": incoming_msg})
-        messages.append({"role": "assistant", "content": claude_response})
-        sms_state["messages"] = messages[-20:]
- 
-    # Save state to Redis with 2 hour TTL
-    if redis_client:
-        try:
-            print("SMS STATE SAVING |", sms_state_key, "| name:", sms_state.get("name"), "| address:", sms_state.get("service_address"))
-            redis_client.setex(sms_state_key, 7200, json.dumps(sms_state))
-        except Exception as e:
-            print("SMS STATE SAVE ERROR |", e)
- 
-    # Truncate reply to SMS safe length
-    reply = claude_response[:320] if len(claude_response) > 320 else claude_response
- 
-    return Response(
-        f"<Response><Message>{reply}</Message></Response>",
-        mimetype="text/xml"
-    )
+  
 
 @app.route("/create-payment-link", methods=["POST"])
 def create_payment_link_route():
