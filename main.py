@@ -1719,7 +1719,7 @@ def update_lead_appointment_date(phone: str, start_time: str, name: str = "") ->
             f"{leads_url}/{record_id}",
             headers=headers,
             json={"fields": {
-                "Appointment Date": airtable_date,
+                "Appointment Date and Time": airtable_date,
                 "Lead Status": "Booked"
             }}
         )
