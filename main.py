@@ -1667,7 +1667,7 @@ def update_lead_appointment_date(phone: str, start_time: str, name: str = "") ->
     try:
         AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
         AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
-        LEADS_TABLE = "Leads"
+        LEADS_TABLE = "tbl6YL7BYY2vawIF1"
 
         leads_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{LEADS_TABLE}"
         headers = {
@@ -1685,7 +1685,7 @@ def update_lead_appointment_date(phone: str, start_time: str, name: str = "") ->
 
         records = []
         for fmt in phone_formats:
-            params = {"filterByFormula": f"{{Callback Number}} = '{fmt}'"}
+            params = {"filterByFormula": f"{{fldfSFcMA4V5SLfjo}} = '{fmt}'"}
             response = requests.get(leads_url, headers=headers, params=params)
             records = response.json().get("records", [])
             if records:
