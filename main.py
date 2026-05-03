@@ -1675,13 +1675,29 @@ def update_lead_appointment_date(phone: str, start_time: str, name: str = "") ->
             "Content-Type": "application/json"
         }
 
-        # Normalize phone for search
-        normalized = phone.replace("+1", "").replace("-", "").replace(" ", "").strip()
+        # Try multiple phone formats to match however Airtable stores it
+        phone_formats = [
+            phone,                                                  # +17632132731
+            phone.replace("+1", ""),                               # 7632132731
+            phone.replace("+", ""),                                # 17632132731
+            f"+1{phone.replace('+1', '').replace('+', '')}"       # +17632132731 normalized
+        ]
 
-        # FIXED: Correct field name and bracket syntax
-        params = {"filterByFormula": f"FIND('{normalized}', {{Callback Number}})"}
-        response = requests.get(leads_url, headers=headers, params=params)
-        records = response.json().get("records", [])
+        records = []
+        for fmt in phone_formats:
+            params = {"filterByFormula": f"{{Callback Number}} = '{fmt}'"}
+            response = requests.get(leads_url, headers=headers, params=params)
+            records = response.json().get("records", [])
+            if records:
+                print(f"CAL WEBHOOK | Lead found with format: {fmt}")
+                break
+
+        if not records:
+            # Try FIND as fallback
+            normalized = phone.replace("+1", "").replace("-", "").replace(" ", "").strip()
+            params = {"filterByFormula": f"FIND('{normalized}', {{Callback Number}})"}
+            response = requests.get(leads_url, headers=headers, params=params)
+            records = response.json().get("records", [])
 
         if not records:
             print(f"CAL WEBHOOK | No lead found for phone {phone}")
@@ -1730,12 +1746,28 @@ def update_lead_status_by_phone(phone: str, status: str) -> None:
             "Content-Type": "application/json"
         }
 
-        normalized = phone.replace("+1", "").replace("-", "").replace(" ", "").strip()
+        # Try multiple phone formats to match however Airtable stores it
+        phone_formats = [
+            phone,
+            phone.replace("+1", ""),
+            phone.replace("+", ""),
+            f"+1{phone.replace('+1', '').replace('+', '')}"
+        ]
 
-        # FIXED: Correct field name and bracket syntax
-        params = {"filterByFormula": f"FIND('{normalized}', {{Callback Number}})"}
-        response = requests.get(leads_url, headers=headers, params=params)
-        records = response.json().get("records", [])
+        records = []
+        for fmt in phone_formats:
+            params = {"filterByFormula": f"{{Callback Number}} = '{fmt}'"}
+            response = requests.get(leads_url, headers=headers, params=params)
+            records = response.json().get("records", [])
+            if records:
+                print(f"CAL WEBHOOK | Lead found with format: {fmt}")
+                break
+
+        if not records:
+            normalized = phone.replace("+1", "").replace("-", "").replace(" ", "").strip()
+            params = {"filterByFormula": f"FIND('{normalized}', {{Callback Number}})"}
+            response = requests.get(leads_url, headers=headers, params=params)
+            records = response.json().get("records", [])
 
         if not records:
             print(f"CAL WEBHOOK | No lead found for cancel | phone {phone}")
