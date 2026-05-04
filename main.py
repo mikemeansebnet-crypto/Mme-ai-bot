@@ -1788,6 +1788,112 @@ def update_lead_status_by_phone(phone: str, status: str) -> None:
     except Exception as e:
         print(f"UPDATE LEAD STATUS ERROR | {e}")
 
+@app.route("/send-job-reminders", methods=["POST", "GET"])
+def send_job_reminders():
+    """
+    Runs nightly at 7 PM Eastern via Render cron job.
+    Finds all leads with appointments tomorrow and sends SMS reminders.
+    """
+    try:
+        from zoneinfo import ZoneInfo
+        from datetime import datetime, timedelta
+        import requests as req
+
+        eastern = ZoneInfo("America/New_York")
+        now = datetime.now(eastern)
+        tomorrow = now + timedelta(days=1)
+        tomorrow_date = tomorrow.strftime("%Y-%m-%d")
+
+        print(f"JOB REMINDER | Running for date: {tomorrow_date}")
+
+        AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
+        AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
+        leads_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tbl6YL7BYY2vawIF1"
+        headers = {
+            "Authorization": f"Bearer {AIRTABLE_TOKEN}",
+            "Content-Type": "application/json"
+        }
+
+        # Query for booked leads with appointment tomorrow
+        filter_formula = (
+            f"AND("
+            f"{{Lead Status}} = 'Booked', "
+            f"IS_SAME({{Appointment Date and Time}}, '{tomorrow_date}', 'day')"
+            f")"
+        )
+        params = {"filterByFormula": filter_formula}
+        response = req.get(leads_url, headers=headers, params=params)
+        records = response.json().get("records", [])
+
+        print(f"JOB REMINDER | Found {len(records)} appointments for tomorrow")
+
+        sent = 0
+        failed = 0
+
+        for record in records:
+            fields = record.get("fields", {})
+            client_name = fields.get("Client Name", "there")
+            first_name = client_name.split()[0] if client_name else "there"
+            customer_phone = fields.get("Call Back Number", "")
+            twilio_number = fields.get("Twilio Number", "")
+            appointment_dt = fields.get("Appointment Date and Time", "")
+
+            if not customer_phone or not twilio_number:
+                print(f"JOB REMINDER | Skipping {client_name} — missing phone or Twilio number")
+                failed += 1
+                continue
+
+            # Look up contractor for business name and reschedule number
+            contractor = get_contractor_by_twilio_number(twilio_number) or {}
+            business_name = contractor.get("Business Name", "Your contractor")
+            notify_sms = contractor.get("Notify SMS", twilio_number)
+
+            # Format appointment time
+            try:
+                dt = datetime.fromisoformat(appointment_dt.replace("Z", "+00:00"))
+                dt_eastern = dt.astimezone(eastern)
+                formatted_time = dt_eastern.strftime("%-I:%M %p")
+            except Exception:
+                formatted_time = "your scheduled time"
+
+            # Build reminder message
+            msg = (
+                f"Hi {first_name}! Just a reminder that {business_name} "
+                f"is scheduled for tomorrow at {formatted_time}. "
+                f"We look forward to seeing you! "
+                f"To reschedule please call or text {notify_sms}."
+            )
+
+            # Send SMS from contractor's Twilio number
+            try:
+                from twilio.rest import Client as TwilioClient
+                tc = TwilioClient(
+                    os.environ.get("TWILIO_ACCOUNT_SID"),
+                    os.environ.get("TWILIO_AUTH_TOKEN")
+                )
+                tc.messages.create(
+                    body=msg,
+                    from_=twilio_number,
+                    to=customer_phone
+                )
+                print(f"JOB REMINDER SENT | {client_name} | {customer_phone} | {formatted_time}")
+                sent += 1
+            except Exception as e:
+                print(f"JOB REMINDER SMS ERROR | {client_name} | {e}")
+                failed += 1
+
+        return jsonify({
+            "ok": True,
+            "date": tomorrow_date,
+            "sent": sent,
+            "failed": failed,
+            "total": len(records)
+        }), 200
+
+    except Exception as e:
+        print(f"JOB REMINDER ERROR | {type(e).__name__} | {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
 
 # ─────────────────────────────────────────────
 # Fallback
