@@ -469,6 +469,7 @@ def send_intake_summary(state: dict, notify_email: str = None, reply_to_email: s
         "Appointment Requested": state.get("timing", ""),
         "Lead Status": "New Lead",
         "Priority": state.get("priority", "STANDARD"),
+        "Twilio Number": twilio_number,
     }
 
     appt_datetime = state.get("appointment")
