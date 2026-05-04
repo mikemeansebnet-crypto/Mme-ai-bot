@@ -1894,6 +1894,183 @@ def send_job_reminders():
         print(f"JOB REMINDER ERROR | {type(e).__name__} | {e}")
         return jsonify({"ok": False, "error": str(e)}), 500
 
+@app.route("/send-payment-reminders", methods=["POST", "GET"])
+def send_payment_reminders():
+    """
+    Runs daily via Render cron job.
+    Finds unpaid invoices and sends SMS reminders at 3, 7, and 14 days.
+    """
+    try:
+        from zoneinfo import ZoneInfo
+        from datetime import datetime, timedelta
+        import requests as req
+
+        eastern = ZoneInfo("America/New_York")
+        now = datetime.now(eastern)
+
+        AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
+        AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
+        payments_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/Payments"
+        headers = {
+            "Authorization": f"Bearer {AIRTABLE_TOKEN}",
+            "Content-Type": "application/json"
+        }
+
+        # Fetch all unpaid records
+        params = {
+            "filterByFormula": "AND({Payment Status} = 'Unpaid', {Phone Number} != '')"
+        }
+        response = req.get(payments_url, headers=headers, params=params)
+        records = response.json().get("records", [])
+
+        print(f"PAYMENT REMINDER | Found {len(records)} unpaid records")
+
+        sent = 0
+        failed = 0
+
+        for record in records:
+            fields = record.get("fields", {})
+            record_id = record.get("id")
+
+            customer_name = fields.get("Customer Name", "there")
+            first_name = customer_name.split()[0] if customer_name else "there"
+            customer_phone = fields.get("Phone Number", "")
+            amount = fields.get("Amount", 0)
+            notes = fields.get("Notes", "services rendered")
+            payment_date_str = fields.get("Payment Date", "")
+            reminder_count = int(fields.get("Reminder Count") or 0)
+
+            # Get contractor from linked record
+            contractor_links = fields.get("Contractor", [])
+            contractor_record_id = contractor_links[0].get("id") if contractor_links else None
+
+            twilio_number = ""
+            business_name = "your contractor"
+            notify_sms = ""
+
+            if contractor_record_id:
+                try:
+                    CONTRACTORS_TABLE = os.environ.get("AIRTABLE_CONTRACTORS_TABLE")
+                    contractors_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{CONTRACTORS_TABLE}"
+                    c_response = req.get(f"{contractors_url}/{contractor_record_id}", headers=headers)
+                    contractor = c_response.json().get("fields", {})
+                    twilio_number = contractor.get("Twilio Number", "")
+                    business_name = contractor.get("Business Name", "your contractor")
+                    notify_sms = contractor.get("Notify SMS", "")
+                except Exception as e:
+                    print(f"PAYMENT REMINDER | Contractor lookup failed | {e}")
+
+            if not twilio_number or not customer_phone:
+                print(f"PAYMENT REMINDER | Skipping {customer_name} — missing phone or Twilio number")
+                failed += 1
+                continue
+
+            # Calculate days since invoice
+            try:
+                payment_date = datetime.fromisoformat(payment_date_str)
+                if payment_date.tzinfo is None:
+                    payment_date = payment_date.replace(tzinfo=eastern)
+                days_elapsed = (now - payment_date).days
+            except Exception:
+                print(f"PAYMENT REMINDER | Invalid payment date for {customer_name}")
+                continue
+
+            # Determine if reminder should fire
+            should_remind = False
+            reminder_num = reminder_count + 1
+
+            if days_elapsed >= 14 and reminder_count < 3:
+                should_remind = True
+                new_status = "Overdue"
+            elif days_elapsed >= 7 and reminder_count < 2:
+                should_remind = True
+                new_status = "Unpaid"
+            elif days_elapsed >= 3 and reminder_count < 1:
+                should_remind = True
+                new_status = "Unpaid"
+            else:
+                continue
+
+            if not should_remind:
+                continue
+
+            # Build message
+            if days_elapsed >= 14:
+                msg = (
+                    f"Hi {first_name}, this is a final notice from {business_name}. "
+                    f"Your balance of ${amount:.2f} for {notes} is now overdue. "
+                    f"Please arrange payment at your earliest convenience."
+                )
+            elif days_elapsed >= 7:
+                msg = (
+                    f"Hi {first_name}, a friendly reminder from {business_name} — "
+                    f"your balance of ${amount:.2f} for {notes} is still outstanding. "
+                    f"Please take a moment to complete your payment."
+                )
+            else:
+                msg = (
+                    f"Hi {first_name}, this is {business_name} reminding you of "
+                    f"your outstanding balance of ${amount:.2f} for {notes}. "
+                    f"Please complete your payment at your earliest convenience."
+                )
+
+            # Send SMS to customer
+            try:
+                from twilio.rest import Client as TwilioClient
+                tc = TwilioClient(
+                    os.environ.get("TWILIO_ACCOUNT_SID"),
+                    os.environ.get("TWILIO_AUTH_TOKEN")
+                )
+                tc.messages.create(
+                    body=msg,
+                    from_=twilio_number,
+                    to=customer_phone
+                )
+                print(f"PAYMENT REMINDER SENT | {customer_name} | Day {days_elapsed} | ${amount}")
+
+                # Update Airtable — increment reminder count and status
+                update_fields = {
+                    "Reminder Count": reminder_num,
+                    "Payment Status": new_status
+                }
+                req.patch(
+                    f"{payments_url}/{record_id}",
+                    headers=headers,
+                    json={"fields": update_fields}
+                )
+
+                # Alert contractor if overdue
+                if days_elapsed >= 14 and notify_sms and twilio_number:
+                    tc.messages.create(
+                        body=(
+                            f"⚠️ Overdue Payment — {customer_name}\n"
+                            f"Amount: ${amount:.2f}\n"
+                            f"Job: {notes}\n"
+                            f"Phone: {customer_phone}\n"
+                            f"Days outstanding: {days_elapsed}"
+                        ),
+                        from_=twilio_number,
+                        to=notify_sms
+                    )
+                    print(f"OVERDUE ALERT SENT TO CONTRACTOR | {customer_name}")
+
+                sent += 1
+
+            except Exception as e:
+                print(f"PAYMENT REMINDER SMS ERROR | {customer_name} | {e}")
+                failed += 1
+
+        return jsonify({
+            "ok": True,
+            "sent": sent,
+            "failed": failed,
+            "total": len(records)
+        }), 200
+
+    except Exception as e:
+        print(f"PAYMENT REMINDER ERROR | {type(e).__name__} | {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
 
 # ─────────────────────────────────────────────
 # Fallback
