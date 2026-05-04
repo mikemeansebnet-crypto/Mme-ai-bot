@@ -1942,7 +1942,7 @@ def send_payment_reminders():
 
             # Get contractor from linked record
             contractor_links = fields.get("Contractor", [])
-            contractor_record_id = contractor_links[0].get("id") if contractor_links else None
+            contractor_record_id = contractor_links[0] if contractor_links else None
 
             twilio_number = ""
             business_name = "your contractor"
