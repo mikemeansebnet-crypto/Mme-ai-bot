@@ -1708,12 +1708,15 @@ def update_lead_appointment_date(phone: str, start_time: str, name: str = "") ->
         try:
             from zoneinfo import ZoneInfo
             dt = datetime.fromisoformat(start_time.replace("Z", "+00:00"))
+            # Store in UTC — Airtable displays in the user's local timezone
+            airtable_date = dt.strftime("%Y-%m-%dT%H:%M:%S.000Z")
+            # For display in logs only — convert to Eastern
             eastern = dt.astimezone(ZoneInfo("America/New_York"))
-            airtable_date = eastern.strftime("%Y-%m-%dT%H:%M:%S.000Z")
-            formatted_display = eastern.strftime("%A, %B %-d at %-I:%M %p")
+            formatted_display = eastern.strftime("%A, %B %-d at %-I:%M %p ET")
         except Exception:
             airtable_date = start_time
             formatted_display = start_time
+            
 
         update_response = requests.patch(
             f"{leads_url}/{record_id}",
