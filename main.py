@@ -12,8 +12,12 @@ import urllib.parse
 import cloudinary
 import cloudinary.uploader
 from datetime import datetime, timezone, date
+import hashlib
+import secrets
+import jwt as pyjwt
+from functools import wraps
 
-from flask import Flask, request, jsonify, Response, session, redirect
+from flask import Flask, request, jsonify, Response, session, redirect, make_response
 from flask import render_template_string
 from twilio.twiml.voice_response import VoiceResponse, Gather
 from twilio.rest import Client
@@ -2070,6 +2074,982 @@ def send_payment_reminders():
     except Exception as e:
         print(f"PAYMENT REMINDER ERROR | {type(e).__name__} | {e}")
         return jsonify({"ok": False, "error": str(e)}), 500
+
+# -----------------------------------------------
+# DASHBOARD ROUTES
+# -----------------------------------------------
+
+DASHBOARD_SECRET = os.environ.get("DASHBOARD_SECRET", "crewcachepro-dashboard-secret")
+
+def generate_dashboard_password() -> str:
+    """Generates a secure random password for contractor dashboard."""
+    return secrets.token_urlsafe(10)
+
+def hash_password(password: str) -> str:
+    """Hashes a password for storage."""
+    return hashlib.sha256(password.encode()).hexdigest()
+
+def verify_password(password: str, hashed: str) -> bool:
+    """Verifies a password against its hash."""
+    return hashlib.sha256(password.encode()).hexdigest() == hashed
+
+def create_dashboard_token(contractor_id: str, twilio_number: str) -> str:
+    """Creates a JWT token for dashboard session."""
+    payload = {
+        "contractor_id": contractor_id,
+        "twilio_number": twilio_number,
+        "exp": datetime.utcnow() + timedelta(days=7)
+    }
+    return pyjwt.encode(payload, DASHBOARD_SECRET, algorithm="HS256")
+
+def verify_dashboard_token(token: str) -> dict:
+    """Verifies a JWT token and returns payload."""
+    try:
+        return pyjwt.decode(token, DASHBOARD_SECRET, algorithms=["HS256"])
+    except Exception:
+        return {}
+
+def dashboard_auth_required(f):
+    """Decorator to protect dashboard routes."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        token = request.cookies.get("dashboard_token") or request.headers.get("X-Dashboard-Token")
+        if not token:
+            return redirect("/dashboard/login")
+        payload = verify_dashboard_token(token)
+        if not payload:
+            return redirect("/dashboard/login")
+        request.contractor_id = payload.get("contractor_id")
+        request.twilio_number = payload.get("twilio_number")
+        return f(*args, **kwargs)
+    return decorated
+
+
+def setup_contractor_dashboard_password(contractor_record_id: str, twilio_number: str, notify_sms: str, business_name: str) -> str:
+    """
+    Generates a password for a new contractor, stores hashed version in Airtable,
+    and SMS's the plain text password to the contractor.
+    """
+    try:
+        plain_password = generate_dashboard_password()
+        hashed = hash_password(plain_password)
+
+        AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
+        AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
+        CONTRACTORS_TABLE = os.environ.get("AIRTABLE_CONTRACTORS_TABLE")
+        contractors_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{CONTRACTORS_TABLE}"
+        headers = {
+            "Authorization": f"Bearer {AIRTABLE_TOKEN}",
+            "Content-Type": "application/json"
+        }
+
+        requests.patch(
+            f"{contractors_url}/{contractor_record_id}",
+            headers=headers,
+            json={"fields": {"Dashboard Password": hashed}}
+        )
+
+        # SMS password to contractor
+        if notify_sms and twilio_number:
+            try:
+                from twilio.rest import Client as TwilioClient
+                tc = TwilioClient(
+                    os.environ.get("TWILIO_ACCOUNT_SID"),
+                    os.environ.get("TWILIO_AUTH_TOKEN")
+                )
+                tc.messages.create(
+                    body=(
+                        f"Welcome to CrewCachePro! 🎉\n"
+                        f"Your dashboard is ready at:\n"
+                        f"https://mme-ai-bot.onrender.com/dashboard\n\n"
+                        f"Login: {twilio_number}\n"
+                        f"Password: {plain_password}\n\n"
+                        f"Save this message — you'll need it to log in."
+                    ),
+                    from_=twilio_number,
+                    to=notify_sms
+                )
+                print(f"DASHBOARD PASSWORD SMS SENT | {notify_sms}")
+            except Exception as e:
+                print(f"DASHBOARD PASSWORD SMS ERROR | {e}")
+
+        return plain_password
+
+    except Exception as e:
+        print(f"SETUP DASHBOARD PASSWORD ERROR | {e}")
+        return ""
+
+
+@app.route("/dashboard/login", methods=["GET", "POST"])
+def dashboard_login():
+    """Dashboard login page."""
+    if request.method == "GET":
+        return '''
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>CrewCachePro — Login</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: "Georgia", serif;
+            background: #0a0a0a;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .login-card {
+            background: #111;
+            border: 1px solid #222;
+            border-radius: 16px;
+            padding: 40px 32px;
+            width: 100%;
+            max-width: 380px;
+        }
+        .logo {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+        .logo h1 {
+            font-size: 24px;
+            color: #fff;
+            letter-spacing: -0.5px;
+        }
+        .logo span {
+            color: #22c55e;
+        }
+        .logo p {
+            color: #555;
+            font-size: 13px;
+            margin-top: 4px;
+            font-family: monospace;
+        }
+        label {
+            display: block;
+            color: #888;
+            font-size: 12px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+            font-family: monospace;
+        }
+        input {
+            width: 100%;
+            background: #1a1a1a;
+            border: 1px solid #2a2a2a;
+            border-radius: 8px;
+            padding: 14px 16px;
+            color: #fff;
+            font-size: 16px;
+            margin-bottom: 20px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        input:focus { border-color: #22c55e; }
+        button {
+            width: 100%;
+            background: #22c55e;
+            color: #000;
+            border: none;
+            border-radius: 8px;
+            padding: 16px;
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+            letter-spacing: 0.5px;
+        }
+        button:active { opacity: 0.9; }
+        .error {
+            background: #1a0a0a;
+            border: 1px solid #ef4444;
+            color: #ef4444;
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            margin-bottom: 20px;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-card">
+        <div class="logo">
+            <h1>Crew<span>Cache</span>Pro</h1>
+            <p>Contractor Dashboard</p>
+        </div>
+        <form method="POST" action="/dashboard/login">
+            <label>Your Twilio Number</label>
+            <input type="tel" name="twilio_number" placeholder="+12408686702" required>
+            <label>Password</label>
+            <input type="password" name="password" placeholder="••••••••••" required>
+            <button type="submit">Sign In →</button>
+        </form>
+    </div>
+</body>
+</html>
+        '''
+
+    # POST — handle login
+    twilio_number = request.form.get("twilio_number", "").strip()
+    password = request.form.get("password", "").strip()
+
+    if not twilio_number or not password:
+        return dashboard_login_error("Please enter your Twilio number and password.")
+
+    # Look up contractor
+    try:
+        contractor = get_contractor_by_twilio_number(twilio_number)
+        if not contractor:
+            return dashboard_login_error("No account found for that number.")
+
+        stored_hash = contractor.get("Dashboard Password", "")
+        if not stored_hash or not verify_password(password, stored_hash):
+            return dashboard_login_error("Incorrect password.")
+
+        # Find contractor record ID
+        AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
+        AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
+        CONTRACTORS_TABLE = os.environ.get("AIRTABLE_CONTRACTORS_TABLE")
+        contractors_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{CONTRACTORS_TABLE}"
+        headers = {"Authorization": f"Bearer {AIRTABLE_TOKEN}"}
+        params = {"filterByFormula": f"{{Twilio Number}} = '{twilio_number}'"}
+        response = requests.get(contractors_url, headers=headers, params=params)
+        records = response.json().get("records", [])
+        contractor_record_id = records[0]["id"] if records else ""
+
+        token = create_dashboard_token(contractor_record_id, twilio_number)
+        resp = make_response(redirect("/dashboard"))
+        resp.set_cookie("dashboard_token", token, max_age=7*24*3600, httponly=True)
+        return resp
+
+    except Exception as e:
+        print(f"DASHBOARD LOGIN ERROR | {e}")
+        return dashboard_login_error("Something went wrong. Please try again.")
+
+
+def dashboard_login_error(message: str):
+    """Returns login page with error message."""
+    return f'''
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>CrewCachePro — Login</title>
+    <style>
+        * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+        body {{
+            font-family: "Georgia", serif;
+            background: #0a0a0a;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }}
+        .login-card {{
+            background: #111;
+            border: 1px solid #222;
+            border-radius: 16px;
+            padding: 40px 32px;
+            width: 100%;
+            max-width: 380px;
+        }}
+        .logo {{
+            text-align: center;
+            margin-bottom: 32px;
+        }}
+        .logo h1 {{ font-size: 24px; color: #fff; letter-spacing: -0.5px; }}
+        .logo span {{ color: #22c55e; }}
+        .logo p {{ color: #555; font-size: 13px; margin-top: 4px; font-family: monospace; }}
+        label {{ display: block; color: #888; font-size: 12px; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 8px; font-family: monospace; }}
+        input {{ width: 100%; background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 8px; padding: 14px 16px; color: #fff; font-size: 16px; margin-bottom: 20px; outline: none; }}
+        button {{ width: 100%; background: #22c55e; color: #000; border: none; border-radius: 8px; padding: 16px; font-size: 16px; font-weight: 700; cursor: pointer; }}
+        .error {{ background: #1a0a0a; border: 1px solid #ef4444; color: #ef4444; padding: 12px 16px; border-radius: 8px; font-size: 14px; margin-bottom: 20px; font-family: monospace; }}
+    </style>
+</head>
+<body>
+    <div class="login-card">
+        <div class="logo">
+            <h1>Crew<span>Cache</span>Pro</h1>
+            <p>Contractor Dashboard</p>
+        </div>
+        <div class="error">⚠ {message}</div>
+        <form method="POST" action="/dashboard/login">
+            <label>Your Twilio Number</label>
+            <input type="tel" name="twilio_number" placeholder="+12408686702" required>
+            <label>Password</label>
+            <input type="password" name="password" placeholder="••••••••••" required>
+            <button type="submit">Sign In →</button>
+        </form>
+    </div>
+</body>
+</html>
+    '''
+
+
+@app.route("/dashboard")
+@dashboard_auth_required
+def dashboard():
+    """Main dashboard page — mobile optimized."""
+    return '''
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+    <title>CrewCachePro Dashboard</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body {
+            font-family: "Georgia", serif;
+            background: #0a0a0a;
+            color: #fff;
+            min-height: 100vh;
+            padding-bottom: 80px;
+        }
+        header {
+            background: #111;
+            border-bottom: 1px solid #1f1f1f;
+            padding: 16px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        header h1 { font-size: 18px; color: #fff; }
+        header span { color: #22c55e; }
+        .business-name { font-size: 12px; color: #555; font-family: monospace; margin-top: 2px; }
+        .logout-btn {
+            background: #1a1a1a;
+            border: 1px solid #2a2a2a;
+            color: #888;
+            padding: 8px 14px;
+            border-radius: 8px;
+            font-size: 12px;
+            cursor: pointer;
+            text-decoration: none;
+            font-family: monospace;
+        }
+        .content { padding: 20px; }
+
+        /* Calendar */
+        .calendar-card {
+            background: #111;
+            border: 1px solid #1f1f1f;
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .calendar-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+        .calendar-title { font-size: 16px; font-weight: 600; }
+        .calendar-nav {
+            display: flex;
+            gap: 8px;
+        }
+        .cal-btn {
+            background: #1a1a1a;
+            border: 1px solid #2a2a2a;
+            color: #fff;
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .cal-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 4px;
+        }
+        .cal-day-header {
+            text-align: center;
+            font-size: 10px;
+            color: #555;
+            font-family: monospace;
+            padding: 4px 0;
+            letter-spacing: 1px;
+        }
+        .cal-day {
+            aspect-ratio: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            font-size: 13px;
+            cursor: pointer;
+            position: relative;
+            color: #888;
+        }
+        .cal-day.has-job {
+            background: #0f2a1a;
+            color: #22c55e;
+            font-weight: 600;
+            border: 1px solid #22c55e33;
+        }
+        .cal-day.today {
+            background: #22c55e;
+            color: #000;
+            font-weight: 700;
+        }
+        .cal-day.today.has-job {
+            background: #22c55e;
+            color: #000;
+        }
+        .cal-day.other-month { color: #2a2a2a; }
+
+        /* Section */
+        .section { margin-bottom: 20px; }
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        .section-title {
+            font-size: 13px;
+            color: #555;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            font-family: monospace;
+        }
+        .section-count {
+            background: #1a1a1a;
+            color: #22c55e;
+            font-size: 11px;
+            padding: 3px 8px;
+            border-radius: 20px;
+            font-family: monospace;
+        }
+
+        /* Cards */
+        .job-card {
+            background: #111;
+            border: 1px solid #1f1f1f;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 10px;
+        }
+        .job-card.urgent { border-left: 3px solid #ef4444; }
+        .job-card.today-job { border-left: 3px solid #22c55e; }
+        .job-time {
+            font-size: 12px;
+            color: #22c55e;
+            font-family: monospace;
+            margin-bottom: 6px;
+        }
+        .job-name {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+        .job-address {
+            font-size: 13px;
+            color: #888;
+            margin-bottom: 4px;
+        }
+        .job-type {
+            font-size: 12px;
+            color: #555;
+            font-family: monospace;
+        }
+        .job-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+        }
+        .action-btn {
+            flex: 1;
+            padding: 10px;
+            border-radius: 8px;
+            border: none;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            text-align: center;
+            text-decoration: none;
+            display: block;
+        }
+        .btn-call {
+            background: #22c55e;
+            color: #000;
+        }
+        .btn-sms {
+            background: #1a1a1a;
+            border: 1px solid #2a2a2a;
+            color: #fff;
+        }
+        .invoice-card {
+            background: #111;
+            border: 1px solid #1f1f1f;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .invoice-amount {
+            font-size: 20px;
+            font-weight: 700;
+            color: #ef4444;
+        }
+        .invoice-days {
+            font-size: 11px;
+            color: #555;
+            font-family: monospace;
+            margin-top: 2px;
+        }
+        .empty-state {
+            text-align: center;
+            color: #333;
+            font-size: 14px;
+            padding: 24px;
+            font-family: monospace;
+        }
+        .loading {
+            text-align: center;
+            color: #333;
+            font-size: 13px;
+            padding: 20px;
+            font-family: monospace;
+        }
+        .refresh-btn {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: #22c55e;
+            color: #000;
+            border: none;
+            width: 52px;
+            height: 52px;
+            border-radius: 50%;
+            font-size: 20px;
+            cursor: pointer;
+            box-shadow: 0 4px 20px rgba(34, 197, 94, 0.3);
+        }
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 20px;
+            font-size: 10px;
+            font-family: monospace;
+            letter-spacing: 1px;
+            margin-left: 8px;
+        }
+        .badge-new { background: #0f2a1a; color: #22c55e; }
+        .badge-urgent { background: #2a0f0f; color: #ef4444; }
+        .badge-overdue { background: #2a0f0f; color: #ef4444; }
+    </style>
+</head>
+<body>
+    <header>
+        <div>
+            <h1>Crew<span>Cache</span>Pro</h1>
+            <div class="business-name" id="businessName">Loading...</div>
+        </div>
+        <a href="/dashboard/logout" class="logout-btn">Sign out</a>
+    </header>
+
+    <div class="content">
+        <!-- Calendar -->
+        <div class="calendar-card">
+            <div class="calendar-header">
+                <div class="calendar-title" id="calTitle">May 2026</div>
+                <div class="calendar-nav">
+                    <button class="cal-btn" onclick="changeMonth(-1)">‹</button>
+                    <button class="cal-btn" onclick="changeMonth(1)">›</button>
+                </div>
+            </div>
+            <div class="cal-grid" id="calGrid">
+                <div class="cal-day-header">SUN</div>
+                <div class="cal-day-header">MON</div>
+                <div class="cal-day-header">TUE</div>
+                <div class="cal-day-header">WED</div>
+                <div class="cal-day-header">THU</div>
+                <div class="cal-day-header">FRI</div>
+                <div class="cal-day-header">SAT</div>
+            </div>
+        </div>
+
+        <!-- Today's Jobs -->
+        <div class="section">
+            <div class="section-header">
+                <div class="section-title">Today's Jobs</div>
+                <div class="section-count" id="todayCount">0</div>
+            </div>
+            <div id="todayJobs"><div class="loading">Loading...</div></div>
+        </div>
+
+        <!-- Tomorrow's Jobs -->
+        <div class="section">
+            <div class="section-header">
+                <div class="section-title">Tomorrow</div>
+                <div class="section-count" id="tomorrowCount">0</div>
+            </div>
+            <div id="tomorrowJobs"><div class="loading">Loading...</div></div>
+        </div>
+
+        <!-- Open Leads -->
+        <div class="section">
+            <div class="section-header">
+                <div class="section-title">Open Leads</div>
+                <div class="section-count" id="leadsCount">0</div>
+            </div>
+            <div id="openLeads"><div class="loading">Loading...</div></div>
+        </div>
+
+        <!-- Unpaid Invoices -->
+        <div class="section">
+            <div class="section-header">
+                <div class="section-title">Unpaid Invoices</div>
+                <div class="section-count" id="invoicesCount">0</div>
+            </div>
+            <div id="unpaidInvoices"><div class="loading">Loading...</div></div>
+        </div>
+
+        <!-- Recent Bookings -->
+        <div class="section">
+            <div class="section-header">
+                <div class="section-title">Recent Bookings</div>
+            </div>
+            <div id="recentBookings"><div class="loading">Loading...</div></div>
+        </div>
+    </div>
+
+    <button class="refresh-btn" onclick="loadDashboard()" title="Refresh">↻</button>
+
+    <script>
+        let dashboardData = {};
+        let currentMonth = new Date().getMonth();
+        let currentYear = new Date().getFullYear();
+
+        async function loadDashboard() {
+            try {
+                const res = await fetch('/dashboard/data', {
+                    headers: { 'X-Dashboard-Token': getCookie('dashboard_token') }
+                });
+                if (res.status === 401) {
+                    window.location.href = '/dashboard/login';
+                    return;
+                }
+                dashboardData = await res.json();
+                renderAll();
+            } catch(e) {
+                console.error('Dashboard load error:', e);
+            }
+        }
+
+        function getCookie(name) {
+            const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
+            return match ? match[2] : '';
+        }
+
+        function renderAll() {
+            document.getElementById('businessName').textContent = dashboardData.business_name || '';
+            renderCalendar();
+            renderTodayJobs();
+            renderTomorrowJobs();
+            renderOpenLeads();
+            renderUnpaidInvoices();
+            renderRecentBookings();
+        }
+
+        function renderCalendar() {
+            const jobDates = new Set((dashboardData.all_jobs || []).map(j => j.date));
+            const today = new Date();
+            const firstDay = new Date(currentYear, currentMonth, 1);
+            const lastDay = new Date(currentYear, currentMonth + 1, 0);
+            const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+            document.getElementById('calTitle').textContent = `${monthNames[currentMonth]} ${currentYear}`;
+
+            const grid = document.getElementById('calGrid');
+            // Keep headers
+            const headers = Array.from(grid.querySelectorAll('.cal-day-header'));
+            grid.innerHTML = '';
+            headers.forEach(h => grid.appendChild(h));
+
+            // Empty cells for first week
+            for (let i = 0; i < firstDay.getDay(); i++) {
+                const empty = document.createElement('div');
+                empty.className = 'cal-day other-month';
+                grid.appendChild(empty);
+            }
+
+            // Days
+            for (let d = 1; d <= lastDay.getDate(); d++) {
+                const dateStr = `${currentYear}-${String(currentMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+                const isToday = today.getDate() === d && today.getMonth() === currentMonth && today.getFullYear() === currentYear;
+                const hasJob = jobDates.has(dateStr);
+
+                const day = document.createElement('div');
+                day.className = `cal-day${hasJob ? ' has-job' : ''}${isToday ? ' today' : ''}`;
+                day.textContent = d;
+                if (hasJob) {
+                    day.title = 'Jobs scheduled';
+                }
+                grid.appendChild(day);
+            }
+        }
+
+        function changeMonth(dir) {
+            currentMonth += dir;
+            if (currentMonth > 11) { currentMonth = 0; currentYear++; }
+            if (currentMonth < 0) { currentMonth = 11; currentYear--; }
+            renderCalendar();
+        }
+
+        function renderTodayJobs() {
+            const jobs = dashboardData.today_jobs || [];
+            document.getElementById('todayCount').textContent = jobs.length;
+            const el = document.getElementById('todayJobs');
+            if (!jobs.length) { el.innerHTML = '<div class="empty-state">No jobs today</div>'; return; }
+            el.innerHTML = jobs.map(job => jobCard(job, true)).join('');
+        }
+
+        function renderTomorrowJobs() {
+            const jobs = dashboardData.tomorrow_jobs || [];
+            document.getElementById('tomorrowCount').textContent = jobs.length;
+            const el = document.getElementById('tomorrowJobs');
+            if (!jobs.length) { el.innerHTML = '<div class="empty-state">No jobs tomorrow</div>'; return; }
+            el.innerHTML = jobs.map(job => jobCard(job, false)).join('');
+        }
+
+        function jobCard(job, isToday) {
+            const phone = job.phone ? job.phone.replace(/\D/g,'') : '';
+            return `
+            <div class="job-card ${isToday ? 'today-job' : ''}">
+                <div class="job-time">${job.time || 'Time TBD'}</div>
+                <div class="job-name">${job.name || 'Unknown'}</div>
+                <div class="job-address">${job.address || ''}</div>
+                <div class="job-type">${job.job_type || ''}</div>
+                ${phone ? `
+                <div class="job-actions">
+                    <a href="tel:+1${phone}" class="action-btn btn-call">📞 Call</a>
+                    <a href="sms:+1${phone}" class="action-btn btn-sms">💬 Text</a>
+                </div>` : ''}
+            </div>`;
+        }
+
+        function renderOpenLeads() {
+            const leads = dashboardData.open_leads || [];
+            document.getElementById('leadsCount').textContent = leads.length;
+            const el = document.getElementById('openLeads');
+            if (!leads.length) { el.innerHTML = '<div class="empty-state">No open leads</div>'; return; }
+            el.innerHTML = leads.map(lead => {
+                const phone = lead.phone ? lead.phone.replace(/\D/g,'') : '';
+                const badge = lead.priority === 'URGENT' || lead.priority === 'HIGH_PRIORITY'
+                    ? '<span class="badge badge-urgent">URGENT</span>'
+                    : '<span class="badge badge-new">NEW</span>';
+                return `
+                <div class="job-card ${lead.priority !== 'STANDARD' ? 'urgent' : ''}">
+                    <div class="job-name">${lead.name || 'Unknown'}${badge}</div>
+                    <div class="job-address">${lead.address || ''}</div>
+                    <div class="job-type">${lead.job_type || ''} · ${lead.timing || ''}</div>
+                    ${phone ? `
+                    <div class="job-actions">
+                        <a href="tel:+1${phone}" class="action-btn btn-call">📞 Call</a>
+                        <a href="sms:+1${phone}" class="action-btn btn-sms">💬 Text</a>
+                    </div>` : ''}
+                </div>`;
+            }).join('');
+        }
+
+        function renderUnpaidInvoices() {
+            const invoices = dashboardData.unpaid_invoices || [];
+            document.getElementById('invoicesCount').textContent = invoices.length;
+            const el = document.getElementById('unpaidInvoices');
+            if (!invoices.length) { el.innerHTML = '<div class="empty-state">All paid up ✓</div>'; return; }
+            el.innerHTML = invoices.map(inv => `
+            <div class="invoice-card">
+                <div>
+                    <div class="job-name">${inv.name || 'Unknown'}</div>
+                    <div class="job-type">${inv.job_type || ''}</div>
+                    ${inv.days_outstanding > 0 ? `<div class="invoice-days">${inv.days_outstanding} days outstanding</div>` : ''}
+                </div>
+                <div style="text-align:right">
+                    <div class="invoice-amount">$${inv.amount}</div>
+                    ${inv.days_outstanding >= 14 ? '<span class="badge badge-overdue">OVERDUE</span>' : ''}
+                </div>
+            </div>`).join('');
+        }
+
+        function renderRecentBookings() {
+            const bookings = dashboardData.recent_bookings || [];
+            const el = document.getElementById('recentBookings');
+            if (!bookings.length) { el.innerHTML = '<div class="empty-state">No recent bookings</div>'; return; }
+            el.innerHTML = bookings.map(b => `
+            <div class="job-card">
+                <div class="job-time">${b.date || ''}</div>
+                <div class="job-name">${b.name || 'Unknown'}</div>
+                <div class="job-address">${b.address || ''}</div>
+                <div class="job-type">${b.job_type || ''}</div>
+            </div>`).join('');
+        }
+
+        // Load on startup
+        loadDashboard();
+        // Auto-refresh every 5 minutes
+        setInterval(loadDashboard, 5 * 60 * 1000);
+    </script>
+</body>
+</html>
+    '''
+
+
+@app.route("/dashboard/data")
+@dashboard_auth_required
+def dashboard_data():
+    """Returns JSON data for the dashboard — contractor specific."""
+    try:
+        import requests as req
+        from zoneinfo import ZoneInfo
+        from datetime import datetime, timedelta
+
+        eastern = ZoneInfo("America/New_York")
+        now = datetime.now(eastern)
+        today_str = now.strftime("%Y-%m-%d")
+        tomorrow_str = (now + timedelta(days=1)).strftime("%Y-%m-%d")
+
+        twilio_number = request.twilio_number
+        contractor_record_id = request.contractor_id
+
+        AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
+        AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
+        headers = {"Authorization": f"Bearer {AIRTABLE_TOKEN}"}
+
+        # Get contractor info
+        contractor = get_contractor_by_twilio_number(twilio_number) or {}
+        business_name = contractor.get("Business Name", "")
+
+        # Fetch booked leads for this contractor
+        leads_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tbl6YL7BYY2vawIF1"
+
+        # All jobs with appointment dates
+        all_jobs_resp = req.get(leads_url, headers=headers, params={
+            "filterByFormula": f"AND({{Lead Status}} = 'Booked', {{Twilio Number}} = '{twilio_number}', {{Appointment Date and Time}} != '')"
+        })
+        all_job_records = all_jobs_resp.json().get("records", [])
+
+        def parse_job(record):
+            fields = record.get("fields", {})
+            appt = fields.get("Appointment Date and Time", "")
+            date_str = ""
+            time_str = ""
+            try:
+                dt = datetime.fromisoformat(appt.replace("Z", "+00:00"))
+                dt_eastern = dt.astimezone(eastern)
+                date_str = dt_eastern.strftime("%Y-%m-%d")
+                time_str = dt_eastern.strftime("%-I:%M %p")
+            except Exception:
+                pass
+            return {
+                "name": fields.get("Client Name", ""),
+                "phone": fields.get("Call Back Number", ""),
+                "address": fields.get("Service Address", ""),
+                "job_type": fields.get("Job Description", ""),
+                "date": date_str,
+                "time": time_str,
+                "priority": fields.get("Priority", "STANDARD"),
+                "timing": fields.get("Appointment Requested", "")
+            }
+
+        all_jobs = [parse_job(r) for r in all_job_records]
+        today_jobs = [j for j in all_jobs if j["date"] == today_str]
+        tomorrow_jobs = [j for j in all_jobs if j["date"] == tomorrow_str]
+
+        # Open leads — not booked
+        open_leads_resp = req.get(leads_url, headers=headers, params={
+            "filterByFormula": (
+                f"AND("
+                f"OR({{Lead Status}} = 'New Lead', {{Lead Status}} = 'Contacted'), "
+                f"{{Twilio Number}} = '{twilio_number}'"
+                f")"
+            )
+        })
+        open_lead_records = open_leads_resp.json().get("records", [])
+        open_leads = []
+        for r in open_lead_records:
+            f = r.get("fields", {})
+            open_leads.append({
+                "name": f.get("Client Name", ""),
+                "phone": f.get("Call Back Number", ""),
+                "address": f.get("Service Address", ""),
+                "job_type": f.get("Job Description", ""),
+                "timing": f.get("Appointment Requested", ""),
+                "priority": f.get("Priority", "STANDARD")
+            })
+
+        # Unpaid invoices
+        payments_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/Payments"
+        unpaid_resp = req.get(payments_url, headers=headers, params={
+            "filterByFormula": "AND({Payment Status} = 'Unpaid', {Phone Number} != '')"
+        })
+        unpaid_records = unpaid_resp.json().get("records", [])
+        unpaid_invoices = []
+        for r in unpaid_records:
+            f = r.get("fields", {})
+            # Only show invoices linked to this contractor
+            contractor_links = f.get("Contractor", [])
+            if contractor_record_id and contractor_record_id not in str(contractor_links):
+                continue
+            payment_date = f.get("Payment Date", "")
+            days_outstanding = 0
+            try:
+                pd = datetime.fromisoformat(payment_date)
+                if pd.tzinfo is None:
+                    pd = pd.replace(tzinfo=eastern)
+                days_outstanding = (now - pd).days
+            except Exception:
+                pass
+            unpaid_invoices.append({
+                "name": f.get("Customer Name", ""),
+                "amount": f.get("Amount", 0),
+                "job_type": f.get("Notes", ""),
+                "days_outstanding": days_outstanding
+            })
+
+        # Recent bookings — last 10
+        recent_bookings = sorted(
+            [j for j in all_jobs if j["date"]],
+            key=lambda x: x["date"],
+            reverse=True
+        )[:10]
+
+        return jsonify({
+            "ok": True,
+            "business_name": business_name,
+            "today_jobs": today_jobs,
+            "tomorrow_jobs": tomorrow_jobs,
+            "all_jobs": all_jobs,
+            "open_leads": open_leads,
+            "unpaid_invoices": unpaid_invoices,
+            "recent_bookings": recent_bookings
+        })
+
+    except Exception as e:
+        print(f"DASHBOARD DATA ERROR | {type(e).__name__} | {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route("/dashboard/logout")
+def dashboard_logout():
+    """Clears dashboard session."""
+    resp = make_response(redirect("/dashboard/login"))
+    resp.delete_cookie("dashboard_token")
+    return resp
 
 
 # ─────────────────────────────────────────────
