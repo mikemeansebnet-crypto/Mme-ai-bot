@@ -3218,11 +3218,11 @@ def onboard(contractor_id):
     session["oauth_contractor_key"] = contractor_id
     session.permanent = True
     print("ONBOARD | contractor_id stored in session:", contractor_id)
-    return redirect("/dashboard")
+    return redirect("/setup")
 
 
-@app.route("/dashboard")
-def dashboard():
+@app.route("/setup")
+def setup():
     contractor_key = session.get("oauth_contractor_key")
     google_connected = False
     contractor_name = "Contractor"
