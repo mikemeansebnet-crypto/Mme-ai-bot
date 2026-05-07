@@ -2179,6 +2179,21 @@ def setup_contractor_dashboard_password(contractor_record_id: str, twilio_number
         print(f"SETUP DASHBOARD PASSWORD ERROR | {e}")
         return ""
 
+@app.route("/dashboard/debug-login")
+def debug_login():
+    import hashlib
+    test_password = "otLig2masittL!!!"
+    test_hash = hashlib.sha256(test_password.encode()).hexdigest()
+    
+    contractor = get_contractor_by_twilio_number("+12408686702") or {}
+    stored_hash = contractor.get("Dashboard Password", "NO FIELD FOUND")
+    
+    return jsonify({
+        "expected_hash": test_hash,
+        "stored_hash": stored_hash,
+        "match": test_hash == stored_hash
+    })
+
 
 @app.route("/dashboard/login", methods=["GET", "POST"])
 def dashboard_login():
