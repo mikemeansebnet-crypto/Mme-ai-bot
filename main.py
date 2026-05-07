@@ -2324,7 +2324,7 @@ def dashboard_login():
         if not stored_hash or not verify_password(password, stored_hash):
             return dashboard_login_error("Incorrect password.")
 
-        # Find contractor record ID
+        # Find contractor record ID — use same lookup, get ID from records
         AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
         AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
         CONTRACTORS_TABLE = os.environ.get("AIRTABLE_CONTRACTORS_TABLE")
@@ -2333,11 +2333,17 @@ def dashboard_login():
         params = {"filterByFormula": f"{{Twilio Number}} = '{twilio_number}'"}
         response = requests.get(contractors_url, headers=headers, params=params)
         records = response.json().get("records", [])
-        contractor_record_id = records[0]["id"] if records else ""
+
+        if not records:
+            return dashboard_login_error("Could not find contractor record.")
+
+        contractor_record_id = records[0]["id"]
+
+        print(f"DASHBOARD LOGIN | contractor_id: {contractor_record_id} | twilio: {twilio_number}")
 
         token = create_dashboard_token(contractor_record_id, twilio_number)
         resp = make_response(redirect("/dashboard"))
-        resp.set_cookie("dashboard_token", token, max_age=7*24*3600, httponly=True)
+        resp.set_cookie("dashboard_token", token, max_age=7*24*3600, httponly=True, samesite="Lax")
         return resp
 
     except Exception as e:
