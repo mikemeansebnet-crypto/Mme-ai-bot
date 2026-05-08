@@ -2095,6 +2095,7 @@ def verify_password(password: str, hashed: str) -> bool:
 
 def create_dashboard_token(contractor_id: str, twilio_number: str) -> str:
     """Creates a JWT token for dashboard session."""
+    from datetime import datetime, timedelta  # ADD THIS LINE
     payload = {
         "contractor_id": contractor_id,
         "twilio_number": twilio_number,
