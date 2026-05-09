@@ -1365,14 +1365,51 @@ def create_payment_link_route():
         customer_name = data.get("customer_name")
         job_description = data.get("job_description")
         customer_phone = data.get("customer_phone")
-        # FIXED: Pull business_name from request so Stripe shows correct contractor name
-        business_name = data.get("business_name", "Your Contractor")
+        twilio_number = data.get("twilio_number", "")
+
+        # FIXED: Always look up business name from contractor record
+        # Don't trust the Airtable lookup field — look it up directly
+        business_name = data.get("business_name", "")
+
+        # If business name is empty or Your Contractor — look it up properly
+        if not business_name or business_name.strip() == "" or business_name == "Your Contractor":
+            if twilio_number:
+                try:
+                    contractor = get_contractor_by_twilio_number(twilio_number) or {}
+                    business_name = contractor.get("Business Name", "").strip()
+                except Exception as e:
+                    print(f"CONTRACTOR LOOKUP ERROR | {e}")
+
+        # If still empty after lookup — try from Payments record directly
+        if not business_name:
+            try:
+                AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
+                AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
+                payments_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/Payments"
+                headers = {"Authorization": f"Bearer {AIRTABLE_TOKEN}"}
+                resp = requests.get(f"{payments_url}/{record_id}", headers=headers)
+                fields = resp.json().get("fields", {})
+                contractor_links = fields.get("Contractor", [])
+                if contractor_links:
+                    CONTRACTORS_TABLE = os.environ.get("AIRTABLE_CONTRACTORS_TABLE")
+                    contractors_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{CONTRACTORS_TABLE}"
+                    contractor_id = contractor_links[0]
+                    c_resp = requests.get(f"{contractors_url}/{contractor_id}", headers=headers)
+                    business_name = c_resp.json().get("fields", {}).get("Business Name", "").strip()
+            except Exception as e:
+                print(f"PAYMENT RECORD LOOKUP ERROR | {e}")
+
+        # Last resort — use a generic name, never "Your Contractor"
+        if not business_name:
+            business_name = "MME Lawn Care And More"
+            print(f"WARNING | business_name fell through all lookups for record {record_id}")
+
+        print(f"CREATE PAYMENT LINK | business_name: {business_name} | customer: {customer_name}")
 
         from app.app.stripe_service import create_payment_link
         result = create_payment_link(amount, customer_name, job_description, record_id, business_name)
 
         if result.get("ok"):
-            # FIXED: Uses contractor's business name instead of hardcoded MME
             msg = (
                 f"Hi {customer_name.split()[0]}! Your job is complete. "
                 f"Please pay your balance of ${amount} here: {result['url']} "
@@ -1385,6 +1422,7 @@ def create_payment_link_route():
     except Exception as e:
         print(f"CREATE PAYMENT LINK ERROR | {e}")
         return {"ok": False, "error": str(e)}
+    
    
 
 
