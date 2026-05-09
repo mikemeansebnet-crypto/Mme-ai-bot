@@ -138,6 +138,9 @@ Rules:
         )
         reply = message.content[0].text.strip()
 
+        # Strip markdown formatting — SMS doesn't render it
+        reply = reply.replace("**", "").replace("*", "").replace("_", "").strip()
+
         print(f"CUSTOMER SERVICE REPLY | {customer_name} | Q: {incoming_msg[:50]} | A: {reply[:50]}")
 
         # Send reply to customer via Twilio
