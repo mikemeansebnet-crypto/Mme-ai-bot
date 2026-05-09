@@ -22,34 +22,33 @@ HEADERS = {
 
 
 def lookup_lead_by_phone(from_number: str, twilio_number: str) -> dict | None:
-    """
-    Looks up an existing lead by customer phone number and contractor Twilio number.
-    Returns the lead fields if found, None if new customer.
-    Only returns leads that are Booked or Contacted — not brand new leads mid-intake.
-    """
     try:
-        # Normalize phone
         normalized = from_number.replace("+1", "").replace("-", "").replace(" ", "").strip()
 
-        # Try multiple formats
         for fmt in [from_number, f"+1{normalized}", normalized]:
             params = {
                 "filterByFormula": (
                     f"AND("
-                    f"{{Callback Number}} = '{fmt}', "
+                    f"{{Call Back Number}} = '{fmt}', "
                     f"{{Twilio Number}} = '{twilio_number}', "
                     f"OR({{Lead Status}} = 'Booked', {{Lead Status}} = 'Contacted', {{Lead Status}} = 'New Lead')"
                     f")"
                 )
             }
+            print(f"CUSTOMER SERVICE LOOKUP | trying format: {fmt}")
             response = requests.get(LEADS_URL, headers=HEADERS, params=params)
             records = response.json().get("records", [])
+            print(f"CUSTOMER SERVICE LOOKUP | records found: {len(records)}")
             if records:
-                # Return the most recent record
                 latest = sorted(records, key=lambda r: r.get("createdTime", ""), reverse=True)[0]
                 print(f"CUSTOMER SERVICE | Existing customer found | {from_number} | {latest['id']}")
                 return latest.get("fields", {})
 
+        print(f"CUSTOMER SERVICE | No existing customer found for {from_number}")
+        return None
+
+    except Exception as e:
+        print(f"LOOKUP LEAD BY PHONE ERROR | {e}")
         return None
 
     except Exception as e:
