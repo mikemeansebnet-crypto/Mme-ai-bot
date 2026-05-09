@@ -114,3 +114,11 @@ def get_contractor_alert(contractor: dict) -> str | None:
     """
     status = get_contractor_status(contractor)
     return CONTRACTOR_ALERTS.get(status, None)
+
+def handle_subscription_event(event: dict) -> dict:
+    """
+    Handles Stripe subscription webhook events.
+    Receives a pre-verified event from the webhook route.
+    """
+    from app.app.contractor_onboarding import handle_subscription_event as _handle
+    return _handle(event)
