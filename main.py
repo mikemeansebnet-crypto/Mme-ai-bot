@@ -72,6 +72,8 @@ from app.app.subscription_service import has_feature, get_upgrade_message
 
 from app.app.contractor_onboarding import create_checkout_session, handle_subscription_webhook
 
+from app.app.customer_service import lookup_lead_by_phone, handle_customer_service
+
 
 # ── Standard library & PDF imports ────────────────────────────────
 import urllib.parse
