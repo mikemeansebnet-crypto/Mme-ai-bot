@@ -1099,16 +1099,16 @@ def sms():
     incoming_msg = (request.form.get("Body") or "").strip()
     from_number = (request.form.get("From") or "").strip()
     to_number = (request.form.get("To") or "").strip()
- 
+
     print(f"SMS FROM {from_number} | TO {to_number} | MSG: {incoming_msg}")
- 
+
     # Handle opt-out keywords immediately
     if incoming_msg.lower() in ["stop", "unsubscribe", "quit", "end"]:
         return Response(
             "<Response><Message>You have been unsubscribed. Reply START to resubscribe.</Message></Response>",
             mimetype="text/xml"
         )
- 
+
     if incoming_msg.lower() in ["start", "unstop"]:
         return Response(
             "<Response><Message>You are now subscribed to receive messages.</Message></Response>",
@@ -1119,14 +1119,14 @@ def sms():
     if incoming_msg.upper() in ["CANCEL APPOINTMENT", "RESCHEDULE", "RESCHEDULE APPOINTMENT"]:
         from app.app.cancel_reschedule import handle_cancel_reschedule
         return handle_cancel_reschedule()
- 
+
     # Look up contractor
     contractor = {}
     try:
         contractor = get_contractor_by_twilio_number(to_number) or {}
     except Exception as e:
         print("SMS CONTRACTOR LOOKUP FAILED:", e)
- 
+
     business_name = (contractor.get("Business Name") or "our office").strip()
 
     # ── Subscription tier check ────────────────────────────────────
@@ -1149,8 +1149,20 @@ def sms():
             )
         return handle_contractor_photo_estimate(request, contractor, from_number, to_number, num_media, incoming_msg)
 
+    # ── CUSTOMER SERVICE MODE ──────────────────────────────────────
+    # Check if this customer already exists in our system
+    # If yes — handle their question intelligently instead of running intake
+    try:
+        existing_lead = lookup_lead_by_phone(from_number, to_number)
+        if existing_lead:
+            return handle_customer_service(
+                incoming_msg, from_number, to_number,
+                existing_lead, contractor, business_name
+            )
+    except Exception as e:
+        print(f"CUSTOMER SERVICE LOOKUP ERROR | {e}")
+    # ── END CUSTOMER SERVICE MODE ──────────────────────────────────
 
- 
     # Load or initialize SMS conversation state from Redis
     sms_state_key = f"sms_state:{to_number}:{from_number}"
     sms_state = {}
@@ -1165,8 +1177,7 @@ def sms():
                 print("SMS STATE NOT FOUND |", sms_state_key)
         except Exception as e:
             print("SMS STATE LOAD ERROR |", e)
-   
- 
+
     # Initialize state if new conversation
     if not sms_state:
         sms_state = {
@@ -1180,11 +1191,11 @@ def sms():
             "from_number": from_number,
             "started_at": int(time.time()),
         }
- 
+
     # Build system prompt based on current state
     system_prompt = build_sms_system_prompt(contractor, sms_state)
     messages = sms_state.get("messages", [])
- 
+
     # Run Claude
     claude_response = run_sms_claude(system_prompt, messages, incoming_msg)
 
@@ -1200,7 +1211,7 @@ def sms():
     # Parse Claude's two-line response
     lines = claude_response.strip().split("\n")
     reply = lines[0].strip() if lines else claude_response
-    
+
     # Extract JSON from second line
     collected = {}
     if len(lines) > 1:
@@ -1250,8 +1261,8 @@ def sms():
         sms_state["timing"] = collected["collected_timing"]
         print("TIMING SAVED |", sms_state["timing"])
 
-    print("SMS STATE SAVING |", sms_state_key, 
-          "| name:", sms_state.get("name"), 
+    print("SMS STATE SAVING |", sms_state_key,
+          "| name:", sms_state.get("name"),
           "| address:", sms_state.get("service_address"))
 
     # Check if ready to complete
@@ -1281,8 +1292,6 @@ def sms():
                 f"Reply STOP to opt out."
             )
 
-        # Schedule photo SMS 6 minutes later — Pro only
-        # FIXED: This block is now INSIDE the ready check, not outside it
         if has_feature(contractor, "photo_estimates"):
             try:
                 messaging_service_sid = os.getenv("TWILIO_MESSAGING_SERVICE_SID", "").strip()
@@ -1312,7 +1321,6 @@ def sms():
             except Exception as e:
                 print("SMS PHOTO SCHEDULE ERROR |", e)
 
-        # FIXED: Delete state and return ONLY when intake is complete
         if redis_client:
             redis_client.delete(sms_state_key)
 
@@ -1342,7 +1350,6 @@ def sms():
     messages.append({"role": "assistant", "content": reply})
     sms_state["messages"] = messages[-20:]
 
-    # FIXED: State saves on every normal message now
     if redis_client:
         try:
             redis_client.setex(sms_state_key, 7200, json.dumps(sms_state))
