@@ -2999,14 +2999,12 @@ def dashboard_data():
         AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
         headers = {"Authorization": f"Bearer {AIRTABLE_TOKEN}"}
 
-        # Get contractor info
         contractor = get_contractor_by_twilio_number(twilio_number) or {}
         business_name = contractor.get("Business Name", "")
+        cal_booking_url = contractor.get("CAL Booking URL", "")
 
-        # Fetch booked leads for this contractor
         leads_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tbl6YL7BYY2vawIF1"
 
-        # All jobs with appointment dates
         all_jobs_resp = req.get(leads_url, headers=headers, params={
             "filterByFormula": f"AND({{Lead Status}} = 'Booked', {{Twilio Number}} = '{twilio_number}', {{Appointment Date and Time}} != '')"
         })
@@ -3025,6 +3023,8 @@ def dashboard_data():
             except Exception:
                 pass
             return {
+                # ADDED: record_id for action buttons
+                "record_id": record.get("id", ""),
                 "name": fields.get("Client Name", ""),
                 "phone": fields.get("Call Back Number", ""),
                 "address": fields.get("Service Address", ""),
@@ -3039,7 +3039,6 @@ def dashboard_data():
         today_jobs = [j for j in all_jobs if j["date"] == today_str]
         tomorrow_jobs = [j for j in all_jobs if j["date"] == tomorrow_str]
 
-        # Open leads — not booked
         open_leads_resp = req.get(leads_url, headers=headers, params={
             "filterByFormula": (
                 f"AND("
@@ -3053,6 +3052,8 @@ def dashboard_data():
         for r in open_lead_records:
             f = r.get("fields", {})
             open_leads.append({
+                # ADDED: record_id for action buttons
+                "record_id": r.get("id", ""),
                 "name": f.get("Client Name", ""),
                 "phone": f.get("Call Back Number", ""),
                 "address": f.get("Service Address", ""),
@@ -3061,7 +3062,6 @@ def dashboard_data():
                 "priority": f.get("Priority", "STANDARD")
             })
 
-        # Unpaid invoices
         payments_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/Payments"
         unpaid_resp = req.get(payments_url, headers=headers, params={
             "filterByFormula": "AND({Payment Status} = 'Unpaid', {Phone Number} != '')"
@@ -3070,7 +3070,6 @@ def dashboard_data():
         unpaid_invoices = []
         for r in unpaid_records:
             f = r.get("fields", {})
-            # Only show invoices linked to this contractor
             contractor_links = f.get("Contractor", [])
             if contractor_record_id and contractor_record_id not in str(contractor_links):
                 continue
@@ -3084,13 +3083,15 @@ def dashboard_data():
             except Exception:
                 pass
             unpaid_invoices.append({
+                # ADDED: record_id for action buttons
+                "record_id": r.get("id", ""),
                 "name": f.get("Customer Name", ""),
+                "phone": f.get("Phone Number", ""),
                 "amount": f.get("Amount", 0),
                 "job_type": f.get("Notes", ""),
                 "days_outstanding": days_outstanding
             })
 
-        # Recent bookings — last 10
         recent_bookings = sorted(
             [j for j in all_jobs if j["date"]],
             key=lambda x: x["date"],
@@ -3100,6 +3101,8 @@ def dashboard_data():
         return jsonify({
             "ok": True,
             "business_name": business_name,
+            "cal_booking_url": cal_booking_url,
+            "twilio_number": twilio_number,
             "today_jobs": today_jobs,
             "tomorrow_jobs": tomorrow_jobs,
             "all_jobs": all_jobs,
@@ -3113,12 +3116,242 @@ def dashboard_data():
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
+
 @app.route("/dashboard/logout")
 def dashboard_logout():
     """Clears dashboard session."""
     resp = make_response(redirect("/dashboard/login"))
     resp.delete_cookie("dashboard_token")
     return resp
+
+# ── DASHBOARD ACTION BUTTONS ────────────────────────────────────
+
+@app.route("/dashboard/action/send-confirmation", methods=["POST"])
+@dashboard_auth_required
+def dashboard_send_confirmation():
+    """Sends appointment confirmation SMS to customer."""
+    try:
+        data = request.get_json(silent=True) or {}
+        customer_name = data.get("customer_name", "there")
+        customer_phone = data.get("customer_phone", "")
+        appointment_time = data.get("appointment_time", "")
+        twilio_number = request.twilio_number
+
+        contractor = get_contractor_by_twilio_number(twilio_number) or {}
+        business_name = contractor.get("Business Name", "your contractor")
+        first_name = customer_name.split()[0] if customer_name else "there"
+
+        msg = (
+            f"Hi {first_name}! This is a confirmation from {business_name}. "
+            f"Your appointment is confirmed for {appointment_time}. "
+            f"We look forward to seeing you! Reply CANCEL APPOINTMENT to cancel."
+        )
+
+        send_fallback_sms(to_number=customer_phone, body=msg)
+        print(f"DASHBOARD | Confirmation sent | {customer_name} | {customer_phone}")
+        return jsonify({"ok": True})
+
+    except Exception as e:
+        print(f"DASHBOARD CONFIRMATION ERROR | {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route("/dashboard/action/on-my-way", methods=["POST"])
+@dashboard_auth_required
+def dashboard_on_my_way():
+    """Sends on my way SMS to customer."""
+    try:
+        data = request.get_json(silent=True) or {}
+        customer_name = data.get("customer_name", "there")
+        customer_phone = data.get("customer_phone", "")
+        twilio_number = request.twilio_number
+
+        contractor = get_contractor_by_twilio_number(twilio_number) or {}
+        business_name = contractor.get("Business Name", "your contractor")
+        first_name = customer_name.split()[0] if customer_name else "there"
+
+        msg = (
+            f"Hi {first_name}! Your {business_name} contractor is on the way. "
+            f"We'll see you shortly!"
+        )
+
+        send_fallback_sms(to_number=customer_phone, body=msg)
+        print(f"DASHBOARD | On my way sent | {customer_name} | {customer_phone}")
+        return jsonify({"ok": True})
+
+    except Exception as e:
+        print(f"DASHBOARD ON MY WAY ERROR | {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route("/dashboard/action/mark-complete", methods=["POST"])
+@dashboard_auth_required
+def dashboard_mark_complete():
+    """Marks a job as complete in Airtable."""
+    try:
+        data = request.get_json(silent=True) or {}
+        record_id = data.get("record_id", "")
+
+        AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
+        AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
+        leads_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tbl6YL7BYY2vawIF1"
+        headers = {
+            "Authorization": f"Bearer {AIRTABLE_TOKEN}",
+            "Content-Type": "application/json"
+        }
+
+        response = requests.patch(
+            f"{leads_url}/{record_id}",
+            headers=headers,
+            json={"fields": {"Lead Status": "Completed"}}
+        )
+
+        if response.status_code == 200:
+            print(f"DASHBOARD | Job marked complete | {record_id}")
+            return jsonify({"ok": True})
+        else:
+            return jsonify({"ok": False, "error": response.text}), 500
+
+    except Exception as e:
+        print(f"DASHBOARD MARK COMPLETE ERROR | {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route("/dashboard/action/mark-paid", methods=["POST"])
+@dashboard_auth_required
+def dashboard_mark_paid():
+    """Marks an invoice as paid in Airtable."""
+    try:
+        data = request.get_json(silent=True) or {}
+        record_id = data.get("record_id", "")
+
+        AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
+        AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
+        payments_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/Payments"
+        headers = {
+            "Authorization": f"Bearer {AIRTABLE_TOKEN}",
+            "Content-Type": "application/json"
+        }
+
+        response = requests.patch(
+            f"{payments_url}/{record_id}",
+            headers=headers,
+            json={"fields": {"Payment Status": "Paid"}}
+        )
+
+        if response.status_code == 200:
+            print(f"DASHBOARD | Invoice marked paid | {record_id}")
+            return jsonify({"ok": True})
+        else:
+            return jsonify({"ok": False, "error": response.text}), 500
+
+    except Exception as e:
+        print(f"DASHBOARD MARK PAID ERROR | {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route("/dashboard/action/send-reminder", methods=["POST"])
+@dashboard_auth_required
+def dashboard_send_reminder():
+    """Manually sends a payment reminder SMS to customer."""
+    try:
+        data = request.get_json(silent=True) or {}
+        customer_name = data.get("customer_name", "there")
+        customer_phone = data.get("customer_phone", "")
+        amount = data.get("amount", 0)
+        job_type = data.get("job_type", "services rendered")
+        twilio_number = request.twilio_number
+
+        contractor = get_contractor_by_twilio_number(twilio_number) or {}
+        business_name = contractor.get("Business Name", "your contractor")
+        first_name = customer_name.split()[0] if customer_name else "there"
+
+        msg = (
+            f"Hi {first_name}! A friendly reminder from {business_name} — "
+            f"your balance of ${amount} for {job_type} is still outstanding. "
+            f"Please complete your payment at your earliest convenience."
+        )
+
+        send_fallback_sms(to_number=customer_phone, body=msg)
+        print(f"DASHBOARD | Payment reminder sent | {customer_name} | {customer_phone}")
+        return jsonify({"ok": True})
+
+    except Exception as e:
+        print(f"DASHBOARD SEND REMINDER ERROR | {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route("/dashboard/action/send-booking-link", methods=["POST"])
+@dashboard_auth_required
+def dashboard_send_booking_link():
+    """Sends Cal.com booking link to a lead."""
+    try:
+        data = request.get_json(silent=True) or {}
+        customer_name = data.get("customer_name", "")
+        customer_phone = data.get("customer_phone", "")
+        job_type = data.get("job_type", "")
+        address = data.get("address", "")
+        twilio_number = request.twilio_number
+
+        contractor = get_contractor_by_twilio_number(twilio_number) or {}
+        business_name = contractor.get("Business Name", "your contractor")
+        cal_booking_url = contractor.get("CAL Booking URL", "")
+        first_name = customer_name.split()[0] if customer_name else "there"
+
+        import urllib.parse
+        params = urllib.parse.urlencode({
+            "name": customer_name,
+            "attendeePhoneNumber": customer_phone,
+            "service_address": address,
+            "job_description": job_type,
+        })
+        booking_link = f"{cal_booking_url}?{params}" if cal_booking_url else ""
+
+        msg = (
+            f"Hi {first_name}! This is {business_name}. "
+            f"Click here to book your appointment: {booking_link}"
+        )
+
+        send_fallback_sms(to_number=customer_phone, body=msg)
+        print(f"DASHBOARD | Booking link sent | {customer_name} | {customer_phone}")
+        return jsonify({"ok": True})
+
+    except Exception as e:
+        print(f"DASHBOARD SEND BOOKING LINK ERROR | {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route("/dashboard/action/mark-contacted", methods=["POST"])
+@dashboard_auth_required
+def dashboard_mark_contacted():
+    """Marks a lead as contacted in Airtable."""
+    try:
+        data = request.get_json(silent=True) or {}
+        record_id = data.get("record_id", "")
+
+        AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
+        AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
+        leads_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tbl6YL7BYY2vawIF1"
+        headers = {
+            "Authorization": f"Bearer {AIRTABLE_TOKEN}",
+            "Content-Type": "application/json"
+        }
+
+        response = requests.patch(
+            f"{leads_url}/{record_id}",
+            headers=headers,
+            json={"fields": {"Lead Status": "Contacted"}}
+        )
+
+        if response.status_code == 200:
+            print(f"DASHBOARD | Lead marked contacted | {record_id}")
+            return jsonify({"ok": True})
+        else:
+            return jsonify({"ok": False, "error": response.text}), 500
+
+    except Exception as e:
+        print(f"DASHBOARD MARK CONTACTED ERROR | {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
 
 
 # ─────────────────────────────────────────────
