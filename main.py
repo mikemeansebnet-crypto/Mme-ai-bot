@@ -2804,100 +2804,35 @@ def dashboard():
         let currentMonth = new Date().getMonth();
         let currentYear = new Date().getFullYear();
 
-        async function loadDashboard() {
+        async function dashboardAction(endpoint, payload, successMsg) {
             try {
-                const res = await fetch('/dashboard/data', {
-                    headers: { 'X-Dashboard-Token': getCookie('dashboard_token') }
+                const res = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Dashboard-Token': getCookie('dashboard_token')
+                    },
+                    body: JSON.stringify(payload)
                 });
-                if (res.status === 401) {
-                    window.location.href = '/dashboard/login';
-                    return;
+                const data = await res.json();
+                if (data.ok) {
+                    alert(successMsg || 'Done!');
+                    loadDashboard(); // Refresh dashboard
+                } else {
+                    alert('Error: ' + (data.error || 'Something went wrong'));
                 }
-                dashboardData = await res.json();
-                renderAll();
             } catch(e) {
-                console.error('Dashboard load error:', e);
+                alert('Request failed. Please try again.');
             }
-        }
-
-        function getCookie(name) {
-            const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
-            return match ? match[2] : '';
-        }
-
-        function renderAll() {
-            document.getElementById('businessName').textContent = dashboardData.business_name || '';
-            renderCalendar();
-            renderTodayJobs();
-            renderTomorrowJobs();
-            renderOpenLeads();
-            renderUnpaidInvoices();
-            renderRecentBookings();
-        }
-
-        function renderCalendar() {
-            const jobDates = new Set((dashboardData.all_jobs || []).map(j => j.date));
-            const today = new Date();
-            const firstDay = new Date(currentYear, currentMonth, 1);
-            const lastDay = new Date(currentYear, currentMonth + 1, 0);
-            const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-
-            document.getElementById('calTitle').textContent = `${monthNames[currentMonth]} ${currentYear}`;
-
-            const grid = document.getElementById('calGrid');
-            // Keep headers
-            const headers = Array.from(grid.querySelectorAll('.cal-day-header'));
-            grid.innerHTML = '';
-            headers.forEach(h => grid.appendChild(h));
-
-            // Empty cells for first week
-            for (let i = 0; i < firstDay.getDay(); i++) {
-                const empty = document.createElement('div');
-                empty.className = 'cal-day other-month';
-                grid.appendChild(empty);
-            }
-
-            // Days
-            for (let d = 1; d <= lastDay.getDate(); d++) {
-                const dateStr = `${currentYear}-${String(currentMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-                const isToday = today.getDate() === d && today.getMonth() === currentMonth && today.getFullYear() === currentYear;
-                const hasJob = jobDates.has(dateStr);
-
-                const day = document.createElement('div');
-                day.className = `cal-day${hasJob ? ' has-job' : ''}${isToday ? ' today' : ''}`;
-                day.textContent = d;
-                if (hasJob) {
-                    day.title = 'Jobs scheduled';
-                }
-                grid.appendChild(day);
-            }
-        }
-
-        function changeMonth(dir) {
-            currentMonth += dir;
-            if (currentMonth > 11) { currentMonth = 0; currentYear++; }
-            if (currentMonth < 0) { currentMonth = 11; currentYear--; }
-            renderCalendar();
-        }
-
-        function renderTodayJobs() {
-            const jobs = dashboardData.today_jobs || [];
-            document.getElementById('todayCount').textContent = jobs.length;
-            const el = document.getElementById('todayJobs');
-            if (!jobs.length) { el.innerHTML = '<div class="empty-state">No jobs today</div>'; return; }
-            el.innerHTML = jobs.map(job => jobCard(job, true)).join('');
-        }
-
-        function renderTomorrowJobs() {
-            const jobs = dashboardData.tomorrow_jobs || [];
-            document.getElementById('tomorrowCount').textContent = jobs.length;
-            const el = document.getElementById('tomorrowJobs');
-            if (!jobs.length) { el.innerHTML = '<div class="empty-state">No jobs tomorrow</div>'; return; }
-            el.innerHTML = jobs.map(job => jobCard(job, false)).join('');
         }
 
         function jobCard(job, isToday) {
             const phone = job.phone ? job.phone.replace(/\D/g,'') : '';
+            const recordId = job.record_id || '';
+            const appointmentTime = job.time || 'your scheduled time';
+            const customerPhone = job.phone || '';
+            const customerName = job.name || '';
+
             return `
             <div class="job-card ${isToday ? 'today-job' : ''}">
                 <div class="job-time">${job.time || 'Time TBD'}</div>
@@ -2908,6 +2843,13 @@ def dashboard():
                 <div class="job-actions">
                     <a href="tel:+1${phone}" class="action-btn btn-call">📞 Call</a>
                     <a href="sms:+1${phone}" class="action-btn btn-sms">💬 Text</a>
+                </div>
+                <div class="job-actions" style="margin-top:8px">
+                    <button onclick="dashboardAction('/dashboard/action/send-confirmation', {customer_name:'${customerName}', customer_phone:'${customerPhone}', appointment_time:'${appointmentTime}'}, 'Confirmation sent!')" class="action-btn btn-sms">✅ Send Confirmation</button>
+                    <button onclick="dashboardAction('/dashboard/action/on-my-way', {customer_name:'${customerName}', customer_phone:'${customerPhone}'}, 'On my way message sent!')" class="action-btn btn-sms">🚗 On My Way</button>
+                </div>
+                <div class="job-actions" style="margin-top:8px">
+                    <button onclick="if(confirm('Mark this job as complete?')) dashboardAction('/dashboard/action/mark-complete', {record_id:'${recordId}'}, 'Job marked complete!')" class="action-btn" style="background:#22c55e;color:#000;flex:1">✓ Mark Complete</button>
                 </div>` : ''}
             </div>`;
         }
@@ -2919,6 +2861,9 @@ def dashboard():
             if (!leads.length) { el.innerHTML = '<div class="empty-state">No open leads</div>'; return; }
             el.innerHTML = leads.map(lead => {
                 const phone = lead.phone ? lead.phone.replace(/\D/g,'') : '';
+                const recordId = lead.record_id || '';
+                const customerPhone = lead.phone || '';
+                const customerName = lead.name || '';
                 const badge = lead.priority === 'URGENT' || lead.priority === 'HIGH_PRIORITY'
                     ? '<span class="badge badge-urgent">URGENT</span>'
                     : '<span class="badge badge-new">NEW</span>';
@@ -2931,6 +2876,10 @@ def dashboard():
                     <div class="job-actions">
                         <a href="tel:+1${phone}" class="action-btn btn-call">📞 Call</a>
                         <a href="sms:+1${phone}" class="action-btn btn-sms">💬 Text</a>
+                    </div>
+                    <div class="job-actions" style="margin-top:8px">
+                        <button onclick="dashboardAction('/dashboard/action/send-booking-link', {customer_name:'${customerName}', customer_phone:'${customerPhone}', job_type:'${lead.job_type||''}', address:'${lead.address||''}'}, 'Booking link sent!')" class="action-btn btn-sms">📅 Send Booking Link</button>
+                        <button onclick="dashboardAction('/dashboard/action/mark-contacted', {record_id:'${recordId}'}, 'Lead marked contacted!')" class="action-btn btn-sms">📋 Mark Contacted</button>
                     </div>` : ''}
                 </div>`;
             }).join('');
@@ -2941,19 +2890,32 @@ def dashboard():
             document.getElementById('invoicesCount').textContent = invoices.length;
             const el = document.getElementById('unpaidInvoices');
             if (!invoices.length) { el.innerHTML = '<div class="empty-state">All paid up ✓</div>'; return; }
-            el.innerHTML = invoices.map(inv => `
-            <div class="invoice-card">
-                <div>
-                    <div class="job-name">${inv.name || 'Unknown'}</div>
-                    <div class="job-type">${inv.job_type || ''}</div>
-                    ${inv.days_outstanding > 0 ? `<div class="invoice-days">${inv.days_outstanding} days outstanding</div>` : ''}
-                </div>
-                <div style="text-align:right">
-                    <div class="invoice-amount">$${inv.amount}</div>
-                    ${inv.days_outstanding >= 14 ? '<span class="badge badge-overdue">OVERDUE</span>' : ''}
-                </div>
-            </div>`).join('');
+            el.innerHTML = invoices.map(inv => {
+                const recordId = inv.record_id || '';
+                const customerPhone = inv.phone || '';
+                const customerName = inv.name || '';
+                return `
+                <div class="invoice-card" style="flex-direction:column;align-items:stretch">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+                        <div>
+                            <div class="job-name">${inv.name || 'Unknown'}</div>
+                            <div class="job-type">${inv.job_type || ''}</div>
+                            ${inv.days_outstanding > 0 ? `<div class="invoice-days">${inv.days_outstanding} days outstanding</div>` : ''}
+                        </div>
+                        <div style="text-align:right">
+                            <div class="invoice-amount">$${inv.amount}</div>
+                            ${inv.days_outstanding >= 14 ? '<span class="badge badge-overdue">OVERDUE</span>' : ''}
+                        </div>
+                    </div>
+                    <div class="job-actions">
+                        <button onclick="if(confirm('Mark $${inv.amount} from ${customerName} as paid?')) dashboardAction('/dashboard/action/mark-paid', {record_id:'${recordId}'}, 'Invoice marked paid!')" class="action-btn" style="background:#22c55e;color:#000;flex:1">✓ Mark Paid</button>
+                        <button onclick="dashboardAction('/dashboard/action/send-reminder', {customer_name:'${customerName}', customer_phone:'${customerPhone}', amount:'${inv.amount}', job_type:'${inv.job_type||''}'}, 'Reminder sent!')" class="action-btn btn-sms">💬 Send Reminder</button>
+                    </div>
+                </div>`;
+            }).join('');
         }
+                
+        
 
         function renderRecentBookings() {
             const bookings = dashboardData.recent_bookings || [];
