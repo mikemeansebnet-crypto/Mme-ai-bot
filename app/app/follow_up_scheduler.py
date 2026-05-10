@@ -66,13 +66,15 @@ def fetch_leads_needing_followup():
     don't keep getting follow-up messages.
     """
     params = {
-        "filterByFormula": (
-            "AND("
-            "OR({Lead Status} = 'New Lead', {Lead Status} = 'Contacted'), "
-            "{Follow Up Count} < 3, "
-            "{Call Back Number} != ''"
-            ")"
-        )
+    "filterByFormula": (
+        "AND("
+        "OR({Lead Status} = 'New Lead', {Lead Status} = 'Contacted'), "
+        "{Follow Up Count} < 3, "
+        "{Call Back Number} != '', "
+        "{Do Not Follow Up} = FALSE()"  # ADDED: Skip paused leads
+        ")"
+    )
+}
     }
     response = requests.get(AIRTABLE_URL, headers=HEADERS, params=params)
     print(f"Airtable status: {response.status_code}")
