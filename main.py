@@ -2914,9 +2914,8 @@ def dashboard():
                 </div>`;
             }).join('');
         }
-                
-        
 
+        
         function renderRecentBookings() {
             const bookings = dashboardData.recent_bookings || [];
             const el = document.getElementById('recentBookings');
@@ -2928,6 +2927,92 @@ def dashboard():
                 <div class="job-address">${b.address || ''}</div>
                 <div class="job-type">${b.job_type || ''}</div>
             </div>`).join('');
+        }
+
+        async function loadDashboard() {
+            try {
+                const res = await fetch('/dashboard/data', {
+                    headers: { 'X-Dashboard-Token': getCookie('dashboard_token') }
+                });
+                if (res.status === 401) {
+                    window.location.href = '/dashboard/login';
+                    return;
+                }
+                dashboardData = await res.json();
+                renderAll();
+            } catch(e) {
+                console.error('Dashboard load error:', e);
+            }
+        }
+
+        function getCookie(name) {
+            const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
+            return match ? match[2] : '';
+        }
+
+        function renderAll() {
+            document.getElementById('businessName').textContent = dashboardData.business_name || '';
+            renderCalendar();
+            renderTodayJobs();
+            renderTomorrowJobs();
+            renderOpenLeads();
+            renderUnpaidInvoices();
+            renderRecentBookings();
+        }
+
+        function renderTodayJobs() {
+            const jobs = dashboardData.today_jobs || [];
+            document.getElementById('todayCount').textContent = jobs.length;
+            const el = document.getElementById('todayJobs');
+            if (!jobs.length) { el.innerHTML = '<div class="empty-state">No jobs today</div>'; return; }
+            el.innerHTML = jobs.map(job => jobCard(job, true)).join('');
+        }
+
+        function renderTomorrowJobs() {
+            const jobs = dashboardData.tomorrow_jobs || [];
+            document.getElementById('tomorrowCount').textContent = jobs.length;
+            const el = document.getElementById('tomorrowJobs');
+            if (!jobs.length) { el.innerHTML = '<div class="empty-state">No jobs tomorrow</div>'; return; }
+            el.innerHTML = jobs.map(job => jobCard(job, false)).join('');
+        }
+
+        function renderCalendar() {
+            const jobDates = new Set((dashboardData.all_jobs || []).map(j => j.date));
+            const today = new Date();
+            const firstDay = new Date(currentYear, currentMonth, 1);
+            const lastDay = new Date(currentYear, currentMonth + 1, 0);
+            const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+            document.getElementById('calTitle').textContent = `${monthNames[currentMonth]} ${currentYear}`;
+
+            const grid = document.getElementById('calGrid');
+            const headers = Array.from(grid.querySelectorAll('.cal-day-header'));
+            grid.innerHTML = '';
+            headers.forEach(h => grid.appendChild(h));
+
+            for (let i = 0; i < firstDay.getDay(); i++) {
+                const empty = document.createElement('div');
+                empty.className = 'cal-day other-month';
+                grid.appendChild(empty);
+            }
+
+            for (let d = 1; d <= lastDay.getDate(); d++) {
+                const dateStr = `${currentYear}-${String(currentMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+                const isToday = today.getDate() === d && today.getMonth() === currentMonth && today.getFullYear() === currentYear;
+                const hasJob = jobDates.has(dateStr);
+
+                const day = document.createElement('div');
+                day.className = `cal-day${hasJob ? ' has-job' : ''}${isToday ? ' today' : ''}`;
+                day.textContent = d;
+                grid.appendChild(day);
+            }
+        }    
+
+        function changeMonth(dir) {
+            currentMonth += dir;
+            if (currentMonth > 11) { currentMonth = 0; currentYear++; }
+            if (currentMonth < 0) { currentMonth = 11; currentYear--; }
+            renderCalendar();
         }
 
         // Load on startup
