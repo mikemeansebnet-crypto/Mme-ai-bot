@@ -3098,8 +3098,7 @@ def dashboard_data():
         open_leads = []
         for r in open_lead_records:
             f = r.get("fields", {})
-        print(f"PAYMENT RECORD FIELDS | {list(f.keys())} | name: {f.get('Customer Name')}")   
-        
+            print(f"PAYMENT RECORD FIELDS | {list(f.keys())} | name: {f.get('Customer Name')}")   
             open_leads.append({
                 # ADDED: record_id for action buttons
                 "record_id": r.get("id", ""),
