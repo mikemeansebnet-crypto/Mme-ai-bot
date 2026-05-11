@@ -3132,12 +3132,12 @@ def dashboard_data():
             unpaid_invoices.append({
                 # ADDED: record_id for action buttons
                 "record_id": r.get("id", ""),
-                "name": f.get("Customer Name") or f.get("Client Name") or f.get("Name") or "Unknown",
+                "name": f.get("Customer Name") or f.get("Client Name") or f.get("Name") or f.get("fldAZ5Qr0NCU11J0A") or "Unknown",
                 "phone": f.get("Phone Number", ""),
                 "amount": f.get("Amount", 0),
                 "job_type": f.get("Notes", ""),
                 "days_outstanding": days_outstanding
-            })
+            }) 
 
         recent_bookings = sorted(
             [j for j in all_jobs if j["date"]],
