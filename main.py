@@ -3132,7 +3132,7 @@ def dashboard_data():
             unpaid_invoices.append({
                 # ADDED: record_id for action buttons
                 "record_id": r.get("id", ""),
-                "name": f.get("Customer Name", ""),
+                "name": f.get("Customer Name") or f.get("Client Name") or f.get("Name") or "Unknown",
                 "phone": f.get("Phone Number", ""),
                 "amount": f.get("Amount", 0),
                 "job_type": f.get("Notes", ""),
