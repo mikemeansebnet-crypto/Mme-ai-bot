@@ -4433,6 +4433,7 @@ def connect_google():
 def google_callback():
     state = session.get("oauth_state")
     contractor_key = session.get("oauth_contractor_key")
+    print(f"GOOGLE CALLBACK | contractor_key: {contractor_key} | state: {state}")
 
     print("GOOGLE CALLBACK | contractor_key:", contractor_key)
 
