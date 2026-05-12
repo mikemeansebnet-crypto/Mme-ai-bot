@@ -2720,6 +2720,94 @@ def dashboard():
         .badge-new { background: #0f2a1a; color: #22c55e; }
         .badge-urgent { background: #2a0f0f; color: #ef4444; }
         .badge-overdue { background: #2a0f0f; color: #ef4444; }
+        /* Booking Modal */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.8);
+            z-index: 200;
+            align-items: flex-end;
+            justify-content: center;
+        }
+        .modal-overlay.active {
+            display: flex;
+        }
+        .booking-modal {
+            background: #111;
+            border: 1px solid #222;
+            border-radius: 20px 20px 0 0;
+            padding: 24px 20px 40px;
+            width: 100%;
+            max-width: 500px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        .modal-title {
+            font-size: 18px;
+            font-weight: 700;
+            margin-bottom: 20px;
+            color: #fff;
+        }
+        .modal-date {
+            font-size: 14px;
+            color: #22c55e;
+            font-family: monospace;
+            margin-bottom: 20px;
+        }   
+        .form-group {
+            margin-bottom: 16px;
+        }
+        .form-label {
+            display: block;
+            font-size: 11px;
+            color: #555;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            font-family: monospace;
+            margin-bottom: 6px;
+        }
+        .form-input {
+            width: 100%;
+            background: #1a1a1a;
+            border: 1px solid #2a2a2a;
+            border-radius: 8px;
+            padding: 12px 14px;
+            color: #fff;
+            font-size: 16px;
+            outline: none;
+        }
+        .form-input:focus { border-color: #22c55e; }
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+        .modal-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        .btn-book {
+            flex: 1;
+            background: #22c55e;
+            color: #000;
+            border: none;
+            border-radius: 10px;
+            padding: 16px;
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+        .btn-cancel-modal {
+            background: #1a1a1a;
+            border: 1px solid #2a2a2a;
+            color: #888;
+            border-radius: 10px;
+            padding: 16px 20px;
+            font-size: 14px;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
