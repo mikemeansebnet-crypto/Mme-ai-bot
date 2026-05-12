@@ -3092,6 +3092,14 @@ def dashboard():
                 const day = document.createElement('div');
                 day.className = `cal-day${hasJob ? ' has-job' : ''}${isToday ? ' today' : ''}`;
                 day.textContent = d;
+                // ADDED: Click to open booking modal
+                day.onclick = () => openBookingModal(dateStr);
+                day.style.cursor = 'pointer';
+                if (hasJob) {
+                    day.title = 'Jobs scheduled — tap to add another';
+                } else {
+                    day.title = 'Tap to add a job';
+                }
                 grid.appendChild(day);
             }
         }    
