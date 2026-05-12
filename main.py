@@ -2816,7 +2816,10 @@ def dashboard():
             <h1>Crew<span>Cache</span>Pro</h1>
             <div class="business-name" id="businessName">Loading...</div>
         </div>
-        <a href="/dashboard/logout" class="logout-btn">Sign out</a>
+        <div style="display:flex;gap:8px;align-items:center">
+            <button onclick="openBookingModal('')" style="background:#22c55e;color:#000;border:none;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:700;cursor:pointer">+ Add Job</button>
+            <a href="/dashboard/logout" class="logout-btn">Sign out</a>
+        </div>
     </header>
 
     <div class="content">
