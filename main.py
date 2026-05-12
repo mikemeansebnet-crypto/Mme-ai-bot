@@ -3103,11 +3103,122 @@ def dashboard():
             renderCalendar();
         }
 
+        // ── BOOKING MODAL ──────────────────────────
+        function openBookingModal(dateStr) {
+            document.getElementById('bookDate').value = dateStr || '';
+            document.getElementById('bookName').value = '';
+            document.getElementById('bookPhone').value = '';
+            document.getElementById('bookAddress').value = '';
+            document.getElementById('bookJob').value = '';
+            document.getElementById('bookTime').value = '09:00';
+
+            if (dateStr) {
+                const d = new Date(dateStr + 'T12:00:00');
+                const options = { weekday: 'long', month: 'long', day: 'numeric' };
+                document.getElementById('modalDate').textContent = d.toLocaleDateString('en-US', options);
+            }
+
+            document.getElementById('bookingModal').classList.add('active');
+        }
+
+        function closeBookingModal() {
+            document.getElementById('bookingModal').classList.remove('active');
+        }
+
+        async function submitBooking() {
+            const name = document.getElementById('bookName').value.trim();
+            const phone = document.getElementById('bookPhone').value.trim();
+            const address = document.getElementById('bookAddress').value.trim();
+            const job = document.getElementById('bookJob').value.trim();
+            const date = document.getElementById('bookDate').value;
+            const time = document.getElementById('bookTime').value;
+
+            if (!name || !phone || !date) {
+                alert('Please fill in Name, Phone and Date.');
+                return;
+            }
+
+            const btn = document.querySelector('.btn-book');
+            btn.textContent = 'Booking...';
+            btn.disabled = true;
+
+            try {
+                const res = await fetch('/dashboard/add-job', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Dashboard-Token': getCookie('dashboard_token')
+                    },
+                    body: JSON.stringify({
+                        customer_name: name,
+                        customer_phone: phone,
+                        service_address: address,
+                        job_description: job,
+                        appointment_date: date,
+                        appointment_time: time
+                    })
+                });
+
+                const data = await res.json();
+                if (data.ok) {
+                    alert(`✅ Job booked for ${data.appointment}!\nConfirmation SMS sent to customer.`);
+                    closeBookingModal();
+                    loadDashboard();
+                } else {
+                    alert('Error: ' + (data.error || 'Something went wrong'));
+                }
+            } catch(e) {
+                alert('Request failed. Please try again.');
+            } finally {
+                btn.textContent = 'Add Job →';
+                btn.disabled = false;
+            }
+        }
+
         // Load on startup
         loadDashboard();
         // Auto-refresh every 5 minutes
         setInterval(loadDashboard, 5 * 60 * 1000);
     </script>
+    <!-- Booking Modal -->
+    <div class="modal-overlay" id="bookingModal">
+        <div class="booking-modal">
+        <div class="modal-title">➕ Add Job</div>
+        <div class="modal-date" id="modalDate"></div>
+
+        <div class="form-group">
+            <label class="form-label">Customer Name *</label>
+            <input type="text" class="form-input" id="bookName" placeholder="John Doe">
+        </div>
+        <div class="form-group">
+            <label class="form-label">Phone Number *</label>
+            <input type="tel" class="form-input" id="bookPhone" placeholder="+12025551234">
+        </div>
+        <div class="form-group">
+            <label class="form-label">Service Address</label>
+            <input type="text" class="form-input" id="bookAddress" placeholder="123 Main St, Bowie MD">
+        </div>
+        <div class="form-group">
+            <label class="form-label">Job Description</label>
+            <input type="text" class="form-input" id="bookJob" placeholder="Lawn mowing, edging...">
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label class="form-label">Date *</label>
+                <input type="date" class="form-input" id="bookDate">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Time</label>
+                <input type="time" class="form-input" id="bookTime" value="09:00">
+            </div>
+        </div>
+
+        <div class="modal-actions">
+            <button class="btn-cancel-modal" onclick="closeBookingModal()">Cancel</button>
+            <button class="btn-book" onclick="submitBooking()">Add Job →</button>
+        </div>
+    </div>
+</div>
 </body>
 </html>
     '''
