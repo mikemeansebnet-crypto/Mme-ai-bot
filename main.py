@@ -3415,8 +3415,7 @@ def dashboard_data():
         open_lead_records = open_leads_resp.json().get("records", [])
         open_leads = []
         for r in open_lead_records:
-            f = r.get("fields", {})
-            print(f"PAYMENT RECORD FIELDS | {list(f.keys())} | name: {f.get('Customer Name')}")   
+            f = r.get("fields", {}) 
             open_leads.append({
                 # ADDED: record_id for action buttons
                 "record_id": r.get("id", ""),
@@ -3430,7 +3429,7 @@ def dashboard_data():
 
         payments_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/Payments"
         unpaid_resp = req.get(payments_url, headers=headers, params={
-            "filterByFormula": "AND({Payment Status} = 'Unpaid', {Phone Number} != '')"
+            "filterByFormula": "AND({Payment Status} = 'Unpaid', {Phone Number} != '', {Send Invoice} = FALSE())"
         })
         unpaid_records = unpaid_resp.json().get("records", [])
         unpaid_invoices = []
