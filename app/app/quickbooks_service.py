@@ -33,6 +33,15 @@ else:
 # Token Storage (Redis)
 # ─────────────────────────────────────────────
 
+AIRTABLE_TOKEN_QB = os.environ.get("AIRTABLE_TOKEN")
+AIRTABLE_BASE_ID_QB = os.environ.get("AIRTABLE_BASE_ID")
+QB_CONTRACTOR_RECORD = os.environ.get("QB_CONTRACTOR_RECORD_ID", "recakMBxVczSFVvfS")
+CONTRACTORS_URL_QB = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID_QB}/Contractors"
+AT_HEADERS_QB = {
+    "Authorization": f"Bearer {AIRTABLE_TOKEN_QB}",
+    "Content-Type": "application/json"
+}
+
 def _get_redis():
     try:
         from app.app.config import redis_client
@@ -40,35 +49,59 @@ def _get_redis():
     except Exception:
         return None
 
-
 def save_qb_tokens(realm_id: str, access_token: str, refresh_token: str, expires_in: int = 3600):
-    """Save QuickBooks tokens to Redis."""
-    rc = _get_redis()
-    if not rc:
-        print("QB TOKEN SAVE ERROR | no redis client")
-        return
+    """Save QuickBooks tokens to Redis AND Airtable as backup."""
     token_data = {
-        "realm_id":     realm_id,
+        "realm_id": realm_id,
         "access_token": access_token,
         "refresh_token": refresh_token,
-        "expires_at":   int(time.time()) + expires_in,
+        "expires_at": int(time.time()) + expires_in,
     }
-    rc.set("qb_tokens", json.dumps(token_data))
-    print("QB TOKENS SAVED | realm_id:", realm_id)
+    # Save to Redis
+    rc = _get_redis()
+    if rc:
+        rc.set("qb_tokens", json.dumps(token_data))
+        print("QB TOKENS SAVED TO REDIS | realm_id:", realm_id)
+    # Save to Airtable as backup
+    try:
+        requests.patch(
+            f"{CONTRACTORS_URL_QB}/{QB_CONTRACTOR_RECORD}",
+            headers=AT_HEADERS_QB,
+            json={"fields": {"QB Tokens": json.dumps(token_data)}}
+        )
+        print("QB TOKENS SAVED TO AIRTABLE | realm_id:", realm_id)
+    except Exception as e:
+        print("QB TOKENS AIRTABLE SAVE ERROR |", e)
 
 
 def get_qb_tokens() -> dict | None:
-    """Get QuickBooks tokens from Redis."""
+    """Get QuickBooks tokens from Redis — fall back to Airtable if Redis is empty."""
     rc = _get_redis()
-    if not rc:
-        return None
-    raw = rc.get("qb_tokens")
-    if not raw:
-        return None
+    if rc:
+        raw = rc.get("qb_tokens")
+        if raw:
+            try:
+                return json.loads(raw)
+            except Exception:
+                pass
+    # Fallback — load from Airtable
     try:
-        return json.loads(raw)
-    except Exception:
-        return None
+        print("QB TOKENS | Redis miss — loading from Airtable")
+        resp = requests.get(
+            f"{CONTRACTORS_URL_QB}/{QB_CONTRACTOR_RECORD}",
+            headers={"Authorization": f"Bearer {AIRTABLE_TOKEN_QB}"}
+        )
+        fields = resp.json().get("fields", {})
+        raw = fields.get("QB Tokens", "")
+        if raw:
+            token_data = json.loads(raw)
+            if rc:
+                rc.set("qb_tokens", json.dumps(token_data))
+            print("QB TOKENS RESTORED FROM AIRTABLE")
+            return token_data
+    except Exception as e:
+        print("QB TOKENS AIRTABLE LOAD ERROR |", e)
+    return None
 
 
 def get_valid_access_token() -> tuple[str, str] | tuple[None, None]:
