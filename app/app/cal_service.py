@@ -118,7 +118,7 @@ def create_google_calendar_event(
                 "https://www.googleapis.com/auth/userinfo.email",
             ],
         )
-
+        print(f"CALENDAR DEBUG | encrypted: {encrypted_refresh_token[:20]}... | looks_encrypted: {looks_encrypted(encrypted_refresh_token)} | refresh_token: {refresh_token[:20]}...")
         service = build("calendar", "v3", credentials=creds)
 
         event_body = {
