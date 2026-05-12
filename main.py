@@ -3893,8 +3893,7 @@ def twilio_voicemail():
 
 @app.route("/onboard/<contractor_id>")
 def onboard(contractor_id):
-    # Force correct casing on Airtable record ID
-    contractor_id = contractor_id[:3].lower() + contractor_id[3:].upper()
+    # REMOVE the casing transformation — use the ID as-is
     session["oauth_contractor_key"] = contractor_id
     session.permanent = True
     print("ONBOARD | contractor_id stored in session:", contractor_id)
