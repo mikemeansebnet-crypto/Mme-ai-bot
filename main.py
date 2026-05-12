@@ -3072,7 +3072,7 @@ def dashboard_data():
             return {
                 # ADDED: record_id for action buttons
                 "record_id": record.get("id", ""),
-                "name": fields.get("Client Name", ""),
+                "name": fields.get("Customer Name") or fields.get("Client Name") or "Unknown",
                 "phone": fields.get("Call Back Number", ""),
                 "address": fields.get("Service Address", ""),
                 "job_type": fields.get("Job Description", ""),
@@ -3102,7 +3102,7 @@ def dashboard_data():
             open_leads.append({
                 # ADDED: record_id for action buttons
                 "record_id": r.get("id", ""),
-                "name": f.get("Client Name", ""),
+                "name": f.get("Customer Name") or f.get("Client Name") or "Unknown",
                 "phone": f.get("Call Back Number", ""),
                 "address": f.get("Service Address", ""),
                 "job_type": f.get("Job Description", ""),
