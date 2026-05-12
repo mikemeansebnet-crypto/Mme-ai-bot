@@ -695,6 +695,13 @@ def health():
         "redis_connected": redis_ok,
     }), 200 if redis_ok else 500
 
+@app.route("/clear-cache")
+def clear_cache():
+    if redis_client:
+        redis_client.flushall()
+        return "Cache cleared"
+    return "No Redis client"
+
 
 @app.get("/test-email")
 def test_email():
