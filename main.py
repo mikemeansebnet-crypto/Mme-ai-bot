@@ -56,7 +56,7 @@ from app.app.photo_service import (
 from app.app.quickbooks_service import (
     save_qb_tokens, get_valid_access_token, create_qb_invoice, 
     is_qb_connected, QB_CLIENT_ID, QB_REDIRECT_URI, QB_AUTH_URL, 
-    QB_TOKEN_URL, QB_SCOPES, QB_CLIENT_SECRET,
+    QB_TOKEN_URL, QB_SCOPES, QB_CLIENT_SECRET, QB_API_BASE,
 )
 from base64 import b64encode
 import secrets
@@ -298,6 +298,107 @@ def airtable_job_complete():
  
     except Exception as e:
         print("AIRTABLE WEBHOOK ERROR |", e)
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+@app.route("/airtable/send-invoice", methods=["POST"])
+def airtable_send_invoice():
+    """
+    Triggered from Airtable when Send Invoice checkbox is checked.
+    Creates QuickBooks invoice and emails it directly to customer.
+    """
+    try:
+        data = request.get_json(force=True) or {}
+        print("SEND INVOICE WEBHOOK |", data)
+
+        record = data.get("record", {}) or data
+        fields = record.get("fields", {}) or record
+
+        customer_name = fields.get("Customer Name", "").strip()
+        customer_email = fields.get("Client Email", "").strip()
+        customer_phone = fields.get("Phone Number", "").strip()
+        amount = float(fields.get("Amount", 0) or 0)
+        job_description = fields.get("Notes", "").strip()
+        record_id = fields.get("record_id", "")
+
+        if not customer_name:
+            return jsonify({"ok": False, "error": "No customer name"}), 400
+
+        if not customer_email:
+            return jsonify({"ok": False, "error": "No customer email — add email to Airtable record"}), 400
+
+        # Build state for QB invoice creation
+        state = {
+            "name": customer_name,
+            "service_address": "",
+            "job_description": job_description,
+            "callback": customer_phone,
+            "timing": "",
+            "client_email": customer_email,
+            "estimate_amount": amount,
+        }
+
+        # Step 1 — Create QuickBooks invoice
+        result = create_qb_invoice(state)
+        print("QB INVOICE RESULT |", result)
+
+        if not result.get("ok"):
+            return jsonify({"ok": False, "error": result.get("error")}), 500
+
+        invoice_id = result.get("invoice_id")
+
+        # Step 2 — Email invoice to customer via QuickBooks
+        access_token, realm_id = get_valid_access_token()
+        if access_token and invoice_id and customer_email:
+            try:
+                email_url = f"{QB_API_BASE}/{realm_id}/invoice/{invoice_id}/send"
+                headers = {
+                    "Authorization": f"Bearer {access_token}",
+                    "Content-Type": "application/octet-stream",
+                }
+                email_resp = requests.post(
+                    email_url,
+                    headers=headers,
+                    params={
+                        "sendTo": customer_email,
+                        "minorversion": "65"
+                    },
+                    timeout=15
+                )
+                if email_resp.status_code in [200, 201]:
+                    print(f"QB INVOICE EMAILED | {customer_name} | {customer_email}")
+                else:
+                    print(f"QB INVOICE EMAIL ERROR | {email_resp.status_code} | {email_resp.text}")
+            except Exception as e:
+                print(f"QB INVOICE EMAIL EXCEPTION | {e}")
+
+        # Step 3 — Update Airtable Payment Status to Invoiced
+        if record_id:
+            try:
+                AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
+                AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
+                payments_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/Payments"
+                headers_at = {
+                    "Authorization": f"Bearer {AIRTABLE_TOKEN}",
+                    "Content-Type": "application/json"
+                }
+                requests.patch(
+                    f"{payments_url}/{record_id}",
+                    headers=headers_at,
+                    json={"fields": {"Payment Status": "Invoiced"}}
+                )
+                print(f"AIRTABLE PAYMENT STATUS | {record_id} | Invoiced")
+            except Exception as e:
+                print(f"AIRTABLE UPDATE ERROR | {e}")
+
+        return jsonify({
+            "ok": True,
+            "invoice_id": invoice_id,
+            "invoice_num": result.get("invoice_num"),
+            "emailed_to": customer_email
+        }), 200
+
+    except Exception as e:
+        print(f"SEND INVOICE ERROR | {type(e).__name__} | {e}")
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
