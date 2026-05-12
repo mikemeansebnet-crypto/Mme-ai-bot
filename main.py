@@ -3118,6 +3118,7 @@ def dashboard_data():
         unpaid_invoices = []
         for r in unpaid_records:
             f = r.get("fields", {})
+            print(f"UNPAID PAYMENT FIELDS | {f}")
             contractor_links = f.get("Contractor", [])
             if contractor_record_id and contractor_record_id not in str(contractor_links):
                 continue
