@@ -3402,6 +3402,125 @@ def dashboard_mark_contacted():
         print(f"DASHBOARD MARK CONTACTED ERROR | {e}")
         return jsonify({"ok": False, "error": str(e)}), 500
 
+@app.route("/dashboard/add-job", methods=["POST"])
+@dashboard_auth_required
+def dashboard_add_job():
+    """
+    Creates a new job booking from the dashboard.
+    - Creates lead in Airtable
+    - Adds to Google Calendar
+    - Sends confirmation SMS to customer
+    """
+    try:
+        data = request.get_json(silent=True) or {}
+        customer_name = data.get("customer_name", "").strip()
+        customer_phone = data.get("customer_phone", "").strip()
+        service_address = data.get("service_address", "").strip()
+        job_description = data.get("job_description", "").strip()
+        appointment_date = data.get("appointment_date", "").strip()
+        appointment_time = data.get("appointment_time", "").strip()
+
+        if not customer_name or not customer_phone or not appointment_date:
+            return jsonify({"ok": False, "error": "Name, phone and date are required"}), 400
+
+        twilio_number = request.twilio_number
+        contractor = get_contractor_by_twilio_number(twilio_number) or {}
+        business_name = contractor.get("Business Name", "your contractor")
+
+        # Build ISO datetime strings for Google Calendar
+        from zoneinfo import ZoneInfo
+        from datetime import datetime, timedelta
+
+        eastern = ZoneInfo("America/New_York")
+
+        # Parse date and time
+        time_str = appointment_time or "09:00"
+        dt_str = f"{appointment_date}T{time_str}:00"
+        dt_start = datetime.fromisoformat(dt_str).replace(tzinfo=eastern)
+        dt_end = dt_start + timedelta(hours=1)
+
+        start_iso = dt_start.isoformat()
+        end_iso = dt_end.isoformat()
+        formatted_display = dt_start.strftime("%A, %B %-d at %-I:%M %p")
+
+        # 1 — Create Airtable lead record
+        AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
+        AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
+        leads_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tbl6YL7BYY2vawIF1"
+        headers = {
+            "Authorization": f"Bearer {AIRTABLE_TOKEN}",
+            "Content-Type": "application/json"
+        }
+
+        airtable_resp = requests.post(
+            leads_url,
+            headers=headers,
+            json={"fields": {
+                "Client Name": customer_name,
+                "Call Back Number": customer_phone,
+                "Service Address": service_address,
+                "Job Description": job_description,
+                "Appointment Date and Time": dt_start.strftime("%Y-%m-%dT%H:%M:%S.000Z"),
+                "Lead Status": "Booked",
+                "Priority": "STANDARD",
+                "Source": "Manual Entry",
+                "Twilio Number": twilio_number,
+                "Call SID": f"MANUAL-{twilio_number}-{int(dt_start.timestamp())}",
+                "Appointment Requested": formatted_display,
+            }}
+        )
+
+        if airtable_resp.status_code not in [200, 201]:
+            print(f"DASHBOARD ADD JOB | Airtable error | {airtable_resp.text}")
+            return jsonify({"ok": False, "error": "Failed to create Airtable record"}), 500
+
+        lead_record_id = airtable_resp.json().get("id", "")
+        print(f"DASHBOARD ADD JOB | Lead created | {lead_record_id} | {customer_name}")
+
+        # 2 — Add to Google Calendar
+        from app.app.calendar_service import create_google_calendar_event
+
+        cal_result = create_google_calendar_event(
+            contractor=contractor,
+            summary=f"{business_name} — {job_description or 'Service'} ({customer_name})",
+            start_time=start_iso,
+            end_time=end_iso,
+            description=(
+                f"Customer: {customer_name}\n"
+                f"Phone: {customer_phone}\n"
+                f"Address: {service_address}\n"
+                f"Job: {job_description}\n"
+                f"Booked via CrewCachePro Dashboard"
+            ),
+            location=service_address,
+        )
+
+        if cal_result.get("ok"):
+            print(f"DASHBOARD ADD JOB | Google Calendar event created | {cal_result.get('event_id')}")
+        else:
+            print(f"DASHBOARD ADD JOB | Google Calendar failed | {cal_result.get('error')}")
+
+        # 3 — Send confirmation SMS to customer
+        first_name = customer_name.split()[0] if customer_name else "there"
+        msg = (
+            f"Hi {first_name}! Your appointment with {business_name} is confirmed for "
+            f"{formatted_display} at {service_address}. "
+            f"Reply CANCEL APPOINTMENT to cancel or RESCHEDULE to reschedule."
+        )
+        send_fallback_sms(to_number=customer_phone, body=msg)
+        print(f"DASHBOARD ADD JOB | Confirmation SMS sent | {customer_phone}")
+
+        return jsonify({
+            "ok": True,
+            "lead_id": lead_record_id,
+            "calendar": cal_result.get("ok", False),
+            "appointment": formatted_display
+        })
+
+    except Exception as e:
+        print(f"DASHBOARD ADD JOB ERROR | {type(e).__name__} | {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
 
 # ─────────────────────────────────────────────
 # Fallback
