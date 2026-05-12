@@ -3688,7 +3688,7 @@ def dashboard_add_job():
         print(f"DASHBOARD ADD JOB | Lead created | {lead_record_id} | {customer_name}")
 
         # 2 — Add to Google Calendar
-        from app.app.calendar_service import create_google_calendar_event
+        from app.app.cal_service import create_google_calendar_event
 
         cal_result = create_google_calendar_event(
             contractor=contractor,
