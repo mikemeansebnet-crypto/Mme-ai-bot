@@ -315,7 +315,7 @@ def airtable_send_invoice():
 
         customer_name = fields.get("Customer Name", "").strip()
         customer_email = fields.get("Client Email", "").strip()
-        customer_phone = fields.get("Phone Number", "").strip()
+        customer_phone = (fields.get("Phone Number") or "").strip()
         amount = float(fields.get("Amount", 0) or 0)
         job_description = fields.get("Notes", "").strip()
         record_id = fields.get("record_id", "")
