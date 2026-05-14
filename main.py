@@ -3172,7 +3172,7 @@ def dashboard():
                         </div>
                         ` : ''}
                     </div>
-        `        `;
+                 `;
             }).join('');
         }
         
