@@ -3166,6 +3166,54 @@ def dashboard():
             }).join('');
         }
 
+        }
+
+        async function runAerialQuote(recordId, address, jobType, customerName, twilioNumber) {
+            if (!address) {
+                alert('No address on file for this lead.');
+                return;
+            }
+            const btn = event.target;
+            btn.textContent = '🛰️ Analyzing...';
+            btn.disabled = true;
+
+            try {
+                const res = await fetch('/aerial-quote', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Dashboard-Token': getCookie('dashboard_token')
+                    },
+                    body: JSON.stringify({
+                        lead_id: recordId,
+                        address: address,
+                        job_description: jobType,
+                        customer_name: customerName,
+                        twilio_number: twilioNumber
+                    })
+                });
+
+                const data = await res.json();
+                if (data.ok) {
+                    alert(
+                        `🛰️ Aerial Quote Complete!\n\n` +
+                        `📐 ~${data.square_footage?.toLocaleString()} sq ft\n` +
+                        `💰 Estimate: ${data.quote_range}\n\n` +
+                        `Satellite image and full analysis saved to lead record.\n` +
+                        `SMS sent to your notify number.`
+                    );
+                    loadDashboard();
+                } else {
+                    alert('Error: ' + (data.error || 'Something went wrong'));
+                }
+            } catch(e) {
+                alert('Request failed. Please try again.');
+            } finally {
+                btn.textContent = '🛰️ Aerial Quote';
+                btn.disabled = false;
+            }
+        }
+
         function renderUnpaidInvoices() {
             const invoices = dashboardData.unpaid_invoices || [];
             document.getElementById('invoicesCount').textContent = invoices.length;
