@@ -3164,7 +3164,7 @@ def dashboard():
                     </div>` : ''}
                 </div>`;
             }).join('');
-        }
+        
 
 
         async function runAerialQuote(recordId, address, jobType, customerName, twilioNumber) {
