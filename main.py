@@ -448,8 +448,8 @@ def aerial_quote():
                     headers=headers,
                     json={"fields": {
                         "AI Scope Summary": result.get("analysis", "")[:1000],
-                        "AI Estimate Range": result.get("quote_range", ""),
-                        "Photo URLs": result.get("satellite_url", ""),
+                        "fldqt3c17hd20Xd9h": result.get("satellite_url", ""),  # Aerial Image URL
+                        "fldk89m59h1lfHjN6": result.get("quote_range", ""),     # Aerial Quote Range
                     }}
                 )
                 print(f"AERIAL | Airtable updated | {lead_id}")
