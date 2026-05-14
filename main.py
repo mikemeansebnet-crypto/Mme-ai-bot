@@ -3136,35 +3136,45 @@ def dashboard():
             const leads = dashboardData.open_leads || [];
             document.getElementById('leadsCount').textContent = leads.length;
             const el = document.getElementById('openLeads');
-            if (!leads.length) { el.innerHTML = '<div class="empty-state">No open leads</div>'; return; }
+
+            if (!leads.length) {
+                el.innerHTML = '<div class="empty-state">No open leads</div>';
+                return;
+            }
+
             el.innerHTML = leads.map(lead => {
                 const phone = lead.phone ? lead.phone.replace(/\D/g,'') : '';
                 const recordId = lead.record_id || '';
-                const customerPhone = lead.phone || '';
                 const customerName = lead.name || '';
                 const badge = lead.priority === 'URGENT' || lead.priority === 'HIGH_PRIORITY'
                     ? '<span class="badge badge-urgent">URGENT</span>'
                     : '<span class="badge badge-new">NEW</span>';
+
                 return `
-                <div class="job-card ${lead.priority !== 'STANDARD' ? 'urgent' : ''}">
-                    <div class="job-name">${lead.name || 'Unknown'}${badge}</div>
-                    <div class="job-address">${lead.address || ''}</div>
-                    <div class="job-type">${lead.job_type || ''} · ${lead.timing || ''}</div>
-                    ${phone ? `
-                    <div class="job-actions" style="margin-top:8px">
-                        <button 
-                            data-record-id="${recordId}"
-                            data-address="${lead.address}"
-                            data-job-type="${lead.job_type}"
-                            data-customer="${customerName}"
-                            data-twilio="${dashboardData.twilio_number}"
-                            onclick="runAerialQuote(this.dataset.recordId, this.dataset.address, this.dataset.jobType, this.dataset.customer, this.dataset.twilio)"
-                            class="action-btn btn-sms" style="width:100%">🛰️ Aerial Quote
-                        </button>
+                    <div class="job-card ${lead.priority !== 'STANDARD' ? 'urgent' : ''}">
+                        <div class="job-name">${lead.name || 'Unknown'}${badge}</div>
+                        <div class="job-address">${lead.address || ''}</div>
+                        <div class="job-type">${lead.job_type || ''} · ${lead.timing || ''}</div>
+
+                        ${phone ? `
+                        <div class="job-actions" style="margin-top:8px">
+                            <button 
+                                data-record-id="${recordId}"
+                                data-address="${lead.address || ''}"
+                                data-job-type="${lead.job_type || ''}"
+                                data-customer="${customerName}"
+                                data-twilio="${dashboardData.twilio_number || ''}"
+                                onclick="runAerialQuote(this.dataset.recordId, this.dataset.address, this.dataset.jobType, this.dataset.customer, this.dataset.twilio)"
+                                class="action-btn btn-sms" 
+                                style="width:100%">
+                                🛰️ Aerial Quote
+                            </button>
+                        </div>
+                        ` : ''}
                     </div>
-                        
-                </div>`;
+        `        ;
             }).join('');
+        }
         
 
 
