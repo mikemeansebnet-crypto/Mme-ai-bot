@@ -3151,17 +3151,18 @@ def dashboard():
                     <div class="job-address">${lead.address || ''}</div>
                     <div class="job-type">${lead.job_type || ''} · ${lead.timing || ''}</div>
                     ${phone ? `
-                    <div class="job-actions">
-                        <a href="tel:+1${phone}" class="action-btn btn-call">📞 Call</a>
-                        <a href="sms:+1${phone}" class="action-btn btn-sms">💬 Text</a>
-                    </div>
                     <div class="job-actions" style="margin-top:8px">
-                        <button onclick="dashboardAction('/dashboard/action/send-booking-link', {customer_name:'${customerName}', customer_phone:'${customerPhone}', job_type:'${lead.job_type||''}', address:'${lead.address||''}'}, 'Booking link sent!')" class="action-btn btn-sms">📅 Send Booking Link</button>
-                        <button onclick="dashboardAction('/dashboard/action/mark-contacted', {record_id:'${recordId}'}, 'Lead marked contacted!')" class="action-btn btn-sms">📋 Mark Contacted</button>
+                        <button 
+                            data-record-id="${recordId}"
+                            data-address="${lead.address}"
+                            data-job-type="${lead.job_type}"
+                            data-customer="${customerName}"
+                            data-twilio="${dashboardData.twilio_number}"
+                            onclick="runAerialQuote(this.dataset.recordId, this.dataset.address, this.dataset.jobType, this.dataset.customer, this.dataset.twilio)"
+                            class="action-btn btn-sms" style="width:100%">🛰️ Aerial Quote
+                        </button>
                     </div>
-                    <div class="job-actions" style="margin-top:8px">
-                        <button onclick="runAerialQuote('${recordId}', '${lead.address}', '${lead.job_type}', '${customerName}', '${dashboardData.twilio_number}')" class="action-btn btn-sms" style="width:100%">🛰️ Aerial Quote</button>
-                    </div>
+                        
                 </div>`;
             }).join('');
         
