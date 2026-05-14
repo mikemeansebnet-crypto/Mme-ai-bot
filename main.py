@@ -3166,7 +3166,6 @@ def dashboard():
             }).join('');
         }
 
-        }
 
         async function runAerialQuote(recordId, address, jobType, customerName, twilioNumber) {
             if (!address) {
