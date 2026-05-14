@@ -3160,8 +3160,8 @@ def dashboard():
                         <button onclick="dashboardAction('/dashboard/action/mark-contacted', {record_id:'${recordId}'}, 'Lead marked contacted!')" class="action-btn btn-sms">📋 Mark Contacted</button>
                     </div>
                     <div class="job-actions" style="margin-top:8px">
-                        <button onclick="runAerialQuote('${recordId}', '${lead.address||''}', '${lead.job_type||''}', '${customerName}', '${dashboardData.twilio_number||''}')" class="action-btn btn-sms" style="width:100%">🛰️ Aerial Quote</button>
-                    </div>` : ''}
+                        <button onclick="runAerialQuote('${recordId}', '${lead.address}', '${lead.job_type}', '${customerName}', '${dashboardData.twilio_number}')" class="action-btn btn-sms" style="width:100%">🛰️ Aerial Quote</button>
+                    </div>
                 </div>`;
             }).join('');
         
