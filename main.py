@@ -481,6 +481,50 @@ def aerial_quote():
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
+    # Send email to contractor with full analysis
+    try:
+        notify_email = contractor.get("Notify Email", "").strip()
+        if notify_email:
+            email_body = (
+                f"🛰️ Aerial Quote — {customer_name}\n"
+                f"{'='*50}\n\n"
+                f"📍 Address: {result.get('address')}\n"
+                f"🔧 Job: {job_description}\n"
+                f"📐 Estimated Work Area: ~{result.get('square_footage', 0):,} sq ft\n"
+                f"💰 Quote Range: {result.get('quote_range')}\n\n"
+                f"{'='*50}\n"
+                f"FULL AI ANALYSIS\n"
+                f"{'='*50}\n\n"
+                f"{result.get('analysis', '')}\n\n"
+                f"{'='*50}\n"
+                f"SATELLITE IMAGE\n"
+                f"{'='*50}\n"
+                f"{result.get('satellite_url', '')}\n\n"
+                f"{'='*50}\n"
+                f"CUSTOMER-READY ESTIMATE\n"
+                f"{'='*50}\n\n"
+                f"Dear {customer_name},\n\n"
+                f"Thank you for reaching out to {contractor.get('Business Name', 'us')}! "
+                f"Based on our initial review of your property at {result.get('address')}, "
+                f"here is our preliminary estimate for {job_description}:\n\n"
+                f"Estimated Investment: {result.get('quote_range')}\n\n"
+                f"This estimate is based on the approximate work area of {result.get('square_footage', 0):,} sq ft. "
+                f"Final pricing will be confirmed during our on-site visit.\n\n"
+                f"We look forward to working with you!\n\n"
+                f"Best regards,\n"
+                f"{contractor.get('Business Name', 'Your Contractor')}"
+            )
+
+            send_email(
+                subject=f"🛰️ Aerial Quote — {customer_name} | {result.get('quote_range')}",
+                body=email_body,
+                to_email=notify_email,
+            )
+            print(f"AERIAL | Email sent to contractor | {notify_email}")
+    except Exception as e:
+        print(f"AERIAL | Email error | {e}")
+
+
 
 def address_in_service_area(contractor: dict, lat: float, lon: float) -> tuple[bool, str]:
     try:
