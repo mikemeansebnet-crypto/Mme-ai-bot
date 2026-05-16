@@ -126,7 +126,7 @@ PROPERTY SIZE: [lot size estimate]
 WORK AREA: [specific work area in sq ft]
 DESCRIPTION: [2-3 sentences about the property]
 SCOPE: [what work needs to be done]
-COMPLEXITY: [Simple/Moderate/Complex] — [reason]
+COMPLEXITY: [Simple/Moderate/Complex] - [reason]
 SQUARE_FOOTAGE: [number only, no units]"""
 
 Important notes:
@@ -134,7 +134,7 @@ Important notes:
 - If unsure about a feature, omit it rather than guess
 - Driveways: note if straight or curved only if clearly visible
 - Decks/patios: only mention if clearly visible as a separate structure
-- Your estimate will be verified on-site — accuracy over speed
+- Your estimate will be verified on-site - accuracy over speed
 
         message = client.messages.create(
             model="claude-haiku-4-5-20251001",
