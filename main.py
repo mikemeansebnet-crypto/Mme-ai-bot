@@ -401,62 +401,7 @@ def airtable_send_invoice():
         print(f"SEND INVOICE ERROR | {type(e).__name__} | {e}")
         return jsonify({"ok": False, "error": str(e)}), 500
 
-@app.route("/aerial-quote", methods=["POST"])
-def aerial_quote():
-    """
-    Generates aerial satellite quote for a lead.
-    Called from dashboard or automatically during intake.
-    """
-    try:
-        from app.app.aerial_service import run_aerial_quote
-
-        data = request.get_json(silent=True) or {}
-        address = data.get("address", "").strip()
-        job_description = data.get("job_description", "").strip()
-        lead_id = data.get("lead_id", "").strip()
-        customer_name = data.get("customer_name", "").strip()
-        twilio_number = data.get("twilio_number", "").strip()
-
-        if not address:
-            return jsonify({"ok": False, "error": "Address required"}), 400
-
-        print(f"AERIAL QUOTE ROUTE | {address} | {job_description}")
-
-        # Run aerial quote
-        result = run_aerial_quote(
-            address=address,
-            job_description=job_description,
-            lead_id=lead_id,
-            customer_name=customer_name
-        )
-
-        if not result.get("ok"):
-            return jsonify(result), 500
-
-        # Update Airtable lead record with aerial data
-        if lead_id:
-            try:
-                AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
-                AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
-                leads_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tbl6YL7BYY2vawIF1"
-                headers = {
-                    "Authorization": f"Bearer {AIRTABLE_TOKEN}",
-                    "Content-Type": "application/json"
-                }
-                requests.patch(
-                    f"{leads_url}/{lead_id}",
-                    headers=headers,
-                    json={"fields": {
-                        "AI Scope Summary": result.get("analysis", "")[:1000],
-                        "fldqt3c17hd20Xd9h": result.get("satellite_url", ""),  # Aerial Image URL
-                        "fldk89m59h1lfHjN6": result.get("quote_range", ""),     # Aerial Quote Range
-                    }}
-                )
-                print(f"AERIAL | Airtable updated | {lead_id}")
-            except Exception as e:
-                print(f"AERIAL | Airtable update error | {e}")
-
-        # SMS contractor with results
+    # SMS contractor with results
         if twilio_number:
             try:
                 contractor = get_contractor_by_twilio_number(twilio_number) or {}
@@ -471,48 +416,48 @@ def aerial_quote():
                     )
                     send_fallback_sms(to_number=notify_sms, body=msg)
 
-                    # Send email to contractor with full analysis
+                    # Send email with full analysis
                     try:
-                    notify_email = contractor.get("Notify Email", "").strip()
-                    if notify_email:
-                        email_body = (
-                            f"🛰️ Aerial Quote — {customer_name}\n"
-                            f"{'='*50}\n\n"
-                            f"📍 Address: {result.get('address')}\n"
-                            f"🔧 Job: {job_description}\n"
-                            f"📐 Estimated Work Area: ~{result.get('square_footage', 0):,} sq ft\n"
-                            f"💰 Quote Range: {result.get('quote_range')}\n\n"
-                            f"{'='*50}\n"
-                            f"FULL AI ANALYSIS\n"
-                            f"{'='*50}\n\n"
-                            f"{result.get('analysis', '')}\n\n"
-                            f"{'='*50}\n"
-                            f"SATELLITE IMAGE\n"
-                            f"{'='*50}\n"
-                            f"{result.get('satellite_url', '')}\n\n"
-                            f"{'='*50}\n"
-                            f"CUSTOMER-READY ESTIMATE\n"
-                            f"{'='*50}\n\n"
-                            f"Dear {customer_name},\n\n"
-                            f"Thank you for reaching out to {contractor.get('Business Name', 'us')}! "
-                            f"Based on our initial review of your property at {result.get('address')}, "
-                            f"here is our preliminary estimate for {job_description}:\n\n"
-                            f"Estimated Investment: {result.get('quote_range')}\n\n"
-                            f"This estimate is based on the approximate work area of {result.get('square_footage', 0):,} sq ft. "
-                            f"Final pricing will be confirmed during our on-site visit.\n\n"
-                            f"We look forward to working with you!\n\n"
-                            f"Best regards,\n"
-                            f"{contractor.get('Business Name', 'Your Contractor')}"
-                        )     
+                        notify_email = contractor.get("Notify Email", "").strip()
+                        if notify_email:
+                            email_body = (
+                                f"🛰️ Aerial Quote — {customer_name}\n"
+                                f"{'='*50}\n\n"
+                                f"📍 Address: {result.get('address')}\n"
+                                f"🔧 Job: {job_description}\n"
+                                f"📐 Estimated Work Area: ~{result.get('square_footage', 0):,} sq ft\n"
+                                f"💰 Quote Range: {result.get('quote_range')}\n\n"
+                                f"{'='*50}\n"
+                                f"FULL AI ANALYSIS\n"
+                                f"{'='*50}\n\n"
+                                f"{result.get('analysis', '')}\n\n"
+                                f"{'='*50}\n"
+                                f"SATELLITE IMAGE\n"
+                                f"{'='*50}\n"
+                                f"{result.get('satellite_url', '')}\n\n"
+                                f"{'='*50}\n"
+                                f"CUSTOMER-READY ESTIMATE\n"
+                                f"{'='*50}\n\n"
+                                f"Dear {customer_name},\n\n"
+                                f"Thank you for reaching out to {contractor.get('Business Name', 'us')}! "
+                                f"Based on our initial review of your property at {result.get('address')}, "
+                                f"here is our preliminary estimate for {job_description}:\n\n"
+                                f"Estimated Investment: {result.get('quote_range')}\n\n"
+                                f"This estimate is based on the approximate work area of {result.get('square_footage', 0):,} sq ft. "
+                                f"Final pricing will be confirmed during our on-site visit.\n\n"
+                                f"We look forward to working with you!\n\n"
+                                f"Best regards,\n"
+                                f"{contractor.get('Business Name', 'Your Contractor')}"
+                            )
+                            send_email(
+                                subject=f"🛰️ Aerial Quote — {customer_name} | {result.get('quote_range')}",
+                                body=email_body,
+                                to_email=notify_email,
+                            )
+                            print(f"AERIAL | Email sent | {notify_email}")
+                    except Exception as e:
+                        print(f"AERIAL | Email error | {e}")
 
-                        send_email(
-                            subject=f"🛰️ Aerial Quote — {customer_name} | {result.get('quote_range')}",
-                            body=email_body,
-                            to_email=notify_email,
-            )
-            print(f"AERIAL | Email sent to contractor | {notify_email}")
-    except Exception as e:
-        print(f"AERIAL | Email error | {e}")
                     print(f"AERIAL | SMS sent to contractor | {notify_sms}")
             except Exception as e:
                 print(f"AERIAL | SMS error | {e}")
@@ -521,8 +466,7 @@ def aerial_quote():
 
     except Exception as e:
         print(f"AERIAL QUOTE ERROR | {type(e).__name__} | {e}")
-        return jsonify({"ok": False, "error": str(e)}), 50
-
+        return jsonify({"ok": False, "error": str(e)}), 500
 
 def address_in_service_area(contractor: dict, lat: float, lon: float) -> tuple[bool, str]:
     try:
