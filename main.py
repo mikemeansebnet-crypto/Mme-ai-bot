@@ -515,6 +515,7 @@ def aerial_quote():
                                 subject=f"🛰️ Aerial Quote — {customer_name} | {result.get('quote_range')}",
                                 body=email_body,
                                 to_email=notify_email,
+                                attachment_path=pdf_path
                             )
                             print(f"AERIAL | Email sent | {notify_email}")
                     except Exception as e:
@@ -664,19 +665,20 @@ def send_email(subject: str, body: str, to_email: str = None, reply_to: str = No
 
     # ✅ Attach PDF if provided
     if attachment_path and os.path.exists(attachment_path):
-        with open(attachment_path, "rb") as f:
-            data = f.read()
-            encoded = base64.b64encode(data).decode()
+    with open(attachment_path, "rb") as f:
+        encoded = base64.b64encode(f.read()).decode()
 
-        attachment = Attachment(
-            FileContent(encoded),
-            FileName(os.path.basename(attachment_path)),
-            FileType("application/pdf"),
-            Disposition("attachment")
-        )
+    attachment = Attachment(
+        FileContent(encoded),
+        FileName(os.path.basename(attachment_path)),
+        FileType("application/pdf"),
+        Disposition("attachment")
+    )
 
-        message.attachment = attachment
-        print("EMAIL | PDF attached:", attachment_path)
+    message.attachment = attachment
+    print("EMAIL | PDF attached:", attachment_path)
+else:
+    print("EMAIL | No attachment found:", attachment_path)
 
     sg = SendGridAPIClient(api_key)
     response = sg.send(message)
