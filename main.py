@@ -458,6 +458,7 @@ def aerial_quote():
                 contractor = get_contractor_by_twilio_number(twilio_number) or {}
                 
                 pdf_path = generate_quote_pdf(
+                print("AERIAL | PDF created |", pdf_path)
                 result=result,
                 contractor=contractor,
                 customer_name=customer_name,
