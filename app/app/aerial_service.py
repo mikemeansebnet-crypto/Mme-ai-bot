@@ -260,4 +260,5 @@ def run_aerial_quote(
         "quote_min": analysis.get("quote_min"),
         "quote_max": analysis.get("quote_max"),
         "pricing_unit": analysis.get("pricing_unit"),
+        "pdf_path": pdf_path,
     }
