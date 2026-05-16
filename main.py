@@ -22,7 +22,7 @@ from flask import render_template_string
 from twilio.twiml.voice_response import VoiceResponse, Gather
 from twilio.rest import Client
 from sendgrid import SendGridAPIClient
-from sendgrid.helpers.mail import Mail
+from sendgrid.helpers.mail import Mail, Attachment, FileContent, FileName, FileType, Disposition
 from google_auth_oauthlib.flow import Flow
 import requests
 import anthropic
@@ -639,7 +639,7 @@ def send_fallback_sms(to_number: str, body: str) -> dict:
 # Email helpers
 # ─────────────────────────────────────────────
 
-def send_email(subject: str, body: str, to_email: str = None, reply_to: str = None):
+def send_email(subject: str, body: str, to_email: str = None, reply_to: str = None, attachment_path: str = None):
     api_key = os.getenv("SENDGRID_API_KEY")
     from_email = os.getenv("FROM_EMAIL")
     default_to = os.getenv("TO_EMAIL")
@@ -658,8 +658,25 @@ def send_email(subject: str, body: str, to_email: str = None, reply_to: str = No
         subject=subject,
         plain_text_content=body,
     )
+
     if reply_to:
         message.reply_to = reply_to
+
+    # ✅ Attach PDF if provided
+    if attachment_path and os.path.exists(attachment_path):
+        with open(attachment_path, "rb") as f:
+            data = f.read()
+            encoded = base64.b64encode(data).decode()
+
+        attachment = Attachment(
+            FileContent(encoded),
+            FileName(os.path.basename(attachment_path)),
+            FileType("application/pdf"),
+            Disposition("attachment")
+        )
+
+        message.attachment = attachment
+        print("EMAIL | PDF attached:", attachment_path)
 
     sg = SendGridAPIClient(api_key)
     response = sg.send(message)
