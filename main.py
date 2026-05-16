@@ -518,7 +518,7 @@ def aerial_quote():
                                 attachment_path=result.get("pdf_path", ""),
                             )
                             print(f"AERIAL | Email sent | {notify_email}")
-                    except Exception as e:"
+                    except Exception as e:
                         print(f"AERIAL | Email error | {e}")
 
                     print(f"AERIAL | SMS sent to contractor | {notify_sms}")
