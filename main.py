@@ -405,6 +405,7 @@ def airtable_send_invoice():
 def aerial_quote():
     try:
         from app.app.aerial_service import run_aerial_quote
+        from app.app.pdf_service import generate_quote_pdf
 
         data = request.get_json(silent=True) or {}
         address = data.get("address", "").strip()
@@ -455,6 +456,14 @@ def aerial_quote():
         if twilio_number:
             try:
                 contractor = get_contractor_by_twilio_number(twilio_number) or {}
+                
+                pdf_path = generate_quote_pdf(
+                result=result,
+                contractor=contractor,
+                customer_name=customer_name,
+                job_description=job_description
+            )
+                
                 notify_sms = contractor.get("Notify SMS", "")
                 if notify_sms:
                     msg = (
