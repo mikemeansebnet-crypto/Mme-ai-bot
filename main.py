@@ -515,10 +515,10 @@ def aerial_quote():
                                 subject=f"🛰️ Aerial Quote — {customer_name} | {result.get('quote_range')}",
                                 body=email_body,
                                 to_email=notify_email,
-                                attachment_path=pdf_path
+                                attachment_path=result.get("pdf_path", ""),
                             )
                             print(f"AERIAL | Email sent | {notify_email}")
-                    except Exception as e:
+                    except Exception as e:"
                         print(f"AERIAL | Email error | {e}")
 
                     print(f"AERIAL | SMS sent to contractor | {notify_sms}")
