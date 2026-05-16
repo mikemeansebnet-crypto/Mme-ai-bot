@@ -401,7 +401,57 @@ def airtable_send_invoice():
         print(f"SEND INVOICE ERROR | {type(e).__name__} | {e}")
         return jsonify({"ok": False, "error": str(e)}), 500
 
-    # SMS contractor with results
+@app.route("/aerial-quote", methods=["POST"])
+def aerial_quote():
+    try:
+        from app.app.aerial_service import run_aerial_quote
+
+        data = request.get_json(silent=True) or {}
+        address = data.get("address", "").strip()
+        job_description = data.get("job_description", "").strip()
+        lead_id = data.get("lead_id", "").strip()
+        customer_name = data.get("customer_name", "").strip()
+        twilio_number = data.get("twilio_number", "").strip()
+
+        if not address:
+            return jsonify({"ok": False, "error": "Address required"}), 400
+
+        print(f"AERIAL QUOTE ROUTE | {address} | {job_description}")
+
+        result = run_aerial_quote(
+            address=address,
+            job_description=job_description,
+            lead_id=lead_id,
+            customer_name=customer_name
+        )
+
+        if not result.get("ok"):
+            return jsonify(result), 500
+
+        # Update Airtable
+        if lead_id:
+            try:
+                AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
+                AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
+                leads_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tbl6YL7BYY2vawIF1"
+                headers = {
+                    "Authorization": f"Bearer {AIRTABLE_TOKEN}",
+                    "Content-Type": "application/json"
+                }
+                requests.patch(
+                    f"{leads_url}/{lead_id}",
+                    headers=headers,
+                    json={"fields": {
+                        "AI Scope Summary": result.get("analysis", "")[:1000],
+                        "fldqt3c17hd20Xd9h": result.get("satellite_url", ""),
+                        "fldk89m59h1lfHjN6": result.get("quote_range", ""),
+                    }}
+                )
+                print(f"AERIAL | Airtable updated | {lead_id}")
+            except Exception as e:
+                print(f"AERIAL | Airtable update error | {e}")
+
+        # SMS and email contractor
         if twilio_number:
             try:
                 contractor = get_contractor_by_twilio_number(twilio_number) or {}
