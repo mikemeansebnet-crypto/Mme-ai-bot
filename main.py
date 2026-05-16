@@ -456,15 +456,15 @@ def aerial_quote():
         if twilio_number:
             try:
                 contractor = get_contractor_by_twilio_number(twilio_number) or {}
-                
+
                 pdf_path = generate_quote_pdf(
-                print("AERIAL | PDF created |", pdf_path),
-                result=result,
-                contractor=contractor,
-                customer_name=customer_name,
-                job_description=job_description
-            )
-                
+                    result=result,
+                    contractor=contractor,
+                    customer_name=customer_name,
+                    job_description=job_description
+                )
+                print("AERIAL | PDF created |", pdf_path)
+
                 notify_sms = contractor.get("Notify SMS", "")
                 if notify_sms:
                     msg = (
@@ -473,7 +473,9 @@ def aerial_quote():
                         f"📐 ~{result.get('square_footage', 0):,} sq ft\n"
                         f"💰 Est: {result.get('quote_range')}\n"
                         f"🖼️ {result.get('satellite_url', '')}"
+                    
                     )
+                    
                     send_fallback_sms(to_number=notify_sms, body=msg)
 
                     # Send email with full analysis
