@@ -105,36 +105,43 @@ def analyze_aerial_with_claude(
                 pricing = QUOTE_RANGES[key]
                 break
 
-        prompt = f"""You are an expert contractor estimator analyzing a satellite aerial view of a property.
+        prompt = f"""You are an expert contractor estimator reviewing a satellite aerial image of a property.
 
 Property Address: {address}
 Customer: {customer_name}
 Job Requested: {job_description}
 
-Analyze this satellite image and provide:
+Analyze the image carefully and provide a practical contractor-facing estimate.
 
-1. PROPERTY SIZE ESTIMATE: Estimate the total lot size and the relevant work area in square feet. Be specific.
-2. PROPERTY DESCRIPTION: Describe what you see — lawn areas, driveway, trees, obstacles, property shape.
-3. JOB SCOPE: Based on the job requested and what you see, describe the scope of work.
-4. COMPLEXITY: Rate the job complexity as Simple, Moderate, or Complex and explain why.
-5. SQUARE FOOTAGE: Your best estimate of the work area square footage.
+Important accuracy rules:
+- Only describe features clearly visible in the image
+- Do NOT guess hidden areas, backyard sections, or unclear boundaries
+- If unsure, say “verify on-site”
+- Square footage must be a realistic working estimate, not exact measurement
 
-Be concise and practical — this is for a contractor preparing a quote.
-Format your response exactly like this:
+Square footage guidelines:
+- Small residential front yard: 1,000–3,000 sq ft
+- Medium property: 3,000–8,000 sq ft
+- Large property: 8,000–20,000+ sq ft
+- Only include the WORK AREA related to the job (not entire property unless applicable)
+- Exclude roads, neighbors, and unclear areas
 
-PROPERTY SIZE: [lot size estimate]
-WORK AREA: [specific work area in sq ft]
-DESCRIPTION: [2-3 sentences about the property]
-SCOPE: [what work needs to be done]
+Format your response EXACTLY like this:
+
+PROPERTY SIZE: [rough lot size or “not clearly visible”]
+WORK AREA: [estimated work area in sq ft]
+DESCRIPTION: [2-3 sentences about visible layout]
+SCOPE: [clear scope based on job requested]
 COMPLEXITY: [Simple/Moderate/Complex] - [reason]
-SQUARE_FOOTAGE: [number only, no units]"""
+SQUARE_FOOTAGE: [number only]
 
 Important notes:
-- Only describe features you can clearly identify with high confidence
-- If unsure about a feature, omit it rather than guess
-- Driveways: note if straight or curved only if clearly visible
-- Decks/patios: only mention if clearly visible as a separate structure
-- Your estimate will be verified on-site - accuracy over speed
+- Use rounded numbers (e.g., 2500, 4800, 10000 — no decimals)
+- Be conservative to avoid overestimating
+- If multiple areas exist, estimate the primary work zone only
+- This estimate will be verified on-site — accuracy over confidence
+"""
+
 
         message = client.messages.create(
             model="claude-haiku-4-5-20251001",
