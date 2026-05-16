@@ -129,6 +129,13 @@ SCOPE: [what work needs to be done]
 COMPLEXITY: [Simple/Moderate/Complex] — [reason]
 SQUARE_FOOTAGE: [number only, no units]"""
 
+Important notes:
+- Only describe features you can clearly identify with high confidence
+- If unsure about a feature, omit it rather than guess
+- Driveways: note if straight or curved only if clearly visible
+- Decks/patios: only mention if clearly visible as a separate structure
+- Your estimate will be verified on-site — accuracy over speed
+
         message = client.messages.create(
             model="claude-haiku-4-5-20251001",
             max_tokens=600,
@@ -192,7 +199,7 @@ def run_aerial_quote(
     job_description: str,
     lead_id: str,
     customer_name: str = "",
-    zoom: int = 19
+    zoom: int = 18
 ) -> dict:
     """
     Full aerial quote pipeline:
