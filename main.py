@@ -413,6 +413,7 @@ def aerial_quote():
         lead_id = data.get("lead_id", "").strip()
         customer_name = data.get("customer_name", "").strip()
         twilio_number = data.get("twilio_number", "").strip()
+        pdf_path = None  # ← MOVE IT HERE at the top
 
         if not address:
             return jsonify({"ok": False, "error": "Address required"}), 400
@@ -451,7 +452,6 @@ def aerial_quote():
                 print(f"AERIAL | Airtable updated | {lead_id}")
             except Exception as e:
                 print(f"AERIAL | Airtable update error | {e}")
-        pdf_path = None
                 
 
         # SMS and email contractor
