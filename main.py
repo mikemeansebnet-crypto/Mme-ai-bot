@@ -1009,338 +1009,333 @@ def handle_contractor_photo_estimate(request, contractor, from_number, to_number
     """
     Contractor texts photos to their own Twilio number.
     Claude analyzes photos → generates PDF estimate → texts link back to contractor.
+    Runs in background thread so Twilio doesn't timeout.
     """
-   
     business_name = (contractor.get("Business Name") or "Your Business").strip()
-    notify_sms = (contractor.get("Notify SMS") or "").strip()
     timestamp = int(time.time())
-
-    print(f"CONTRACTOR PHOTO ESTIMATE | from: {from_number} | photos: {num_media}")
-
-    # ── Step 1: Download photos from Twilio MMS ────────────────────────
-    photo_urls = []
-    cloudinary_urls = []
     twilio_account_sid = os.getenv("TWILIO_ACCOUNT_SID")
     twilio_auth_token = os.getenv("TWILIO_AUTH_TOKEN")
 
+    # Capture media URLs from request BEFORE threading
+    media_urls_raw = []
     for i in range(num_media):
-        media_url = request.form.get(f"MediaUrl{i}", "")
-        if not media_url:
-            continue
+        url = request.form.get(f"MediaUrl{i}", "")
+        if url:
+            media_urls_raw.append(url)
+
+    print(f"CONTRACTOR PHOTO ESTIMATE | from: {from_number} | photos: {num_media}")
+
+    import threading
+
+    def process_photos_background():
+        # ── Step 1: Download photos from Twilio MMS ────────────────────────
+        photo_urls = []
+        for i, media_url in enumerate(media_urls_raw):
+            try:
+                r = requests.get(media_url, auth=(twilio_account_sid, twilio_auth_token), timeout=15)
+                r.raise_for_status()
+                photo_urls.append(r.content)
+                print(f"PHOTO DOWNLOADED | {i+1} of {len(media_urls_raw)} | {len(r.content)} bytes")
+            except Exception as e:
+                print(f"PHOTO DOWNLOAD ERROR | {i} |", e)
+
+        if not photo_urls:
+            tc = Client(twilio_account_sid, twilio_auth_token)
+            tc.messages.create(
+                body="Could not download your photos. Please try again.",
+                from_=to_number,
+                to=from_number
+            )
+            return
+
+        # ── Step 2: Upload to Cloudinary ───────────────────────────────────
+        estimate_id = f"est_{timestamp}"
+        cloudinary_urls = []
+        for i, photo_data in enumerate(photo_urls):
+            result = upload_photo(photo_data, estimate_id, i + 1)
+            if result.get("ok"):
+                cloudinary_urls.append(result["url"])
+                print(f"CLOUDINARY SAVED | photo {i+1} | {result['url']}")
+
+        # ── Step 3: Send photos to Claude Vision for analysis ──────────────
         try:
-            r = requests.get(media_url, auth=(twilio_account_sid, twilio_auth_token), timeout=15)
-            r.raise_for_status()
-            photo_urls.append(r.content)
-            print(f"PHOTO DOWNLOADED | {i+1} of {num_media} | {len(r.content)} bytes")
-        except Exception as e:
-            print(f"PHOTO DOWNLOAD ERROR | {i} |", e)
+            claude_client = get_claude_client()
 
-    if not photo_urls:
-        tc = Client(twilio_account_sid, twilio_auth_token)
-        tc.messages.create(
-            body="Could not download your photos. Please try again.",
-            from_=to_number,
-            to=from_number
-        )
-        return Response("<Response></Response>", mimetype="text/xml")
+            image_blocks = []
+            for photo_data in photo_urls[:5]:
+                b64 = base64.standard_b64encode(photo_data).decode("utf-8")
+                image_blocks.append({
+                    "type": "image",
+                    "source": {
+                        "type": "base64",
+                        "media_type": "image/jpeg",
+                        "data": b64
+                    }
+                })
 
-    # ── Step 2: Upload to Cloudinary ───────────────────────────────────
-    estimate_id = f"est_{timestamp}"
-    for i, photo_data in enumerate(photo_urls):
-        result = upload_photo(photo_data, estimate_id, i + 1)
-        if result.get("ok"):
-            cloudinary_urls.append(result["url"])
-            print(f"CLOUDINARY SAVED | photo {i+1} | {result['url']}")
-
-    # ── Step 3: Send photos to Claude Vision for analysis ──────────────
-    try:
-        claude_client = get_claude_client()
-
-        # Build image content blocks
-        image_blocks = []
-        for photo_data in photo_urls[:5]:  # max 5
-            b64 = base64.standard_b64encode(photo_data).decode("utf-8")
             image_blocks.append({
-                "type": "image",
-                "source": {
-                    "type": "base64",
-                    "media_type": "image/jpeg",
-                    "data": b64
-                }
+                "type": "text",
+                "text": (
+                    f"You are an expert contractor estimator for {business_name}. "
+                    f"The contractor's description of the job: '{incoming_msg}'. "
+                    "Analyze these job site photos carefully along with the description. "
+                    "Identify the scope of work and provide a detailed estimate breakdown. "
+                    "IMPORTANT: Always provide realistic contractor pricing for each line item. "
+                    "Base prices on current US labor and material rates. Never use 0 as an amount. "
+                    "If a photo is unclear, use the contractor's text description to guide your estimate. "
+                    "Respond ONLY in this exact JSON format with no other text:\n"
+                    "{\n"
+                    '  "job_summary": "Brief description of what you see",\n'
+                    '  "line_items": [\n'
+                    '    {"description": "Item name", "detail": "Brief detail", "qty": "1", "unit": "Job", "amount": 150.00},\n'
+                    '    {"description": "Item name", "detail": "Brief detail", "qty": "500", "unit": "sq ft", "amount": 200.00}\n'
+                    "  ],\n"
+                    '  "notes": "Any important notes about the job"\n'
+                    "}"
+                )
             })
 
-        image_blocks.append({
-            "type": "text",
-            "text": (
-                f"You are an expert contractor estimator for {business_name}. "
-                f"The contractor's description of the job: '{incoming_msg}'. "
-                "Analyze these job site photos carefully along with the description. "
-                "Identify the scope of work and provide a detailed estimate breakdown. "
-                "IMPORTANT: Always provide realistic contractor pricing for each line item. "
-                "Base prices on current US labor and material rates. Never use 0 as an amount. "
-                "If a photo is unclear, use the contractor's text description to guide your estimate. "
-                "Respond ONLY in this exact JSON format with no other text:\n"
-                "{\n"
-                '  "job_summary": "Brief description of what you see",\n'
-                '  "line_items": [\n'
-                '    {"description": "Item name", "detail": "Brief detail", "qty": "1", "unit": "Job", "amount": 150.00},\n'
-                '    {"description": "Item name", "detail": "Brief detail", "qty": "500", "unit": "sq ft", "amount": 200.00}\n'
-                "  ],\n"
-                '  "notes": "Any important notes about the job"\n'
-                "}"
+            vision_response = claude_client.messages.create(
+                model="claude-sonnet-4-20250514",
+                max_tokens=1500,
+                messages=[{"role": "user", "content": image_blocks}]
             )
-        })
 
-        vision_response = claude_client.messages.create(
-            model="claude-sonnet-4-20250514",
-            max_tokens=1500,
-            messages=[{"role": "user", "content": image_blocks}]
-        )
+            raw = vision_response.content[0].text.strip()
+            print("CLAUDE VISION RESPONSE |", raw[:200])
 
-        raw = vision_response.content[0].text.strip()
-        print("CLAUDE VISION RESPONSE |", raw[:200])
+            json_match = re.search(r"\{.*\}", raw, re.DOTALL)
+            if not json_match:
+                raise ValueError("No JSON in Claude response")
+            estimate_data = json.loads(json_match.group(0))
 
-        # Parse JSON
-        json_match = re.search(r"\{.*\}", raw, re.DOTALL)
-        if not json_match:
-            raise ValueError("No JSON in Claude response")
-        estimate_data = json.loads(json_match.group(0))
+        except Exception as e:
+            print("CLAUDE VISION ERROR |", e)
+            tc = Client(twilio_account_sid, twilio_auth_token)
+            tc.messages.create(
+                body="Photos received but estimate generation failed. Please try again.",
+                from_=to_number,
+                to=from_number
+            )
+            return
 
-    except Exception as e:
-        print("CLAUDE VISION ERROR |", e)
-        tc = Client(twilio_account_sid, twilio_auth_token)
-        tc.messages.create(
-            body="Photos received but estimate generation failed. Please try again.",
-            from_=to_number,
-            to=from_number
-        )
-        return Response("<Response></Response>", mimetype="text/xml")
+        # ── Step 4: Generate PDF estimate ──────────────────────────────────
+        try:
+            from reportlab.pdfgen import canvas
+            from reportlab.lib.pagesizes import letter
 
-    # ── Step 4: Generate PDF estimate ──────────────────────────────────
-    try:
-        from reportlab.pdfgen import canvas
-        from reportlab.lib.pagesizes import letter
+            pdf_buffer = io.BytesIO()
+            c = canvas.Canvas(pdf_buffer, pagesize=letter)
+            width, height = letter
+            y = height - 60
 
-        pdf_buffer = io.BytesIO()
-        c = canvas.Canvas(pdf_buffer, pagesize=letter)
-        width, height = letter
-        y = height - 60
+            # Header bar
+            c.setFillColor(colors.HexColor('#1A4D2E'))
+            c.rect(0, height - 80, width, 80, fill=1, stroke=0)
+            c.setFillColor(colors.white)
+            c.setFont("Helvetica-Bold", 22)
+            c.drawString(40, height - 50, business_name)
+            c.setFont("Helvetica-Bold", 28)
+            c.setFillColor(colors.HexColor('#F4A828'))
+            c.drawRightString(width - 40, height - 52, "ESTIMATE")
 
-        # Header bar
-        c.setFillColor(colors.HexColor('#1A4D2E'))
-        c.rect(0, height - 80, width, 80, fill=1, stroke=0)
-        c.setFillColor(colors.white)
-        c.setFont("Helvetica-Bold", 22)
-        c.drawString(40, height - 50, business_name)
-        c.setFont("Helvetica-Bold", 28)
-        c.setFillColor(colors.HexColor('#F4A828'))
-        c.drawRightString(width - 40, height - 52, "ESTIMATE")
-
-        y = height - 110
-
-        # Date and estimate ID
-        c.setFillColor(colors.HexColor('#333333'))
-        c.setFont("Helvetica", 10)
-        c.drawString(40, y, f"Date: {date.today().strftime('%B %d, %Y')}")
-        c.drawRightString(width - 40, y, f"Estimate ID: {estimate_id}")
-        y -= 20
-
-        # Divider
-        c.setStrokeColor(colors.HexColor('#2E7D4F'))
-        c.setLineWidth(1.5)
-        c.line(40, y, width - 40, y)
-        y -= 20
-
-        # Job summary
-        c.setFont("Helvetica-Bold", 10)
-        c.setFillColor(colors.HexColor('#2E7D4F'))
-        c.drawString(40, y, "JOB SUMMARY")
-        y -= 16
-        c.setFont("Helvetica", 10)
-        c.setFillColor(colors.HexColor('#333333'))
-
-        # Word wrap job summary
-        summary = estimate_data.get("job_summary", "")
-        words = summary.split()
-        line = ""
-        for word in words:
-            test = f"{line} {word}".strip()
-            if c.stringWidth(test, "Helvetica", 10) < width - 80:
-                line = test
-            else:
-                c.drawString(40, y, line)
-                y -= 14
-                line = word
-        if line:
-            c.drawString(40, y, line)
-        y -= 24
-
-        # Line items header
-        c.setFillColor(colors.HexColor('#1A4D2E'))
-        c.rect(40, y - 4, width - 80, 22, fill=1, stroke=0)
-        c.setFillColor(colors.white)
-        c.setFont("Helvetica-Bold", 9)
-        c.drawString(48, y + 4, "DESCRIPTION")
-        c.drawRightString(width - 160, y + 4, "QTY")
-        c.drawRightString(width - 100, y + 4, "UNIT")
-        c.drawRightString(width - 44, y + 4, "AMOUNT")
-        y -= 26
-
-        # Line items
-        subtotal = 0.0
-        line_items = estimate_data.get("line_items", [])
-        for i, item in enumerate(line_items):
-            amt = float(item.get("amount", 0))
-            subtotal += amt
-
-            # Alternating row background
-            if i % 2 == 0:
-                c.setFillColor(colors.HexColor('#E8F5ED'))
-                c.rect(40, y - 6, width - 80, 20, fill=1, stroke=0)
+            y = height - 110
 
             c.setFillColor(colors.HexColor('#333333'))
-            c.setFont("Helvetica-Bold", 10)
-            c.drawString(48, y + 4, item.get("description", "")[:45])
             c.setFont("Helvetica", 10)
-            c.drawRightString(width - 160, y + 4, str(item.get("qty", "1")))
-            c.drawRightString(width - 100, y + 4, str(item.get("unit", ""))[:10])
-            c.drawRightString(width - 44, y + 4, f"${amt:,.2f}")
+            c.drawString(40, y, f"Date: {date.today().strftime('%B %d, %Y')}")
+            c.drawRightString(width - 40, y, f"Estimate ID: {estimate_id}")
+            y -= 20
 
-            # Detail text
-            y -= 16
-            c.setFont("Helvetica", 8)
-            c.setFillColor(colors.HexColor('#666666'))
-            detail = item.get("detail", "")[:80]
-            c.drawString(48, y, detail)
-            y -= 16
+            c.setStrokeColor(colors.HexColor('#2E7D4F'))
+            c.setLineWidth(1.5)
+            c.line(40, y, width - 40, y)
+            y -= 20
 
-        # Divider before total
-        y -= 8
-        c.setStrokeColor(colors.HexColor('#CCCCCC'))
-        c.setLineWidth(0.5)
-        c.line(40, y, width - 40, y)
-        y -= 18
-
-        # Total
-        c.setFillColor(colors.HexColor('#1A4D2E'))
-        c.rect(40, y - 6, width - 80, 26, fill=1, stroke=0)
-        c.setFillColor(colors.HexColor('#F4A828'))
-        c.setFont("Helvetica-Bold", 14)
-        c.drawRightString(width - 44, y + 6, f"${subtotal:,.2f}")
-        c.setFillColor(colors.white)
-        c.setFont("Helvetica-Bold", 11)
-        c.drawString(48, y + 6, "TOTAL ESTIMATE")
-        y -= 40
-
-        # Notes
-        notes = estimate_data.get("notes", "")
-        if notes:
-            c.setFont("Helvetica-Bold", 9)
+            c.setFont("Helvetica-Bold", 10)
             c.setFillColor(colors.HexColor('#2E7D4F'))
-            c.drawString(40, y, "NOTES")
-            y -= 14
-            c.setFont("Helvetica", 9)
+            c.drawString(40, y, "JOB SUMMARY")
+            y -= 16
+            c.setFont("Helvetica", 10)
             c.setFillColor(colors.HexColor('#333333'))
-            words = notes.split()
+
+            summary = estimate_data.get("job_summary", "")
+            words = summary.split()
             line = ""
             for word in words:
                 test = f"{line} {word}".strip()
-                if c.stringWidth(test, "Helvetica", 9) < width - 80:
+                if c.stringWidth(test, "Helvetica", 10) < width - 80:
                     line = test
                 else:
                     c.drawString(40, y, line)
-                    y -= 13
+                    y -= 14
                     line = word
             if line:
                 c.drawString(40, y, line)
-            y -= 20
+            y -= 24
 
-        # Disclaimer
-        c.setFont("Helvetica", 8)
-        c.setFillColor(colors.HexColor('#888888'))
-        c.drawString(40, y, "⚠ Ballpark estimate based on photos only. Final pricing may vary after on-site inspection.")
+            c.setFillColor(colors.HexColor('#1A4D2E'))
+            c.rect(40, y - 4, width - 80, 22, fill=1, stroke=0)
+            c.setFillColor(colors.white)
+            c.setFont("Helvetica-Bold", 9)
+            c.drawString(48, y + 4, "DESCRIPTION")
+            c.drawRightString(width - 160, y + 4, "QTY")
+            c.drawRightString(width - 100, y + 4, "UNIT")
+            c.drawRightString(width - 44, y + 4, "AMOUNT")
+            y -= 26
 
-        # Footer
-        c.setFillColor(colors.HexColor('#1A4D2E'))
-        c.rect(0, 0, width, 36, fill=1, stroke=0)
-        c.setFillColor(colors.white)
-        c.setFont("Helvetica", 9)
-        c.drawCentredString(width / 2, 13, f"{business_name}  •  Professional Contractor Services")
+            subtotal = 0.0
+            line_items = estimate_data.get("line_items", [])
+            for i, item in enumerate(line_items):
+                amt = float(item.get("amount", 0))
+                subtotal += amt
 
-        c.save()
-        pdf_buffer.seek(0)
-        pdf_bytes = pdf_buffer.read()
-        print(f"PDF GENERATED | {len(pdf_bytes)} bytes")
+                if i % 2 == 0:
+                    c.setFillColor(colors.HexColor('#E8F5ED'))
+                    c.rect(40, y - 6, width - 80, 20, fill=1, stroke=0)
 
-       
+                c.setFillColor(colors.HexColor('#333333'))
+                c.setFont("Helvetica-Bold", 10)
+                c.drawString(48, y + 4, item.get("description", "")[:45])
+                c.setFont("Helvetica", 10)
+                c.drawRightString(width - 160, y + 4, str(item.get("qty", "1")))
+                c.drawRightString(width - 100, y + 4, str(item.get("unit", ""))[:10])
+                c.drawRightString(width - 44, y + 4, f"${amt:,.2f}")
 
-    except Exception as e:
-        import traceback
-        print("PDF GENERATION ERROR |", e)
-        traceback.print_exc()
-        tc = Client(twilio_account_sid, twilio_auth_token)
-        tc.messages.create(
-            body="Photos analyzed but PDF generation failed. Please try again.",
-            from_=to_number,
-            to=from_number
-        )
-        return Response("<Response></Response>", mimetype="text/xml")
-       
-      
-    # ── Step 5: Upload PDF to Cloudinary ───────────────────────────────
-    try:
-        pdf_public_id = f"contractoros/estimates/{estimate_id}/estimate"
-        pdf_result = cloudinary.uploader.upload(
-            pdf_bytes,
-            public_id=pdf_public_id,
-            resource_type="raw",
-            format="pdf",
-            overwrite=True,
-        )
-        raw_url = pdf_result.get("secure_url", "")
-        pdf_url = raw_url.replace("/upload/", "/upload/fl_attachment/")
-        print("PDF UPLOADED TO CLOUDINARY |", pdf_url)
-    except Exception as e:
-        print("PDF CLOUDINARY UPLOAD ERROR |", e)
-        pdf_url = None
+                y -= 16
+                c.setFont("Helvetica", 8)
+                c.setFillColor(colors.HexColor('#666666'))
+                detail = item.get("detail", "")[:80]
+                c.drawString(48, y, detail)
+                y -= 16
 
-    # ── Step 6: Text PDF link to contractor ───────────────────────────
-    try:
-        tc = Client(twilio_account_sid, twilio_auth_token)
+            y -= 8
+            c.setStrokeColor(colors.HexColor('#CCCCCC'))
+            c.setLineWidth(0.5)
+            c.line(40, y, width - 40, y)
+            y -= 18
 
-        if pdf_url:
-            msg = (
-                f"✅ Estimate ready — {business_name}\n"
-                f"📋 {estimate_data.get('job_summary', '')[:80]}\n"
-                f"💰 Total: ${subtotal:,.2f}\n\n"
-                f"Review & adjust PDF here:\n{pdf_url}\n\n"
-                f"Forward to customer when ready."
+            c.setFillColor(colors.HexColor('#1A4D2E'))
+            c.rect(40, y - 6, width - 80, 26, fill=1, stroke=0)
+            c.setFillColor(colors.HexColor('#F4A828'))
+            c.setFont("Helvetica-Bold", 14)
+            c.drawRightString(width - 44, y + 6, f"${subtotal:,.2f}")
+            c.setFillColor(colors.white)
+            c.setFont("Helvetica-Bold", 11)
+            c.drawString(48, y + 6, "TOTAL ESTIMATE")
+            y -= 40
+
+            notes = estimate_data.get("notes", "")
+            if notes:
+                c.setFont("Helvetica-Bold", 9)
+                c.setFillColor(colors.HexColor('#2E7D4F'))
+                c.drawString(40, y, "NOTES")
+                y -= 14
+                c.setFont("Helvetica", 9)
+                c.setFillColor(colors.HexColor('#333333'))
+                words = notes.split()
+                line = ""
+                for word in words:
+                    test = f"{line} {word}".strip()
+                    if c.stringWidth(test, "Helvetica", 9) < width - 80:
+                        line = test
+                    else:
+                        c.drawString(40, y, line)
+                        y -= 13
+                        line = word
+                if line:
+                    c.drawString(40, y, line)
+                y -= 20
+
+            c.setFont("Helvetica", 8)
+            c.setFillColor(colors.HexColor('#888888'))
+            c.drawString(40, y, "Ballpark estimate based on photos only. Final pricing may vary after on-site inspection.")
+
+            c.setFillColor(colors.HexColor('#1A4D2E'))
+            c.rect(0, 0, width, 36, fill=1, stroke=0)
+            c.setFillColor(colors.white)
+            c.setFont("Helvetica", 9)
+            c.drawCentredString(width / 2, 13, f"{business_name}  •  Professional Contractor Services")
+
+            c.save()
+            pdf_buffer.seek(0)
+            pdf_bytes = pdf_buffer.read()
+            print(f"PDF GENERATED | {len(pdf_bytes)} bytes")
+
+        except Exception as e:
+            import traceback
+            print("PDF GENERATION ERROR |", e)
+            traceback.print_exc()
+            tc = Client(twilio_account_sid, twilio_auth_token)
+            tc.messages.create(
+                body="Photos analyzed but PDF generation failed. Please try again.",
+                from_=to_number,
+                to=from_number
             )
-        else:
-            # PDF upload failed — send the line items as text fallback
-            items_text = "\n".join([
-                f"• {i.get('description')}: ${float(i.get('amount',0)):,.2f}"
-                for i in line_items
-            ])
-            msg = (
-                f"✅ Estimate — {business_name}\n"
-                f"{estimate_data.get('job_summary', '')[:80]}\n\n"
-                f"{items_text}\n\n"
-                f"💰 Total: ${subtotal:,.2f}\n"
-                f"(PDF upload failed — review and send manually)"
+            return
+
+        # ── Step 5: Upload PDF to Cloudinary ───────────────────────────────
+        try:
+            pdf_public_id = f"contractoros/estimates/{estimate_id}/estimate"
+            pdf_result = cloudinary.uploader.upload(
+                pdf_bytes,
+                public_id=pdf_public_id,
+                resource_type="raw",
+                format="pdf",
+                overwrite=True,
             )
+            raw_url = pdf_result.get("secure_url", "")
+            pdf_url = raw_url.replace("/upload/", "/upload/fl_attachment/")
+            print("PDF UPLOADED TO CLOUDINARY |", pdf_url)
+        except Exception as e:
+            print("PDF CLOUDINARY UPLOAD ERROR |", e)
+            pdf_url = None
 
-        tc.messages.create(
-            body=msg,
-            from_=to_number,
-            to=from_number
-        )
-        print("ESTIMATE SMS SENT TO CONTRACTOR |", from_number)
+        # ── Step 6: Text PDF link to contractor ────────────────────────────
+        try:
+            tc = Client(twilio_account_sid, twilio_auth_token)
 
-    except Exception as e:
-        print("ESTIMATE SMS ERROR |", e)
+            if pdf_url:
+                msg = (
+                    f"✅ Estimate ready — {business_name}\n"
+                    f"📋 {estimate_data.get('job_summary', '')[:80]}\n"
+                    f"💰 Total: ${subtotal:,.2f}\n\n"
+                    f"Review & adjust PDF here:\n{pdf_url}\n\n"
+                    f"Forward to customer when ready."
+                )
+            else:
+                items_text = "\n".join([
+                    f"• {i.get('description')}: ${float(i.get('amount', 0)):,.2f}"
+                    for i in line_items
+                ])
+                msg = (
+                    f"✅ Estimate — {business_name}\n"
+                    f"{estimate_data.get('job_summary', '')[:80]}\n\n"
+                    f"{items_text}\n\n"
+                    f"💰 Total: ${subtotal:,.2f}\n"
+                    f"(PDF upload failed — review and send manually)"
+                )
 
-    return Response("<Response></Response>", mimetype="text/xml")
+            tc.messages.create(
+                body=msg,
+                from_=to_number,
+                to=from_number
+            )
+            print("ESTIMATE SMS SENT TO CONTRACTOR |", from_number)
+
+        except Exception as e:
+            print("ESTIMATE SMS ERROR |", e)
+
+    # Start background thread — return immediately to Twilio
+    thread = threading.Thread(target=process_photos_background)
+    thread.daemon = True
+    thread.start()
+
+    return Response(
+        "<Response><Message>📸 Got your photos! Generating your estimate now — you'll receive it in about 30 seconds.</Message></Response>",
+        mimetype="text/xml"
+    )
+   
 
 
 # ─────────────────────────────────────────────
