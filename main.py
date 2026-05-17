@@ -451,6 +451,8 @@ def aerial_quote():
                 print(f"AERIAL | Airtable updated | {lead_id}")
             except Exception as e:
                 print(f"AERIAL | Airtable update error | {e}")
+        pdf_path=none
+                
 
         # SMS and email contractor
         if twilio_number:
