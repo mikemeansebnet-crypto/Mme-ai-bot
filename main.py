@@ -1028,6 +1028,7 @@ def handle_contractor_photo_estimate(request, contractor, from_number, to_number
     import threading
 
     def process_photos_background():
+        with app.app_context():
         # ── Step 1: Download photos from Twilio MMS ────────────────────────
         photo_urls = []
         for i, media_url in enumerate(media_urls_raw):
