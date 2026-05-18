@@ -1263,6 +1263,12 @@ def process_photos_background():
             pdf_bytes = pdf_buffer.read()
             print(f"PDF GENERATED | {len(pdf_bytes)} bytes")
 
+            # SAVE TO TEMP FILE FOR EMAIL ATTACHMENT
+            import tempfile
+            pdf_temp_path = f"/tmp/estimate_{estimate_id}.pdf"
+            with open(pdf_temp_path, "wb") as f:
+                f.write(pdf_bytes)
+
         except Exception as e:
             import traceback
             print("PDF GENERATION ERROR |", e)
@@ -1291,6 +1297,27 @@ def process_photos_background():
         except Exception as e:
             print("PDF CLOUDINARY UPLOAD ERROR |", e)
             pdf_url = None
+
+            # EMAIL PDF TO CONTRACTOR
+            try:
+                notify_email = contractor.get("Notify Email", "").strip()
+                if notify_email and pdf_temp_path:
+                    email_body = (
+                        f"📋 Estimate Ready — {business_name}\n\n"
+                        f"Job: {estimate_data.get('job_summary', '')}\n"
+                        f"Total: ${subtotal:,.2f}\n\n"
+                        f"PDF attached — review, adjust if needed, and forward to customer.\n\n"
+                        f"Cloudinary link: {pdf_url or 'Not available'}"
+                    )
+                    send_email(
+                        subject=f"📋 Estimate — {business_name} | ${subtotal:,.2f}",
+                        body=email_body,
+                        to_email=notify_email,
+                        attachment_path=pdf_temp_path,
+                    )
+                    print(f"ESTIMATE EMAIL SENT | {notify_email}")
+            except Exception as e:
+                print(f"ESTIMATE EMAIL ERROR | {e}")
 
         # ── Step 6: Text PDF link to contractor ────────────────────────────
         try:
