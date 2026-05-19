@@ -3684,6 +3684,38 @@ def dashboard():
         </div>
     </div>
 </div>
+    <!-- Complete & Pay Modal -->
+    <div class="modal-overlay" id="completePayModal">
+        <div class="booking-modal">
+            <div class="modal-title">✓ Mark Job Complete</div>
+            <div class="modal-date" id="completePayCustomer"></div>
+
+            <div class="form-group">
+                <label class="form-label">Amount *</label>
+                <input type="number" class="form-input" id="payAmount" placeholder="0.00" step="0.01" min="0">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Payment Method *</label>
+                <div class="payment-method-grid">
+                    <button class="payment-method-btn" onclick="selectPayMethod('Stripe', this)">💳 Stripe</button>
+                    <button class="payment-method-btn" onclick="selectPayMethod('Zelle', this)">🏦 Zelle</button>
+                    <button class="payment-method-btn" onclick="selectPayMethod('QuickBooks', this)">📚 QuickBooks</button>
+                    <button class="payment-method-btn" onclick="selectPayMethod('Cash', this)">💵 Cash</button>
+                </div>
+            </div>
+
+            <div class="form-group email-field" id="emailField">
+                <label class="form-label">Customer Email (QuickBooks)</label>
+                <input type="email" class="form-input" id="payEmail" placeholder="customer@email.com">
+            </div>
+
+            <div class="modal-actions">
+                <button class="btn-cancel-modal" onclick="closeCompletePayModal()">Cancel</button>
+                <button class="btn-book" id="completePayBtn" onclick="submitCompleteAndPay()">Send Payment →</button>
+            </div>
+        </div>
+</div>
 </body>
 </html>
     '''
