@@ -3814,6 +3814,141 @@ def dashboard_mark_complete():
         print(f"DASHBOARD MARK COMPLETE ERROR | {e}")
         return jsonify({"ok": False, "error": str(e)}), 500
 
+@app.route("/dashboard/action/complete-and-pay", methods=["POST"])
+@dashboard_auth_required
+def dashboard_complete_and_pay():
+    """
+    Marks job complete AND sends payment request in one tap.
+    Handles Stripe, Zelle, QuickBooks, and Cash.
+    """
+    try:
+        data = request.get_json(silent=True) or {}
+        record_id = data.get("record_id", "")
+        customer_name = data.get("customer_name", "")
+        customer_phone = data.get("customer_phone", "")
+        job_description = data.get("job_description", "")
+        amount = float(data.get("amount", 0))
+        payment_method = data.get("payment_method", "")
+        customer_email = data.get("customer_email", "")
+        twilio_number = request.twilio_number
+        contractor_record_id = request.contractor_id
+
+        AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
+        AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
+        headers = {
+            "Authorization": f"Bearer {AIRTABLE_TOKEN}",
+            "Content-Type": "application/json"
+        }
+        leads_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tbl6YL7BYY2vawIF1"
+        payments_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/Payments"
+
+        # Step 1 — Mark lead as Completed
+        if record_id:
+            requests.patch(
+                f"{leads_url}/{record_id}",
+                headers=headers,
+                json={"fields": {"Lead Status": "Completed"}}
+            )
+            print(f"COMPLETE AND PAY | Lead marked complete | {record_id}")
+
+        # Step 2 — Handle Cash — just mark paid, no payment record needed
+        if payment_method == "Cash":
+            print(f"COMPLETE AND PAY | Cash payment | {customer_name} | ${amount}")
+            return jsonify({"ok": True, "message": "Job marked complete. Cash payment recorded."})
+
+        # Step 3 — Create Payment record in Airtable
+        today = datetime.now().strftime("%Y-%m-%d")
+        payment_fields = {
+            "fldAZ5Qr0NCU11J0A": customer_name,      # Customer Name
+            "fld8bUzdzFeeXLrlD": customer_phone,       # Phone Number
+            "fld596bZM5ZCI7ga8": amount,               # Amount
+            "fldeROEzoyhWKJ36y": job_description,      # Notes
+            "fldWg6gGv6dKFb853": "Unpaid",            # Payment Status
+            "fldUFO1PfTeiLA3UR": payment_method,       # Payment Method
+            "fldYNu0gpLuiCsF6Z": today,               # Payment Date
+            "fldxdSy7mICyTo50P": [contractor_record_id],  # Contractor
+        }
+
+        # Add email for QuickBooks
+        if customer_email:
+            payment_fields["fld1J5DuxJVcreFKk"] = customer_email  # Client Email
+
+        # For Stripe/Zelle — check Send Payment Request to trigger automation
+        if payment_method in ["Stripe", "Zelle"]:
+            payment_fields["fldEifNosHbfRIzwu"] = True  # Send Payment Request
+
+        # For QuickBooks — check Send Invoice to trigger automation
+        if payment_method == "QuickBooks":
+            payment_fields["fldmTaAGMRf5aafaE"] = True  # Send Invoice
+
+        payment_resp = requests.post(
+            payments_url,
+            headers=headers,
+            json={"fields": payment_fields}
+        )
+
+        if payment_resp.status_code in [200, 201]:
+            payment_record_id = payment_resp.json().get("id", "")
+            print(f"COMPLETE AND PAY | Payment record created | {payment_record_id} | {payment_method} | ${amount}")
+        else:
+            print(f"COMPLETE AND PAY | Payment record error | {payment_resp.text}")
+            return jsonify({"ok": False, "error": "Failed to create payment record"}), 500
+
+        # Step 4 — QuickBooks direct flow (creates and emails invoice immediately)
+        if payment_method == "QuickBooks":
+            try:
+                state = {
+                    "name": customer_name,
+                    "service_address": "",
+                    "job_description": job_description,
+                    "callback": customer_phone,
+                    "timing": "",
+                    "client_email": customer_email,
+                    "estimate_amount": amount,
+                }
+                qb_result = create_qb_invoice(state)
+                if qb_result.get("ok"):
+                    invoice_id = qb_result.get("invoice_id")
+                    access_token, realm_id = get_valid_access_token()
+                    if access_token and invoice_id and customer_email:
+                        email_url = f"{QB_API_BASE}/{realm_id}/invoice/{invoice_id}/send"
+                        qb_headers = {
+                            "Authorization": f"Bearer {access_token}",
+                            "Content-Type": "application/octet-stream",
+                        }
+                        requests.post(
+                            email_url,
+                            headers=qb_headers,
+                            params={"sendTo": customer_email, "minorversion": "65"},
+                            timeout=15
+                        )
+                        print(f"COMPLETE AND PAY | QB invoice emailed | {customer_email}")
+                    # Update payment status to Invoiced
+                    requests.patch(
+                        f"{payments_url}/{payment_record_id}",
+                        headers=headers,
+                        json={"fields": {"Payment Status": "Invoiced"}}
+                    )
+            except Exception as e:
+                print(f"COMPLETE AND PAY | QB error | {e}")
+
+        method_messages = {
+            "Stripe": f"Job complete! Stripe payment link sent to {customer_name}.",
+            "Zelle": f"Job complete! Zelle payment request sent to {customer_name}.",
+            "QuickBooks": f"Job complete! QuickBooks invoice emailed to {customer_email}.",
+            "Cash": f"Job complete! Cash payment recorded."
+        }
+
+        return jsonify({
+            "ok": True,
+            "message": method_messages.get(payment_method, "Job marked complete!"),
+            "payment_record_id": payment_record_id
+        })
+
+    except Exception as e:
+        print(f"COMPLETE AND PAY ERROR | {type(e).__name__} | {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
 
 @app.route("/dashboard/action/mark-paid", methods=["POST"])
 @dashboard_auth_required
