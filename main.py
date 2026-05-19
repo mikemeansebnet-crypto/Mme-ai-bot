@@ -3245,7 +3245,7 @@ def dashboard():
                     <button onclick="dashboardAction('/dashboard/action/on-my-way', {customer_name:'${customerName}', customer_phone:'${customerPhone}'}, 'On my way message sent!')" class="action-btn btn-sms">🚗 On My Way</button>
                 </div>
                 <div class="job-actions" style="margin-top:8px">
-                    <button onclick="if(confirm('Mark this job as complete?')) dashboardAction('/dashboard/action/mark-complete', {record_id:'${recordId}'}, 'Job marked complete!')" class="action-btn" style="background:#22c55e;color:#000;flex:1">✓ Mark Complete</button>
+                    <button onclick="openCompletePayModal('${recordId}', '${customerName}', '${customerPhone}', '${job.job_type||''}')" class="action-btn" style="background:#22c55e;color:#000;flex:1">✓ Complete & Pay</button>
                 </div>` : ''}
             </div>`;
         }
