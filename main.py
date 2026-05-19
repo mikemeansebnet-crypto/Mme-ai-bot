@@ -3087,6 +3087,32 @@ def dashboard():
             font-size: 14px;
             cursor: pointer;
         }
+        .payment-method-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+        .payment-method-btn {
+            padding: 12px;
+            border-radius: 8px;
+            border: 2px solid #2a2a2a;
+            background: #1a1a1a;
+            color: #888;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.15s;
+        }
+        .payment-method-btn.selected {
+            border-color: #22c55e;
+            background: #0f2a1a;
+            color: #22c55e;
+        }
+        .payment-method-btn:active { opacity: 0.8; }
+        .email-field { display: none; }
+        .email-field.visible { display: block; }
     </style>
 </head>
 <body>
