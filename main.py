@@ -3377,13 +3377,23 @@ def dashboard():
             const bookings = dashboardData.recent_bookings || [];
             const el = document.getElementById('recentBookings');
             if (!bookings.length) { el.innerHTML = '<div class="empty-state">No recent bookings</div>'; return; }
-            el.innerHTML = bookings.map(b => `
-            <div class="job-card">
-                <div class="job-time">${b.date || ''}</div>
-                <div class="job-name">${b.name || 'Unknown'}</div>
-                <div class="job-address">${b.address || ''}</div>
-                <div class="job-type">${b.job_type || ''}</div>
-            </div>`).join('');
+            el.innerHTML = bookings.map(b => {
+                const recordId = b.record_id || '';
+                const customerName = b.name || '';
+                const customerPhone = b.phone || '';
+                const jobType = b.job_type || '';
+                return `
+                <div class="job-card">
+                    <div class="job-time">${b.date || ''}</div>
+                    <div class="job-name">${b.name || 'Unknown'}</div>
+                    <div class="job-address">${b.address || ''}</div>
+                    <div class="job-type">${b.job_type || ''}</div>
+                    ${recordId ? `
+                    <div class="job-actions" style="margin-top:8px">
+                        <button onclick="openCompletePayModal('${recordId}', '${customerName}', '${customerPhone}', '${jobType}')" class="action-btn" style="background:#22c55e;color:#000;flex:1">✓ Complete & Pay</button>
+                    </div>` : ''}
+               </div>`;
+            }).join('');
         }
 
         async function loadDashboard() {
