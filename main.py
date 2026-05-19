@@ -3552,6 +3552,94 @@ def dashboard():
             }
         }
 
+        // ── COMPLETE & PAY MODAL ────────────────────────
+        let completePayData = {};
+        let selectedPayMethod = '';
+
+        function openCompletePayModal(recordId, customerName, customerPhone, jobType) {
+            completePayData = { recordId, customerName, customerPhone, jobType };
+            selectedPayMethod = '';
+            document.getElementById('completePayCustomer').textContent = customerName + ' — ' + jobType;
+            document.getElementById('payAmount').value = '';
+            document.getElementById('payEmail').value = '';
+            document.getElementById('emailField').classList.remove('visible');
+            // Reset method buttons
+            document.querySelectorAll('.payment-method-btn').forEach(b => b.classList.remove('selected'));
+            document.getElementById('completePayModal').classList.add('active');
+        }
+
+        function closeCompletePayModal() {
+            document.getElementById('completePayModal').classList.remove('active');
+        }
+
+        function selectPayMethod(method, btn) {
+            selectedPayMethod = method;
+            document.querySelectorAll('.payment-method-btn').forEach(b => b.classList.remove('selected'));
+            btn.classList.add('selected');
+            // Show email field for QuickBooks
+            const emailField = document.getElementById('emailField');
+            if (method === 'QuickBooks') {
+                emailField.classList.add('visible');
+            } else {
+                emailField.classList.remove('visible');
+            }
+        }
+
+        async function submitCompleteAndPay() {
+            const amount = parseFloat(document.getElementById('payAmount').value);
+            const email = document.getElementById('payEmail').value.trim();
+
+            if (!amount || amount <= 0) {
+                alert('Please enter a valid amount.');
+                return;
+            }
+            if (!selectedPayMethod) {
+                alert('Please select a payment method.');
+                return;
+            }
+            if (selectedPayMethod === 'QuickBooks' && !email) {
+                alert('Please enter the customer email for QuickBooks invoice.');
+                return;
+            }
+
+            const btn = document.getElementById('completePayBtn');
+            btn.textContent = 'Processing...';
+            btn.disabled = true;
+
+            try {
+                const res = await fetch('/dashboard/action/complete-and-pay', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Dashboard-Token': getCookie('dashboard_token')
+                    },
+                    body: JSON.stringify({
+                        record_id: completePayData.recordId,
+                        customer_name: completePayData.customerName,
+                        customer_phone: completePayData.customerPhone,
+                        job_description: completePayData.jobType,
+                        amount: amount,
+                        payment_method: selectedPayMethod,
+                        customer_email: email
+                    })
+                });
+
+                const data = await res.json();
+                if (data.ok) {
+                    alert('✅ ' + data.message);
+                    closeCompletePayModal();
+                    loadDashboard();
+                } else {
+                    alert('Error: ' + (data.error || 'Something went wrong'));
+                }
+            } catch(e) {
+                alert('Request failed. Please try again.');
+            } finally {
+                btn.textContent = 'Send Payment →';
+                btn.disabled = false;
+            }
+        }
+
         // Load on startup
         loadDashboard();
         // Auto-refresh every 5 minutes
