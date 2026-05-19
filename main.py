@@ -3985,6 +3985,7 @@ def dashboard_complete_and_pay():
         job_description = data.get("job_description", "")
         amount = float(data.get("amount", 0))
         payment_method = data.get("payment_method", "")
+        payment_method_airtable = "Zelle " if payment_method == "Zelle" else payment_method
         customer_email = data.get("customer_email", "")
         twilio_number = request.twilio_number
         contractor_record_id = request.contractor_id
@@ -4020,7 +4021,7 @@ def dashboard_complete_and_pay():
             "fld596bZM5ZCI7ga8": amount,               # Amount
             "fldeROEzoyhWKJ36y": job_description,      # Notes
             "fldWg6gGv6dKFb853": "Unpaid",            # Payment Status
-            "fldUFO1PfTeiLA3UR": payment_method,       # Payment Method
+            "fldUFO1PfTeiLA3UR": payment_method_airtable,       # Payment Method
             "fldYNu0gpLuiCsF6Z": today,               # Payment Date
             "fldxdSy7mICyTo50P": [contractor_record_id],  # Contractor
         }
