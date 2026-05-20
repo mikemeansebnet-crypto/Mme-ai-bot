@@ -3710,6 +3710,16 @@ def dashboard():
         }
 
         async function sendRecurringInvoice(recordId, name, email, phone, amount, service, paymentMethod) {
+            let invoiceAmount = amount;
+            if (!invoiceAmount || invoiceAmount <= 0) {
+                const input = prompt(`Enter amount for ${name}:`);
+                if (!input) return;
+                invoiceAmount = parseFloat(input);
+                if (isNaN(invoiceAmount) || invoiceAmount <= 0) {
+                    alert('Invalid amount.');
+                    return;
+                }
+            }
             if (!confirm(`Send ${paymentMethod} invoice to ${name} for $${amount}?`)) return;
 
             try {
@@ -3723,7 +3733,7 @@ def dashboard():
                         customer_name: name,
                         customer_email: email,
                         customer_phone: phone,
-                        amount: amount,
+                        amount: invoiceAmount,
                         service: service,
                         payment_method: paymentMethod
                     })
