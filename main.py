@@ -3416,6 +3416,7 @@ def dashboard():
                 }
                 dashboardData = await res.json();
                 renderAll();
+                loadRecurringCustomers();
             } catch(e) {
                 console.error('Dashboard load error:', e);
             }
