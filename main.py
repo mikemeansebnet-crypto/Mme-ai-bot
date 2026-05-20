@@ -3659,6 +3659,85 @@ def dashboard():
             }
         }
 
+        // ── RECURRING INVOICES ──────────────────────────
+        async function loadRecurringCustomers() {
+            try {
+                const res = await fetch('/dashboard/recurring', {
+                    headers: { 'X-Dashboard-Token': getCookie('dashboard_token') }
+                });
+                const data = await res.json();
+                if (data.ok) renderRecurringCustomers(data.customers);
+            } catch(e) {
+                console.error('Recurring load error:', e);
+            }
+        }
+
+        function renderRecurringCustomers(customers) {
+            document.getElementById('recurringCount').textContent = customers.length;
+            const el = document.getElementById('recurringCustomers');
+            if (!customers.length) {
+                el.innerHTML = '<div class="empty-state">No recurring customers — add them in Airtable</div>';
+                return;
+            }
+            el.innerHTML = customers.map(c => {
+                const methodIcon = {
+                    'QuickBooks': '📚',
+                    'EFT': '🏦',
+                    'Check': '📝',
+                    'Stripe': '💳',
+                    'Zelle': '🏦'
+                }[c.payment_method] || '💰';
+
+                return `
+                <div class="job-card">
+                    <div class="job-name">${c.name || 'Unknown'}</div>
+                    <div class="job-address">${c.email || c.phone || ''}</div>
+                    <div class="job-type">${c.service || ''}</div>
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px">
+                        <div style="color:#22c55e;font-size:18px;font-weight:700">$${c.amount}</div>
+                        <div style="color:#555;font-size:12px;font-family:monospace">${methodIcon} ${c.payment_method}</div>
+                    </div>
+                    <div class="job-actions" style="margin-top:8px">
+                        <button onclick="sendRecurringInvoice('${c.record_id}', '${c.name}', '${c.email}', '${c.phone}', ${c.amount}, '${c.service}', '${c.payment_method}')"
+                            class="action-btn" style="background:#22c55e;color:#000;flex:1">
+                            📤 Send Invoice
+                        </button>
+                    </div>
+                    ${c.notes ? `<div class="job-type" style="margin-top:6px;color:#444">${c.notes}</div>` : ''}
+                </div>`;
+            }).join('');
+        }
+
+        async function sendRecurringInvoice(recordId, name, email, phone, amount, service, paymentMethod) {
+            if (!confirm(`Send ${paymentMethod} invoice to ${name} for $${amount}?`)) return;
+
+            try {
+                const res = await fetch('/dashboard/action/send-recurring-invoice', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Dashboard-Token': getCookie('dashboard_token')
+                    },
+                    body: JSON.stringify({
+                        customer_name: name,
+                        customer_email: email,
+                        customer_phone: phone,
+                        amount: amount,
+                        service: service,
+                        payment_method: paymentMethod
+                    })
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    alert('✅ ' + data.message);
+                } else {
+                    alert('Error: ' + (data.error || 'Something went wrong'));
+                }
+            } catch(e) {
+                alert('Request failed. Please try again.');
+            }
+        }
+
         // Load on startup
         loadDashboard();
         // Auto-refresh every 5 minutes
