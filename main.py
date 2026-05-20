@@ -3193,6 +3193,15 @@ def dashboard():
         </div>
     </div>
 
+        <!-- Recurring Invoices -->
+        <div class="section">
+            <div class="section-header">
+                <div class="section-title">Recurring Invoices</div>
+                <div class="section-count" id="recurringCount">0</div>
+            </div>
+            <div id="recurringCustomers"><div class="loading">Loading...</div></div>
+        </div>
+
     <button class="refresh-btn" onclick="loadDashboard()" title="Refresh">↻</button>
 
     <script>
