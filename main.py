@@ -3172,7 +3172,7 @@ def dashboard():
             <div class="revenue-card">
                 <div class="revenue-label" id="revMonthLabel">This Month</div>
                 <div class="revenue-amount" id="revMonth">--</div>
-                div class="revenue-sub" id="revJobs"></div>
+                <div class="revenue-sub" id="revJobs"></div>
             </div>
             <div class="revenue-card">
                 <div class="revenue-label">This Year</div>
