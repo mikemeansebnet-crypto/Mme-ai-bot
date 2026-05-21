@@ -4241,6 +4241,76 @@ def dashboard_recurring():
         print(f"RECURRING CUSTOMERS ERROR | {e}")
         return jsonify({"ok": False, "error": str(e)}), 500
 
+@app.route("/dashboard/revenue")
+@dashboard_auth_required
+def dashboard_revenue():
+    """Returns revenue summary stats for the contractor."""
+    try:
+        import requests as req
+        from zoneinfo import ZoneInfo
+        from datetime import datetime, timedelta
+
+        eastern = ZoneInfo("America/New_York")
+        now = datetime.now(eastern)
+
+        # Date ranges
+        week_start = (now - timedelta(days=now.weekday())).strftime("%Y-%m-%d")
+        month_start = now.strftime("%Y-%m-01")
+        year_start = now.strftime("%Y-01-01")
+        today_str = now.strftime("%Y-%m-%d")
+
+        AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
+        AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
+        headers = {"Authorization": f"Bearer {AIRTABLE_TOKEN}"}
+        payments_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/Payments"
+        contractor_record_id = request.contractor_id
+
+        # Fetch all payment records for this contractor
+        resp = req.get(payments_url, headers=headers, params={
+            "filterByFormula": f"{{Contractor}} = '{contractor_record_id}'"
+        })
+        records = resp.json().get("records", [])
+
+        # Calculate stats
+        week_revenue = 0
+        month_revenue = 0
+        year_revenue = 0
+        outstanding = 0
+        paid_this_month = 0
+        jobs_this_month = 0
+
+        for r in records:
+            f = r.get("fields", {})
+            amount = float(f.get("Amount", 0) or 0)
+            status = f.get("Payment Status", "")
+            payment_date = f.get("Payment Date", "") or ""
+
+            if status in ["Paid", "Invoiced"]:
+                if payment_date >= week_start:
+                    week_revenue += amount
+                if payment_date >= month_start:
+                    month_revenue += amount
+                    jobs_this_month += 1
+                if payment_date >= year_start:
+                    year_revenue += amount
+            
+            if status == "Unpaid":
+                outstanding += amount
+
+        return jsonify({
+            "ok": True,
+            "week_revenue": round(week_revenue, 2),
+            "month_revenue": round(month_revenue, 2),
+            "year_revenue": round(year_revenue, 2),
+            "outstanding": round(outstanding, 2),
+            "jobs_this_month": jobs_this_month,
+            "month_name": now.strftime("%B")
+        })
+
+    except Exception as e:
+        print(f"REVENUE ERROR | {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
 
 @app.route("/dashboard/action/send-recurring-invoice", methods=["POST"])
 @dashboard_auth_required
