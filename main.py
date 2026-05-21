@@ -3473,6 +3473,7 @@ def dashboard():
                 dashboardData = await res.json();
                 renderAll();
                 loadRecurringCustomers();
+                loadRevenue();
             } catch(e) {
                 console.error('Dashboard load error:', e);
             }
