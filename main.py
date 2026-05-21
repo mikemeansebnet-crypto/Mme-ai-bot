@@ -2999,6 +2999,41 @@ def dashboard():
         .badge-new { background: #0f2a1a; color: #22c55e; }
         .badge-urgent { background: #2a0f0f; color: #ef4444; }
         .badge-overdue { background: #2a0f0f; color: #ef4444; }
+
+        /* Revenue Summary Bar */
+        .revenue-bar {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .revenue-card {
+            background: #111;
+            border: 1px solid #1f1f1f;
+            border-radius: 12px;
+            padding: 14px 16px;
+        }
+        .revenue-label {
+            font-size: 10px;
+            color: #555;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            font-family: monospace;
+            margin-bottom: 6px;
+        }
+        .revenue-amount {
+            font-size: 22px;
+            font-weight: 700;
+            color: #22c55e;
+        }
+        .revenue-amount.red { color: #ef4444; }
+        .revenue-amount.white { color: #fff; }
+        .revenue-sub {
+            font-size: 11px;
+            color: #444;
+            font-family: monospace;
+            margin-top: 2px;
+        }
         /* Booking Modal */
         .modal-overlay {
             display: none;
