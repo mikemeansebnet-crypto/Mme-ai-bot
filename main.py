@@ -4334,7 +4334,6 @@ def dashboard_revenue():
         week_start = (now - timedelta(days=now.weekday())).strftime("%Y-%m-%d")
         month_start = now.strftime("%Y-%m-01")
         year_start = now.strftime("%Y-01-01")
-        today_str = now.strftime("%Y-%m-%d")
 
         AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
         AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
@@ -4342,25 +4341,44 @@ def dashboard_revenue():
         payments_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/Payments"
         contractor_record_id = request.contractor_id
 
-        # Fetch all payment records for this contractor
-        resp = req.get(payments_url, headers=headers, params={
-            "filterByFormula": f"FIND('{contractor_record_id}', ARRAYJOIN({{Contractor}}))"
-        })
-        records = resp.json().get("records", [])
+        # Fetch ALL payment records — filter by contractor in Python
+        all_records = []
+        params = {"pageSize": 100}
+        while True:
+            resp = req.get(payments_url, headers=headers, params=params)
+            data = resp.json()
+            all_records.extend(data.get("records", []))
+            offset = data.get("offset")
+            if not offset:
+                break
+            params["offset"] = offset
+
+        print(f"REVENUE | Total records fetched: {len(all_records)} | contractor: {contractor_record_id}")
 
         # Calculate stats
         week_revenue = 0
         month_revenue = 0
         year_revenue = 0
         outstanding = 0
-        paid_this_month = 0
         jobs_this_month = 0
 
-        for r in records:
+        for r in all_records:
             f = r.get("fields", {})
             amount = float(f.get("Amount", 0) or 0)
+
+            # Check contractor match
+            contractor_links = f.get("Contractor", [])
+            contractor_ids = [
+                c.get("id", "") if isinstance(c, dict) else str(c)
+                for c in contractor_links
+            ]
+            if contractor_record_id and contractor_record_id not in contractor_ids:
+                continue
+
+            # Get status name from singleSelect object
             status_field = f.get("Payment Status", {})
             status = status_field.get("name", "") if isinstance(status_field, dict) else str(status_field)
+
             payment_date = f.get("Payment Date", "") or ""
 
             if status in ["Paid", "Invoiced"]:
@@ -4371,9 +4389,11 @@ def dashboard_revenue():
                     jobs_this_month += 1
                 if payment_date >= year_start:
                     year_revenue += amount
-            
+
             if status == "Unpaid":
                 outstanding += amount
+
+        print(f"REVENUE | Week: ${week_revenue} | Month: ${month_revenue} | Year: ${year_revenue} | Outstanding: ${outstanding}")
 
         return jsonify({
             "ok": True,
