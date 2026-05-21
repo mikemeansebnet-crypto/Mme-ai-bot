@@ -4359,7 +4359,8 @@ def dashboard_revenue():
         for r in records:
             f = r.get("fields", {})
             amount = float(f.get("Amount", 0) or 0)
-            status = f.get("Payment Status", "")
+            status_field = f.get("Payment Status", {})
+            status = status_field.get("name", "") if isinstance(status_field, dict) else str(status_field)
             payment_date = f.get("Payment Date", "") or ""
 
             if status in ["Paid", "Invoiced"]:
