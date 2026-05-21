@@ -4344,7 +4344,7 @@ def dashboard_revenue():
 
         # Fetch all payment records for this contractor
         resp = req.get(payments_url, headers=headers, params={
-            "filterByFormula": f"{{Contractor}} = '{contractor_record_id}'"
+            "filterByFormula": f"FIND('{contractor_record_id}', ARRAYJOIN({{Contractor}}))"
         })
         records = resp.json().get("records", [])
 
