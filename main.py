@@ -3805,6 +3805,26 @@ def dashboard():
             }
         }
 
+        // ── REVENUE SUMMARY ──────────────────────────
+        async function loadRevenue() {
+            try {
+                const res = await fetch('/dashboard/revenue', {
+                    headers: { 'X-Dashboard-Token': getCookie('dashboard_token') }
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    document.getElementById('revWeek').textContent = '$' + data.week_revenue.toLocaleString();
+                    document.getElementById('revMonth').textContent = '$' + data.month_revenue.toLocaleString();
+                    document.getElementById('revMonthLabel').textContent = data.month_name;
+                    document.getElementById('revJobs').textContent = data.jobs_this_month + ' jobs paid';
+                    document.getElementById('revYear').textContent = '$' + data.year_revenue.toLocaleString();
+                    document.getElementById('revOutstanding').textContent = '$' + data.outstanding.toLocaleString();
+                }
+            } catch(e) {
+                console.error('Revenue load error:', e);
+            }
+        }
+
         // Load on startup
         loadDashboard();
         // Auto-refresh every 5 minutes
