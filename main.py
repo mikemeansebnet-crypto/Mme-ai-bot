@@ -3163,6 +3163,27 @@ def dashboard():
     </header>
 
     <div class="content">
+        <!-- Revenue Summary -->
+        <div class="revenue-bar" id="revenueBar">
+            <div class="revenue-card">
+                <div class="revenue-label">This Week</div>
+                <div class="revenue-amount" id="revWeek">--</div>
+            </div>
+            <div class="revenue-card">
+                <div class="revenue-label" id="revMonthLabel">This Month</div>
+                <div class="revenue-amount" id="revMonth">--</div>
+                div class="revenue-sub" id="revJobs"></div>
+            </div>
+            <div class="revenue-card">
+                <div class="revenue-label">This Year</div>
+                <div class="revenue-amount white" id="revYear">--</div>
+            </div>
+            <div class="revenue-card">
+                <div class="revenue-label">Outstanding</div>
+                <div class="revenue-amount red" id="revOutstanding">--</div>
+            </div>
+        </div>
+        
         <!-- Calendar -->
         <div class="calendar-card">
             <div class="calendar-header">
