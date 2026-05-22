@@ -4134,11 +4134,19 @@ def dashboard_data():
             date_str = ""
             time_str = ""
             try:
-                dt = datetime.fromisoformat(appt.replace("Z", "+00:00"))
-                dt_eastern = dt.astimezone(eastern)
+                dt = datetime.fromisoformat(appt)
+
+                # If no timezone, assume it's already Eastern
+                if dt.tzinfo is None:
+                    dt_eastern = dt.replace(tzinfo=eastern)
+                else:
+                    dt_eastern = dt.astimezone(eastern)
+
                 date_str = dt_eastern.strftime("%Y-%m-%d")
                 time_str = dt_eastern.strftime("%-I:%M %p")
-            except Exception:
+
+            except Exception as e:
+                print("TIME PARSE ERROR:", appt, e)
                 pass
             return {
                 # ADDED: record_id for action buttons
