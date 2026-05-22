@@ -2226,6 +2226,10 @@ def send_job_reminders():
 
 @app.route("/send-daily-briefing", methods=["POST"])
 def send_daily_briefing():
+    # Verify secret token
+    secret = request.headers.get("X-Briefing-Secret") or request.args.get("secret")
+    if secret != os.environ.get("BRIEFING_SECRET"):
+        return jsonify({"ok": False, "error": "Unauthorized"}), 401
     """
     Sends daily job briefing SMS to each contractor at 6 AM Eastern.
     Shows today's jobs, open leads count, and upcoming regular clients.
