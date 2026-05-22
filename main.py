@@ -2224,6 +2224,167 @@ def send_job_reminders():
         print(f"JOB REMINDER ERROR | {type(e).__name__} | {e}")
         return jsonify({"ok": False, "error": str(e)}), 500
 
+@app.route("/send-daily-briefing", methods=["POST"])
+def send_daily_briefing():
+    """
+    Sends daily job briefing SMS to each contractor at 6 AM Eastern.
+    Shows today's jobs, open leads count, and upcoming regular clients.
+    """
+    try:
+        import requests as req
+        from zoneinfo import ZoneInfo
+        from datetime import datetime, timedelta
+
+        eastern = ZoneInfo("America/New_York")
+        now = datetime.now(eastern)
+        today_str = now.strftime("%Y-%m-%d")
+        today_display = now.strftime("%A, %B %-d")
+
+        AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
+        AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
+        CONTRACTORS_TABLE = os.environ.get("AIRTABLE_CONTRACTORS_TABLE")
+        headers = {"Authorization": f"Bearer {AIRTABLE_TOKEN}"}
+
+        # Get all active contractors
+        contractors_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{CONTRACTORS_TABLE}"
+        contractors_resp = req.get(contractors_url, headers=headers, params={
+            "filterByFormula": "{Active} = TRUE()"
+        })
+        contractors = contractors_resp.json().get("records", [])
+
+        sent = 0
+        failed = 0
+
+        for contractor_record in contractors:
+            try:
+                fields = contractor_record.get("fields", {})
+                twilio_number = (fields.get("Twilio Number") or "").strip()
+                notify_sms = (fields.get("Notify SMS") or "").strip()
+                business_name = (fields.get("Business Name") or "your business").strip()
+                contractor_id = contractor_record.get("id", "")
+
+                if not twilio_number or not notify_sms:
+                    continue
+
+                # Get today's booked jobs
+                leads_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tbl6YL7BYY2vawIF1"
+                jobs_resp = req.get(leads_url, headers=headers, params={
+                    "filterByFormula": (
+                        f"AND("
+                        f"{{Lead Status}} = 'Booked', "
+                        f"{{Twilio Number}} = '{twilio_number}', "
+                        f"{{Appointment Date and Time}} != ''"
+                        f")"
+                    )
+                })
+                job_records = jobs_resp.json().get("records", [])
+
+                # Filter for today's jobs
+                todays_jobs = []
+                for r in job_records:
+                    f = r.get("fields", {})
+                    appt = f.get("Appointment Date and Time", "")
+                    try:
+                        dt = datetime.fromisoformat(appt.replace("Z", "+00:00"))
+                        dt_eastern = dt.astimezone(eastern)
+                        if dt_eastern.strftime("%Y-%m-%d") == today_str:
+                            todays_jobs.append({
+                                "name": f.get("Client Name", "Unknown"),
+                                "address": f.get("Service Address", ""),
+                                "time": dt_eastern.strftime("%-I:%M %p"),
+                                "job": f.get("Job Description", ""),
+                            })
+                    except Exception:
+                        pass
+
+                # Sort by time
+                todays_jobs.sort(key=lambda x: x["time"])
+
+                # Get open leads count
+                leads_resp = req.get(leads_url, headers=headers, params={
+                    "filterByFormula": (
+                        f"AND("
+                        f"OR({{Lead Status}} = 'New Lead', {{Lead Status}} = 'Contacted'), "
+                        f"{{Twilio Number}} = '{twilio_number}'"
+                        f")"
+                    )
+                })
+                open_leads_count = len(leads_resp.json().get("records", []))
+
+                # Get regular clients due this week
+                regular_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tbl3LAJzXa6Vsexry"
+                regular_resp = req.get(regular_url, headers=headers, params={
+                    "filterByFormula": (
+                        f"AND("
+                        f"{{Active}} = TRUE(), "
+                        f"{{Twilio Number}} = '{twilio_number}'"
+                        f")"
+                    )
+                })
+                regular_records = regular_resp.json().get("records", [])
+
+                # Find regular clients due within 3 days
+                due_soon = []
+                for r in regular_records:
+                    f = r.get("fields", {})
+                    next_appt = f.get("Next Appointment", "")
+                    if next_appt:
+                        try:
+                            dt = datetime.fromisoformat(next_appt.replace("Z", "+00:00"))
+                            dt_eastern = dt.astimezone(eastern)
+                            days_until = (dt_eastern.date() - now.date()).days
+                            if 0 <= days_until <= 3:
+                                due_soon.append({
+                                    "name": f.get("Client Name", ""),
+                                    "days": days_until
+                                })
+                        except Exception:
+                            pass
+
+                # Build briefing message
+                lines = [f"📋 Good morning! {today_display}"]
+                lines.append(f"━━━━━━━━━━━━━━")
+
+                if todays_jobs:
+                    lines.append(f"📅 TODAY'S JOBS ({len(todays_jobs)})")
+                    for i, job in enumerate(todays_jobs, 1):
+                        lines.append(f"{i}. {job['time']} — {job['name']}")
+                        if job['address']:
+                            lines.append(f"   📍 {job['address'][:40]}")
+                else:
+                    lines.append("📅 No jobs scheduled today")
+
+                if open_leads_count > 0:
+                    lines.append(f"━━━━━━━━━━━━━━")
+                    lines.append(f"🔔 {open_leads_count} open lead{'s' if open_leads_count != 1 else ''} need follow-up")
+
+                if due_soon:
+                    lines.append(f"━━━━━━━━━━━━━━")
+                    lines.append("⏰ REGULAR CLIENTS DUE SOON")
+                    for c in due_soon:
+                        label = "Today" if c['days'] == 0 else f"In {c['days']} day{'s' if c['days'] != 1 else ''}"
+                        lines.append(f"• {c['name']} — {label}")
+
+                lines.append(f"━━━━━━━━━━━━━━")
+                lines.append("Have a great day! 💪")
+
+                msg = "\n".join(lines)
+
+                # Send SMS
+                send_fallback_sms(to_number=notify_sms, body=msg)
+                print(f"DAILY BRIEFING SENT | {business_name} | {notify_sms} | {len(todays_jobs)} jobs")
+                sent += 1
+
+            except Exception as e:
+                print(f"DAILY BRIEFING ERROR | contractor | {e}")
+                failed += 1
+
+        return jsonify({"ok": True, "sent": sent, "failed": failed})
+
+    except Exception as e:
+        print(f"DAILY BRIEFING ERROR | {type(e).__name__} | {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
 @app.route("/send-payment-reminders", methods=["POST", "GET"])
 def send_payment_reminders():
     """
