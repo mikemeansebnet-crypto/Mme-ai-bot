@@ -3911,6 +3911,29 @@ def dashboard():
             </div>
         </div>
 </div>
+
+    <!-- Regular Client Booking Modal -->
+<div class="modal-overlay" id="regularBookModal">
+    <div class="booking-modal">
+        <div class="modal-title">📅 Book Appointment</div>
+        <div class="modal-date" id="regularBookCustomer"></div>
+        <div class="form-row">
+            <div class="form-group">
+                <label class="form-label">Date *</label>
+                <input type="date" class="form-input" id="regularBookDate">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Time</label>
+                <input type="time" class="form-input" id="regularBookTime" value="09:00">
+            </div>
+        </div>
+        <div class="modal-actions">
+            <button class="btn-cancel-modal" onclick="closeRegularBookModal()">Cancel</button>
+            <button class="btn-book" id="regularBookBtn" onclick="submitRegularBooking()">Book & Confirm →</button>
+        </div>
+    </div>
+</div>
+
 </body>
 </html>
     '''
