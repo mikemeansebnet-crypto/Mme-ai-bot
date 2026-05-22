@@ -3249,6 +3249,15 @@ def dashboard():
         </div>
     </div>
 
+        <!-- Regular Clients -->
+        <div class="section">
+            <div class="section-header">
+                <div class="section-title">Regular Clients</div>
+                <div class="section-count" id="regularCount">0</div>
+            </div>
+            <div id="regularClients"><div class="loading">Loading...</div></div>
+        </div>
+
         <!-- Recurring Invoices -->
         <div class="section">
             <div class="section-header">
