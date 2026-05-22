@@ -4304,9 +4304,16 @@ def dashboard_on_my_way():
             f"We'll see you shortly!"
         )
 
+        print("DASHBOARD | ON MY WAY DEBUG")
+        print("Customer Name:", customer_name)
+        print("Customer Phone:", customer_phone)
+        print("Message:", msg)
+
         send_fallback_sms(to_number=customer_phone, body=msg)
+
         print(f"DASHBOARD | On my way sent | {customer_name} | {customer_phone}")
         return jsonify({"ok": True})
+           
 
     except Exception as e:
         print(f"DASHBOARD ON MY WAY ERROR | {e}")
