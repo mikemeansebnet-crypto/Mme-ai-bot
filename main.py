@@ -4318,6 +4318,219 @@ def dashboard_recurring():
         print(f"RECURRING CUSTOMERS ERROR | {e}")
         return jsonify({"ok": False, "error": str(e)}), 500
 
+@app.route("/dashboard/regular-clients")
+@dashboard_auth_required
+def dashboard_regular_clients():
+    """Returns active regular clients with upcoming appointments."""
+    try:
+        import requests as req
+        from zoneinfo import ZoneInfo
+        from datetime import datetime
+
+        eastern = ZoneInfo("America/New_York")
+        now = datetime.now(eastern)
+        today_str = now.strftime("%Y-%m-%d")
+
+        AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
+        AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
+        headers = {"Authorization": f"Bearer {AIRTABLE_TOKEN}"}
+        url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tbl3LAJzXa6Vsexry"
+
+        resp = req.get(url, headers=headers, params={
+            "filterByFormula": "{Active} = TRUE()"
+        })
+        records = resp.json().get("records", [])
+
+        clients = []
+        for r in records:
+            f = r.get("fields", {})
+            next_appt = f.get("Next Appointment", "")
+            next_appt_display = ""
+            days_until = None
+            try:
+                if next_appt:
+                    dt = datetime.fromisoformat(next_appt.replace("Z", "+00:00"))
+                    dt_eastern = dt.astimezone(eastern)
+                    next_appt_display = dt_eastern.strftime("%a %b %-d at %-I:%M %p")
+                    days_until = (dt_eastern.date() - now.date()).days
+            except Exception:
+                pass
+
+            clients.append({
+                "record_id": r.get("id", ""),
+                "name": f.get("Client Name", ""),
+                "phone": f.get("Phone", ""),
+                "email": f.get("Email", ""),
+                "address": f.get("Service Address", ""),
+                "service": f.get("Service Description", ""),
+                "frequency_days": f.get("Frequency Days", 0),
+                "preferred_time": f.get("Preferred Time", "09:00"),
+                "next_appointment": next_appt_display,
+                "next_appointment_raw": next_appt,
+                "days_until": days_until,
+                "notes": f.get("Notes", ""),
+            })
+
+        # Sort by next appointment
+        clients.sort(key=lambda x: x.get("next_appointment_raw") or "9999")
+
+        return jsonify({"ok": True, "clients": clients})
+
+    except Exception as e:
+        print(f"REGULAR CLIENTS ERROR | {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route("/dashboard/action/book-regular-client", methods=["POST"])
+@dashboard_auth_required
+def dashboard_book_regular_client():
+    """
+    Books the next appointment for a regular client.
+    Creates Airtable lead, adds to Google Calendar, SMS confirmation.
+    Updates Next Appointment in Regular Clients table.
+    """
+    try:
+        from app.app.cal_service import create_google_calendar_event
+        from zoneinfo import ZoneInfo
+        from datetime import datetime, timedelta
+
+        data = request.get_json(silent=True) or {}
+        record_id = data.get("record_id", "")
+        customer_name = data.get("customer_name", "")
+        customer_phone = data.get("customer_phone", "")
+        service_address = data.get("service_address", "")
+        job_description = data.get("job_description", "")
+        appointment_date = data.get("appointment_date", "")
+        appointment_time = data.get("appointment_time", "09:00")
+        frequency_days = int(data.get("frequency_days", 14))
+        twilio_number = request.twilio_number
+
+        contractor = get_contractor_by_twilio_number(twilio_number) or {}
+        business_name = contractor.get("Business Name", "your contractor")
+
+        eastern = ZoneInfo("America/New_York")
+        dt_str = f"{appointment_date}T{appointment_time}:00"
+        dt_start = datetime.fromisoformat(dt_str).replace(tzinfo=eastern)
+        dt_end = dt_start + timedelta(hours=1)
+        formatted_display = dt_start.strftime("%A, %B %-d at %-I:%M %p")
+
+        AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
+        AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
+        headers = {
+            "Authorization": f"Bearer {AIRTABLE_TOKEN}",
+            "Content-Type": "application/json"
+        }
+
+        # Create lead in Airtable
+        leads_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tbl6YL7BYY2vawIF1"
+        airtable_resp = requests.post(
+            leads_url,
+            headers=headers,
+            json={"fields": {
+                "fldBktJv26lpFCZjg": customer_name,
+                "fldfSFcMA4V5SLfjo": customer_phone,
+                "fldo9GtQBLObByZs5": service_address,
+                "fldxNwWbbMWF4cT47": job_description,
+                "fldkTOouWuLx6JHly": formatted_display,
+                "fldHL2tJs2egGKuI9": "Booked",
+                "fldbtGSgcOrHHe6pO": "STANDARD",
+                "fldn2cCGDP4WimUMh": "Regular Client",
+                "fldAgsSlZfOLFCBrJ": twilio_number,
+                "fldeKVCUvdkVswD4V": f"REGULAR-{twilio_number}-{int(dt_start.timestamp())}",
+                "fldIfaFlPA4AyMntY": dt_start.isoformat(),
+            }}
+        )
+        print(f"REGULAR CLIENT BOOKED | {customer_name} | {formatted_display}")
+
+        # Add to Google Calendar
+        cal_result = create_google_calendar_event(
+            contractor=contractor,
+            summary=f"{business_name} — {job_description} ({customer_name})",
+            start_time=dt_start.isoformat(),
+            end_time=dt_end.isoformat(),
+            description=f"Regular client — every {frequency_days} days\nPhone: {customer_phone}\nAddress: {service_address}",
+            location=service_address,
+        )
+        print(f"REGULAR CLIENT CALENDAR | {cal_result.get('ok')} | {customer_name}")
+
+        # SMS confirmation to customer
+        first_name = customer_name.split()[0] if customer_name else "there"
+        msg = (
+            f"Hi {first_name}! Your appointment with {business_name} is confirmed for "
+            f"{formatted_display}. "
+            f"Reply CANCEL APPOINTMENT to cancel."
+        )
+        send_fallback_sms(to_number=customer_phone, body=msg)
+
+        # Update Next Appointment and Last Completed in Regular Clients table
+        next_appt_dt = dt_start + timedelta(days=frequency_days)
+        regular_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tbl3LAJzXa6Vsexry"
+        requests.patch(
+            f"{regular_url}/{record_id}",
+            headers=headers,
+            json={"fields": {
+                "fldrQYykMd28OcYUI": next_appt_dt.isoformat(),  # Next Appointment
+            }}
+        )
+        print(f"REGULAR CLIENT NEXT APPT | {customer_name} | {next_appt_dt.strftime('%Y-%m-%d')}")
+
+        return jsonify({
+            "ok": True,
+            "appointment": formatted_display,
+            "next_appointment": next_appt_dt.strftime("%B %-d")
+        })
+
+    except Exception as e:
+        print(f"BOOK REGULAR CLIENT ERROR | {type(e).__name__} | {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route("/dashboard/action/complete-regular-client", methods=["POST"])
+@dashboard_auth_required
+def dashboard_complete_regular_client():
+    """
+    Marks regular client visit complete.
+    Updates Last Completed and calculates Next Appointment.
+    """
+    try:
+        from zoneinfo import ZoneInfo
+        from datetime import datetime, timedelta
+
+        data = request.get_json(silent=True) or {}
+        record_id = data.get("record_id", "")
+        frequency_days = int(data.get("frequency_days", 14))
+
+        eastern = ZoneInfo("America/New_York")
+        now = datetime.now(eastern)
+        next_appt = now + timedelta(days=frequency_days)
+
+        AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
+        AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
+        headers = {
+            "Authorization": f"Bearer {AIRTABLE_TOKEN}",
+            "Content-Type": "application/json"
+        }
+        regular_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tbl3LAJzXa6Vsexry"
+
+        requests.patch(
+            f"{regular_url}/{record_id}",
+            headers=headers,
+            json={"fields": {
+                "fldad0GDluY6VLeAX": now.isoformat(),        # Last Completed
+                "fldrQYykMd28OcYUI": next_appt.isoformat(),  # Next Appointment
+            }}
+        )
+
+        print(f"REGULAR CLIENT COMPLETE | {record_id} | Next: {next_appt.strftime('%Y-%m-%d')}")
+        return jsonify({
+            "ok": True,
+            "next_appointment": next_appt.strftime("%B %-d")
+        })
+
+    except Exception as e:
+        print(f"COMPLETE REGULAR CLIENT ERROR | {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
 @app.route("/dashboard/revenue")
 @dashboard_auth_required
 def dashboard_revenue():
