@@ -3835,6 +3835,162 @@ def dashboard():
             }
         }
 
+        // ── REGULAR CLIENTS ──────────────────────────
+        let regularBookData = {};
+
+        async function loadRegularClients() {
+            try {
+                const res = await fetch('/dashboard/regular-clients', {
+                    headers: { 'X-Dashboard-Token': getCookie('dashboard_token') }
+                });
+                const data = await res.json();
+                if (data.ok) renderRegularClients(data.clients);
+            } catch(e) {
+                console.error('Regular clients load error:', e);
+            }
+        }
+
+        function renderRegularClients(clients) {
+            document.getElementById('regularCount').textContent = clients.length;
+            const el = document.getElementById('regularClients');
+            if (!clients.length) {
+                el.innerHTML = '<div class="empty-state">No regular clients — add them in Airtable</div>';
+                return;
+            }
+            el.innerHTML = clients.map(c => {
+                const urgency = c.days_until !== null && c.days_until <= 2
+                    ? 'border-left: 3px solid #ef4444;'
+                    : c.days_until !== null && c.days_until <= 5
+                    ? 'border-left: 3px solid #f59e0b;'
+                    : '';
+
+                const daysLabel = c.days_until !== null
+                    ? c.days_until === 0 ? '🔴 Today!'
+                    : c.days_until === 1 ? '🟡 Tomorrow'
+                    : c.days_until < 0 ? `🔴 Overdue ${Math.abs(c.days_until)}d`
+                    : `🟢 In ${c.days_until} days`
+                    : '';
+
+                return `
+                <div class="job-card" style="${urgency}">
+                    <div class="job-name">${c.name || 'Unknown'}</div>
+                    <div class="job-address">${c.address || ''}</div>
+                    <div class="job-type">${c.service || ''} · Every ${c.frequency_days} days</div>
+                    ${c.next_appointment ? `
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px">
+                        <div style="color:#22c55e;font-size:13px;font-family:monospace">${c.next_appointment}</div>
+                        <div style="font-size:12px">${daysLabel}</div>
+                    </div>` : '<div style="color:#555;font-size:12px;margin-top:8px;font-family:monospace">No appointment scheduled</div>'}
+                    <div class="job-actions" style="margin-top:10px">
+                        <button onclick="openRegularBookModal('${c.record_id}', '${c.name}', '${c.phone}', '${c.address}', '${c.service}', ${c.frequency_days}, '${c.preferred_time}')"
+                            class="action-btn btn-sms">📅 Book</button>
+                        <button onclick="completeRegularClient('${c.record_id}', '${c.name}', ${c.frequency_days})"
+                            class="action-btn" style="background:#22c55e;color:#000">✓ Done</button>
+                    </div>
+                    ${c.phone ? `
+                    <div class="job-actions" style="margin-top:8px">
+                        <a href="tel:${c.phone}" class="action-btn btn-call">📞 Call</a>
+                        <a href="sms:${c.phone}" class="action-btn btn-sms">💬 Text</a>
+                    </div>` : ''}
+                </div>`;
+            }).join('');
+        }
+
+        function openRegularBookModal(recordId, name, phone, address, service, frequencyDays, preferredTime) {
+            regularBookData = { recordId, name, phone, address, service, frequencyDays };
+            document.getElementById('regularBookCustomer').textContent = name + ' — Every ' + frequencyDays + ' days';
+            document.getElementById('regularBookTime').value = preferredTime || '09:00';
+
+            // Pre-fill date with today
+            const today = new Date();
+            const dateStr = today.toISOString().split('T')[0];
+            document.getElementById('regularBookDate').value = dateStr;
+
+            document.getElementById('regularBookModal').classList.add('active');
+        }
+
+        function closeRegularBookModal() {
+            document.getElementById('regularBookModal').classList.remove('active');
+        }
+
+        async function submitRegularBooking() {
+            const date = document.getElementById('regularBookDate').value;
+            const time = document.getElementById('regularBookTime').value;
+
+            if (!date) {
+                alert('Please select a date.');
+                return;
+            }
+
+            const btn = document.getElementById('regularBookBtn');
+            btn.textContent = 'Booking...';
+            btn.disabled = true;
+
+            try {
+                const res = await fetch('/dashboard/action/book-regular-client', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Dashboard-Token': getCookie('dashboard_token')
+                    },
+                    body: JSON.stringify({
+                        record_id: regularBookData.recordId,
+                        customer_name: regularBookData.name,
+                        customer_phone: regularBookData.phone,
+                        service_address: regularBookData.address,
+                        job_description: regularBookData.service,
+                        appointment_date: date,
+                        appointment_time: time,
+                        frequency_days: regularBookData.frequencyDays,
+                        twilio_number: dashboardData.twilio_number
+                    })
+                });
+
+                const data = await res.json();
+                if (data.ok) {
+                    alert(`✅ Booked for ${data.appointment}!\nNext appointment auto-set for ${data.next_appointment}.\nConfirmation SMS sent to customer.`);
+                    closeRegularBookModal();
+                    loadRegularClients();
+                    loadDashboard();
+                } else {
+                    alert('Error: ' + (data.error || 'Something went wrong'));
+                }
+            } catch(e) {
+                alert('Request failed. Please try again.');
+            } finally {
+                btn.textContent = 'Book & Confirm →';
+                btn.disabled = false;
+            }
+        }
+
+        async function completeRegularClient(recordId, name, frequencyDays) {
+            if (!confirm(`Mark ${name}'s visit as complete?\nNext appointment will be set automatically in ${frequencyDays} days.`)) return;
+
+            try {
+                const res = await fetch('/dashboard/action/complete-regular-client', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Dashboard-Token': getCookie('dashboard_token')
+                    },
+                    body: JSON.stringify({
+                        record_id: recordId,
+                        frequency_days: frequencyDays
+                    })
+                });
+
+                const data = await res.json();
+                if (data.ok) {
+                    alert(`✅ Visit marked complete!\nNext appointment auto-scheduled for ${data.next_appointment}.`);
+                    loadRegularClients();
+                } else {
+                    alert('Error: ' + (data.error || 'Something went wrong'));
+                }
+            } catch(e) {
+                alert('Request failed. Please try again.');
+            }
+        }
+
         // Load on startup
         loadDashboard();
         // Auto-refresh every 5 minutes
