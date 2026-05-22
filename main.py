@@ -3266,7 +3266,9 @@ def dashboard():
             </div>
             <div id="recurringCustomers"><div class="loading">Loading...</div></div>
         </div>
-
+        
+    </div>
+    
     <button class="refresh-btn" onclick="loadDashboard()" title="Refresh">↻</button>
 
     <script>
