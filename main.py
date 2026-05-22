@@ -3483,6 +3483,7 @@ def dashboard():
                 renderAll();
                 loadRecurringCustomers();
                 loadRevenue();
+                loadRegularClients();
             } catch(e) {
                 console.error('Dashboard load error:', e);
             }
