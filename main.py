@@ -2592,6 +2592,14 @@ def send_daily_briefing():
                 # Send SMS
                 send_fallback_sms(to_number=notify_sms, body=msg)
                 print(f"DAILY BRIEFING SENT | {business_name} | {notify_sms} | {len(todays_jobs)} jobs")
+                
+                # At the end of the contractor loop in send_daily_briefing
+                # Store today's jobs in Redis for SMS completion
+                if redis_client and todays_jobs:
+                    job_key = f"daily_jobs:{twilio_number}:{today_str}"
+                    redis_client.setex(job_key, 86400, json.dumps(todays_jobs))
+                    print(f"DAILY JOBS CACHED | {twilio_number} | {len(todays_jobs)} jobs")
+                    
                 sent += 1
 
             except Exception as e:
