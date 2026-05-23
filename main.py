@@ -1363,6 +1363,215 @@ def handle_contractor_photo_estimate(request, contractor, from_number, to_number
         "<Response><Message>📸 Got your photos! Generating your estimate now — you'll receive it in about 30 seconds.</Message></Response>",
         mimetype="text/xml"
     )
+
+def handle_sms_job_complete(incoming_msg: str, from_number: str, to_number: str):
+    """
+    Handles SMS job completion flow.
+    Contractor texts DONE 1 or DONE 1 75 to mark a job complete and send payment.
+    """
+    import re
+    from twilio.rest import Client as TwilioClient
+
+    tc = TwilioClient(os.environ.get("TWILIO_ACCOUNT_SID"), os.environ.get("TWILIO_AUTH_TOKEN"))
+
+    def reply(msg):
+        tc.messages.create(body=msg, from_=to_number, to=from_number)
+        return Response("<Response></Response>", mimetype="text/xml")
+
+    # Check if this is a payment method selection (reply to previous DONE)
+    pending_key = f"pending_complete:{to_number}:{from_number}"
+    if redis_client:
+        pending_raw = redis_client.get(pending_key)
+        if pending_raw and incoming_msg.strip() in ["1", "2", "3", "4"]:
+            pending = json.loads(pending_raw)
+            return handle_payment_selection(
+                incoming_msg.strip(), pending, from_number, to_number, tc, pending_key
+            )
+
+    # Parse DONE command
+    parts = incoming_msg.strip().split()
+    if len(parts) < 2:
+        return reply("Send DONE followed by job number. Example: DONE 1\nOr include amount: DONE 1 75")
+
+    try:
+        job_num = int(parts[1])
+    except ValueError:
+        return reply("Invalid job number. Example: DONE 1")
+
+    # Get custom amount if provided
+    custom_amount = None
+    if len(parts) >= 3:
+        try:
+            custom_amount = float(parts[2])
+        except ValueError:
+            pass
+
+    # Look up today's jobs from Redis
+    from zoneinfo import ZoneInfo
+    from datetime import datetime
+    eastern = ZoneInfo("America/New_York")
+    today_str = datetime.now(eastern).strftime("%Y-%m-%d")
+    job_key = f"daily_jobs:{to_number}:{today_str}"
+
+    if not redis_client:
+        return reply("System error — Redis not available.")
+
+    jobs_raw = redis_client.get(job_key)
+    if not jobs_raw:
+        return reply("No jobs found for today. Make sure you received your daily briefing at 6 AM.")
+
+    jobs = json.loads(jobs_raw)
+
+    if job_num < 1 or job_num > len(jobs):
+        return reply(f"Invalid job number. You have {len(jobs)} job(s) today. Send DONE 1 through DONE {len(jobs)}.")
+
+    job = jobs[job_num - 1]
+    customer_name = job.get("name", "Customer")
+    customer_phone = job.get("phone", "")
+    job_description = job.get("job", "")
+    record_id = job.get("record_id", "")
+
+    # Try to get amount from Regular Clients table
+    amount = custom_amount
+    if not amount:
+        try:
+            import requests as req
+            AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
+            AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
+            headers = {"Authorization": f"Bearer {AIRTABLE_TOKEN}"}
+            regular_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tbl3LAJzXa6Vsexry"
+            resp = req.get(regular_url, headers=headers, params={
+                "filterByFormula": f"{{Phone}} = '{customer_phone}'"
+            })
+            records = resp.json().get("records", [])
+            if records:
+                amount = records[0].get("fields", {}).get("Monthly Amount", 0)
+        except Exception as e:
+            print(f"REGULAR CLIENT LOOKUP ERROR | {e}")
+
+    # Store pending completion in Redis (expires in 5 minutes)
+    pending = {
+        "record_id": record_id,
+        "customer_name": customer_name,
+        "customer_phone": customer_phone,
+        "job_description": job_description,
+        "amount": amount or 0,
+        "twilio_number": to_number,
+    }
+    redis_client.setex(pending_key, 300, json.dumps(pending))
+
+    # Ask for payment method
+    amount_str = f"${amount:.2f}" if amount else "amount TBD"
+    msg = (
+        f"Job {job_num}: {customer_name}\n"
+        f"{job_description}\n"
+        f"Amount: {amount_str}\n\n"
+        f"Select payment:\n"
+        f"1 - 💳 Stripe\n"
+        f"2 - 🏦 Zelle\n"
+        f"3 - 📚 QuickBooks\n"
+        f"4 - 💵 Cash"
+    )
+    return reply(msg)
+
+
+def handle_payment_selection(
+    choice: str,
+    pending: dict,
+    from_number: str,
+    to_number: str,
+    tc,
+    pending_key: str
+):
+    """Processes the payment method selection after DONE command."""
+    import requests as req
+
+    def reply(msg):
+        tc.messages.create(body=msg, from_=to_number, to=from_number)
+        return Response("<Response></Response>", mimetype="text/xml")
+
+    record_id = pending.get("record_id", "")
+    customer_name = pending.get("customer_name", "")
+    customer_phone = pending.get("customer_phone", "")
+    job_description = pending.get("job_description", "")
+    amount = float(pending.get("amount", 0))
+    twilio_number = pending.get("twilio_number", "")
+
+    AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
+    AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
+    headers = {
+        "Authorization": f"Bearer {AIRTABLE_TOKEN}",
+        "Content-Type": "application/json"
+    }
+
+    # Mark lead as complete
+    if record_id:
+        req.patch(
+            f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tbl6YL7BYY2vawIF1/{record_id}",
+            headers=headers,
+            json={"fields": {"Lead Status": "Completed"}}
+        )
+
+    # Get contractor record ID
+    contractor = get_contractor_by_twilio_number(twilio_number) or {}
+    business_name = contractor.get("Business Name", "your contractor")
+    contractor_record_id = contractor.get("airtable_id", "")
+
+    payment_methods = {"1": "Stripe", "2": "Zelle ", "3": "QuickBooks", "4": "Cash"}
+    payment_method = payment_methods.get(choice, "Cash")
+    today = __import__('datetime').datetime.now().strftime("%Y-%m-%d")
+
+    # Create payment record
+    payment_fields = {
+        "fldAZ5Qr0NCU11J0A": customer_name,
+        "fld8bUzdzFeeXLrlD": customer_phone,
+        "fld596bZM5ZCI7ga8": amount,
+        "fldeROEzoyhWKJ36y": job_description,
+        "fldWg6gGv6dKFb853": "Unpaid",
+        "fldUFO1PfTeiLA3UR": payment_method,
+        "fldYNu0gpLuiCsF6Z": today,
+    }
+
+    if contractor_record_id:
+        payment_fields["fldxdSy7mICyTo50P"] = [contractor_record_id]
+
+    if payment_method in ["Stripe", "Zelle "]:
+        payment_fields["fldEifNosHbfRIzwu"] = True  # Send Payment Request
+
+    if payment_method == "QuickBooks":
+        # Get customer email from Recurring Customers table
+        try:
+            recurring_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tblxGfrifBiGRk80M"
+            resp = req.get(recurring_url, {"Authorization": f"Bearer {AIRTABLE_TOKEN}"}, params={
+                "filterByFormula": f"OR({{Phone}} = '{customer_phone}', {{Client Name}} = '{customer_name}')"
+            })
+            records = resp.json().get("records", [])
+            if records:
+                email = records[0].get("fields", {}).get("Email", "")
+                if email:
+                    payment_fields["fld1J5DuxJVcreFKk"] = email
+                    payment_fields["fldmTaAGMRf5aafaE"] = True  # Send Invoice
+        except Exception as e:
+            print(f"QB EMAIL LOOKUP ERROR | {e}")
+
+    req.post(
+        f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/Payments",
+        headers=headers,
+        json={"fields": payment_fields}
+    )
+
+    # Clear pending state
+    if redis_client:
+        redis_client.delete(pending_key)
+
+    method_labels = {
+        "1": f"Stripe link sent to {customer_name}",
+        "2": f"Zelle request sent to {customer_name}",
+        "3": f"QuickBooks invoice sent",
+        "4": "Cash payment recorded"
+    }
+
+    return reply(f"✅ Job complete!\n{method_labels.get(choice, 'Payment processed')}\n\nHave a great rest of the day! 💪")
    
 
 
@@ -1400,6 +1609,10 @@ def sms():
     if incoming_msg.upper() in ["CANCEL APPOINTMENT", "RESCHEDULE", "RESCHEDULE APPOINTMENT"]:
         from app.app.cancel_reschedule import handle_cancel_reschedule
         return handle_cancel_reschedule()
+
+    # ── Job completion via SMS ─────────────────────────────────────
+    if incoming_msg.upper().startswith("DONE"):
+        return handle_sms_job_complete(incoming_msg, from_number, to_number)
 
     # Look up contractor
     contractor = {}
