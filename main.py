@@ -5532,7 +5532,7 @@ def dashboard_add_job():
                 "Call Back Number": customer_phone,
                 "Service Address": service_address,
                 "Job Description": job_description,
-                "Appointment Date and Time": dt_start.strftime("%Y-%m-%dT%H:%M:%S.000Z"),
+                "Appointment Date and Time": dt_start.astimezone(ZoneInfo("UTC")).strftime("%Y-%m-%dT%H:%M:%S.000Z"),
                 "Lead Status": "Booked",
                 "Priority": "STANDARD",
                 "Source": "Manual Entry",
