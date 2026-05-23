@@ -2293,10 +2293,12 @@ def send_daily_briefing():
                         dt_eastern = dt.astimezone(eastern)
                         if dt_eastern.strftime("%Y-%m-%d") == today_str:
                             todays_jobs.append({
+                                "record_id": r.get("id", ""),  # ADD THIS
                                 "name": f.get("Client Name", "Unknown"),
                                 "address": f.get("Service Address", ""),
                                 "time": dt_eastern.strftime("%-I:%M %p"),
                                 "job": f.get("Job Description", ""),
+                                "phone": f.get("Call Back Number", ""),
                             })
                     except Exception:
                         pass
