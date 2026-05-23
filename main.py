@@ -1391,7 +1391,7 @@ def handle_sms_job_complete(incoming_msg: str, from_number: str, to_number: str)
     # Parse DONE command
     parts = incoming_msg.strip().split()
     if len(parts) < 2:
-        return reply("Send DONE followed by job number. Example: DONE 1\nOr include amount: DONE 1 75")
+        return reply("Send COMPLETED followed by job number. Example: DONE 1\nOr include amount: DONE 1 75")
 
     try:
         job_num = int(parts[1])
