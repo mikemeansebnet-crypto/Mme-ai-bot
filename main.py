@@ -1611,7 +1611,7 @@ def sms():
         return handle_cancel_reschedule()
 
     # ── Job completion via SMS ─────────────────────────────────────
-    if incoming_msg.upper().startswith("DONE"):
+    if incoming_msg.upper().startswith("COMPLETED"):
         return handle_sms_job_complete(incoming_msg, from_number, to_number)
 
     # Look up contractor
