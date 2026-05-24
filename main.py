@@ -3647,13 +3647,15 @@ def dashboard():
 <body>
     <header>
         <div>
-            <h1>Crew<span>Cache</span>Pro</h1>
+            <h1>CrewCache<span style="-webkit-text-fill-color: var(--green)">Pro</span></h1>
             <div class="business-name" id="businessName">Loading...</div>
         </div>
         <div style="display:flex;gap:8px;align-items:center">
-            <button onclick="openBookingModal('')" style="background:#22c55e;color:#000;border:none;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:700;cursor:pointer">+ Add Job</button>
+            <button onclick="openBookingModal('')" style="background:var(--gradient);color:white;border:none;border-radius:10px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif">+ Add Job</button>
             <a href="/dashboard/logout" class="logout-btn">Sign out</a>
         </div>
+
+        
     </header>
 
     <div class="content">
