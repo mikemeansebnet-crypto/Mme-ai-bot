@@ -3641,6 +3641,11 @@ def dashboard():
             font-size: 14px;
             cursor: pointer;
             font-family: 'DM Sans', sans-serif;
+
+            .crew-logo {
+                display: flex;
+                align-items: center;
+
         }
        
     </style>
