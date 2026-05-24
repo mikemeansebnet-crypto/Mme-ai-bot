@@ -3648,7 +3648,47 @@ def dashboard():
 <body>
     <header>
         <div>
-            <h1>CrewCache<span style="-webkit-text-fill-color: var(--green)">Pro</span></h1>
+            <div style="display:flex; align-items:center; gap:10px;">
+
+  <div class="crew-logo">
+    <svg viewBox="0 0 500 500" width="70" height="70">
+      <defs>
+        <linearGradient id="crewGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#005B9A"/>
+          <stop offset="100%" stop-color="#39B54A"/>
+        </linearGradient>
+      </defs>
+
+      <path d="M120 180 A150 150 0 0 1 385 140"
+        fill="none"
+        stroke="url(#crewGradient)"
+        stroke-width="25"
+        stroke-linecap="round"
+      />
+      <polygon points="390,120 430,175 365,180"
+        fill="url(#crewGradient)"
+      />
+
+      <path d="M380 320 A150 150 0 0 1 115 360"
+        fill="none"
+        stroke="url(#crewGradient)"
+        stroke-width="25"
+        stroke-linecap="round"
+      />
+      <polygon points="110,380 70,325 135,320"
+        fill="url(#crewGradient)"
+      />
+    </svg>
+  </div>
+
+  <div>
+    <h1 style="margin:0;">
+      <span style="color:#005B9A;">Crew</span><span style="color:#39B54A;">CachePro</span>
+    </h1>
+    <div class="business-name" id="businessName">Loading...</div>
+  </div>
+
+</div>
             <div class="business-name" id="businessName">Loading...</div>
         </div>
         <div style="display:flex;gap:8px;align-items:center">
