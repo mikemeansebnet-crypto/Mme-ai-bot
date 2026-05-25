@@ -17,7 +17,7 @@ import secrets
 import jwt as pyjwt
 from functools import wraps
 
-from flask import Flask, request, jsonify, Response, session, redirect, make_response
+from flask import Flask, request, jsonify, Response, session, redirect, make_response, send_from_directory
 from flask import render_template_string
 from twilio.twiml.voice_response import VoiceResponse, Gather
 from twilio.rest import Client
@@ -3158,13 +3158,11 @@ def dashboard():
 <!DOCTYPE html>
 <html>
 <head>
-    
-    <!-- PWA / iPad Icon -->
-    <link rel="apple-touch-icon" sizes="180x180" href="/static/icons/apple-touch-icon.png">
-    <link rel="icon" type="image/png" sizes="192x192" href="/static/icons/icon-192.png">
-    <link rel="icon" type="image/png" sizes="512x512" href="/static/icons/icon-512.png">
-    <link rel="manifest" href="/static/manifest.json">
 
+    <link rel="apple-touch-icon" href="/static/logo.png">
+    <link rel="icon" type="image/png" href="/static/logo.png">
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#2563EB">
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
     <title>CrewCachePro Dashboard</title>
