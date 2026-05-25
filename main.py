@@ -3803,7 +3803,7 @@ def dashboard():
 
         <!-- Today's Summary -->
         <div class="today-summary">
-            <h2>📅 Today</h2>
+            <h2>Today</h2>
             <div class="job">No jobs scheduled today.</div>
         </div>
         
