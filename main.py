@@ -3027,6 +3027,24 @@ def dashboard_login():
             margin-bottom: 20px;
             font-family: monospace;
         }
+        .today-summary {
+            background: #111827;
+            border: 1px solid #1f2937;
+            border-radius: 16px;
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+
+        .today-summary h2 {
+            color: #22c55e;
+            font-size: 20px;
+            margin-bottom: 10px;
+        }
+
+        .today-summary .job {
+            color: #e5e7eb;
+            font-size: 15px;
+        }
     </style>
 </head>
 <body>
