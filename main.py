@@ -3160,8 +3160,8 @@ def dashboard():
 <html>
 <head>
 
-    <link rel="apple-touch-icon" href="/static/logo.png">
-    <link rel="icon" type="image/png" href="/static/logo.png">
+    <link rel="apple-touch-icon" href="https://res.cloudinary.com/dkfshn604/image/upload/IMG_1664_jukqma.jpg">
+    <link rel="icon" type="image/png" href="https://res.cloudinary.com/dkfshn604/image/upload/IMG_1664_jukqma.jpg">
     <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#2563EB">
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
