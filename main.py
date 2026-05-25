@@ -3028,23 +3028,26 @@ def dashboard_login():
             font-family: monospace;
         }
         .today-summary {
-            background: #ffffff;
+            background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
             border: 1px solid #e5e7eb;
-            border-radius: 12px;
-            padding: 16px;
-            margin: 16px;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+            border-radius: 18px;
+            padding: 18px;
+            margin-bottom: 16px;
+            box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
         }
 
         .today-summary h2 {
             color: #111827;
-            font-size: 18px;
-            margin-bottom: 8px;
+            font-size: 22px;
+            font-weight: 800;
+            margin-bottom: 6px;
+            letter-spacing: -0.03em;
         }
 
         .today-summary .job {
-            color: #6b7280;
+            color: #64748b;
             font-size: 14px;
+            font-weight: 500;
         }
             
     </style>
