@@ -944,11 +944,12 @@ def health():
         "redis_connected": redis_ok,
     }), 200 if redis_ok else 500
 
-from flask import send_from_directory
+import os
 
 @app.route('/static/<path:filename>')
 def static_files(filename):
-    return send_from_directory('.', filename)
+    root_dir = os.path.dirname(os.path.abspath(__file__))
+    return send_from_directory(root_dir, filename)
 
 @app.route('/manifest.json')
 def manifest():
