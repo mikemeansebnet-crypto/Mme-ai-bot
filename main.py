@@ -3049,34 +3049,6 @@ def dashboard_login():
             font-size: 14px;
             font-weight: 500;
         }
-
-        .job-card {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            background: #ffffff;
-            border: 1px solid #e5e7eb;
-            border-radius: 12px;
-            padding: 12px;
-            margin-top: 10px;
-        }
-
-        .job-info {
-            font-size: 14px;
-            color: #111827;
-            font-weight: 500;
-        }
-
-        .complete-btn {
-            background: #22c55e;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            padding: 6px 12px;
-            font-size: 13px;
-            font-weight: 600;
-            cursor: pointer;
-        }
             
     </style>
 </head>
