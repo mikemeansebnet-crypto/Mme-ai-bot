@@ -4589,6 +4589,25 @@ def dashboard():
             }
         }
 
+        // ── SPLASH SCREEN ──────────────────────────
+        function initSplash() {
+            const splash = document.getElementById('splashScreen');
+            const progress = document.getElementById('splashProgress');
+    
+            // Animate progress bar
+            setTimeout(() => { progress.style.width = '100%'; }, 100);
+    
+            // Fade out after 1.5 seconds
+            setTimeout(() => {
+                splash.style.opacity = '0';
+                setTimeout(() => {
+                    splash.style.display = 'none';
+                }, 500);
+            }, 1500);
+        }
+
+        initSplash();
+
         // Load on startup
         loadDashboard();
         // Auto-refresh every 5 minutes
