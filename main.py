@@ -3681,6 +3681,29 @@ def dashboard():
     </style>
 </head>
 <body>
+    <!-- Splash Screen -->
+    <div id="splashScreen" style="
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: linear-gradient(135deg, #2563EB, #16a34a);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+        transition: opacity 0.5s ease;
+    ">
+        <img src="https://res.cloudinary.com/dkfshn604/image/upload/IMG_1664_jukqma.jpg" 
+             style="width: 140px; height: 140px; border-radius: 32px; margin-bottom: 24px; box-shadow: 0 8px 32px rgba(0,0,0,0.3);">
+        <div style="color: white; font-family: 'DM Sans', sans-serif; font-size: 28px; font-weight: 700; letter-spacing: -0.5px;">
+            Crew<span style="color: #bbf7d0">Cache</span>Pro
+        </div>
+        
+    
+        <div style="margin-top: 40px; width: 40px; height: 4px; background: rgba(255,255,255,0.3); border-radius: 2px; overflow: hidden;">
+            <div id="splashProgress" style="height: 100%; width: 0%; background: white; border-radius: 2px; transition: width 1s ease;"></div>
+        </div>
+    </div>
     <header>
         <div>
             <div style="display:flex; align-items:center; gap:10px;">
