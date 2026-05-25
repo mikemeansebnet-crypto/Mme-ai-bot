@@ -3028,23 +3028,25 @@ def dashboard_login():
             font-family: monospace;
         }
         .today-summary {
-            background: #111827;
-            border: 1px solid #1f2937;
-            border-radius: 16px;
+            background: #ffffff;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
             padding: 16px;
-            margin-bottom: 16px;
+            margin: 16px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.05);
         }
 
         .today-summary h2 {
-            color: #22c55e;
-            font-size: 20px;
-            margin-bottom: 10px;
+            color: #111827;
+            font-size: 18px;
+            margin-bottom: 8px;
         }
 
         .today-summary .job {
-            color: #e5e7eb;
-            font-size: 15px;
+            color: #6b7280;
+            font-size: 14px;
         }
+            
     </style>
 </head>
 <body>
@@ -3799,7 +3801,7 @@ def dashboard():
 
         <!-- Today's Summary -->
         <div class="today-summary">
-            <h2>Today</h2>
+            <h2>📅 Today</h2>
             <div class="job">No jobs scheduled today.</div>
         </div>
         
