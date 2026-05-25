@@ -944,6 +944,30 @@ def health():
         "redis_connected": redis_ok,
     }), 200 if redis_ok else 500
 
+from flask import send_from_directory
+
+@app.route('/static/<path:filename>')
+def static_files(filename):
+    return send_from_directory('.', filename)
+
+@app.route('/manifest.json')
+def manifest():
+    return jsonify({
+        "name": "CrewCachePro",
+        "short_name": "CrewCache",
+        "start_url": "/dashboard",
+        "display": "standalone",
+        "background_color": "#f0f4f8",
+        "theme_color": "#2563EB",
+        "icons": [
+            {
+                "src": "/static/logo.png",
+                "sizes": "1024x1024",
+                "type": "image/png"
+            }
+        ]
+    })
+
 @app.route("/clear-cache")
 def clear_cache():
     if redis_client:
