@@ -4465,6 +4465,59 @@ def dashboard():
             }
         }
 
+        @app.route("/dashboard/voice-parse", methods=["POST"])
+        @dashboard_auth_required
+        def dashboard_voice_parse():
+            """Parses voice transcript into job fields using Claude."""
+            try:
+                data = request.get_json(silent=True) or {}
+                transcript = data.get("transcript", "").strip()
+
+                if not transcript:
+                    return jsonify({"ok": False, "error": "No transcript"}), 400
+
+                from zoneinfo import ZoneInfo
+                from datetime import datetime
+                eastern = ZoneInfo("America/New_York")
+                now = datetime.now(eastern)
+                today_str = now.strftime("%Y-%m-%d")
+                today_day = now.strftime("%A")
+
+                client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
+                response = client.messages.create(
+                    model="claude-haiku-4-5-20251001",
+                    max_tokens=500,
+                    messages=[{
+                        "role": "user",
+                        "content": f"""Extract job booking details from this voice transcript.
+        Today is {today_day}, {today_str}.
+
+        Transcript: "{transcript}"
+
+        Return ONLY valid JSON with these fields:
+        {{
+          "name": "customer full name or empty string",
+          "phone": "phone number with dashes or empty string",
+          "address": "service address or empty string",
+          "job": "job description or empty string",
+          "date": "YYYY-MM-DD format — interpret relative dates like 'tomorrow', 'Thursday', 'next Monday' based on today being {today_str}",
+          "time": "HH:MM in 24hr format or 09:00 if not mentioned"
+        }}
+
+        Only return the JSON object, nothing else."""
+                    }]
+                )
+
+                import json as json_lib
+                raw = response.content[0].text.strip()
+                parsed = json_lib.loads(raw)
+                print(f"VOICE PARSE | {transcript[:50]} | {parsed}")
+                return jsonify({"ok": True, "fields": parsed})
+
+            except Exception as e:
+                print(f"VOICE PARSE ERROR | {e}")
+                return jsonify({"ok": False, "error": str(e)}), 500
+
         // ── REGULAR CLIENTS ──────────────────────────
         let regularBookData = {};
 
@@ -4639,6 +4692,126 @@ def dashboard():
         }
 
         initSplash();
+
+        // ── VOICE INPUT ──────────────────────────
+        let voiceRecognition = null;
+        let isListening = false;
+
+        function startVoiceInput() {
+            if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+                alert('Voice input is not supported on this browser. Please use Safari on iPhone/iPad or Chrome on desktop.');
+                return;
+            }
+
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            const btn = document.getElementById('voiceBtn');
+
+            if (isListening) {
+                voiceRecognition.stop();
+                return;
+            }
+
+            voiceRecognition = new SpeechRecognition();
+            voiceRecognition.continuous = false;
+            voiceRecognition.interimResults = false;
+            voiceRecognition.lang = 'en-US';
+
+            voiceRecognition.onstart = () => {
+                isListening = true;
+                btn.textContent = '🔴 Listening...';
+                btn.style.background = '#fee2e2';
+                btn.style.borderColor = '#dc2626';
+                btn.style.color = '#dc2626';
+            };
+
+            voiceRecognition.onresult = async (event) => {
+                const transcript = event.results[0][0].transcript;
+                console.log('Voice transcript:', transcript);
+                btn.textContent = '⏳ Processing...';
+                btn.style.background = '#fef9c3';
+                btn.style.borderColor = '#d97706';
+                btn.style.color = '#d97706';
+                await parseVoiceTranscript(transcript);
+            };
+
+            voiceRecognition.onerror = (event) => {
+                console.error('Voice error:', event.error);
+                resetVoiceBtn();
+                if (event.error === 'not-allowed') {
+                    alert('Microphone access denied. Please allow microphone access in your browser settings.');
+                } else {
+                    alert('Voice recognition error: ' + event.error);
+                }
+            };
+
+            voiceRecognition.onend = () => {
+                isListening = false;
+                if (btn.textContent === '🔴 Listening...') {
+                    resetVoiceBtn();
+                }
+            };
+
+            voiceRecognition.start();
+        }
+
+        function resetVoiceBtn() {
+            const btn = document.getElementById('voiceBtn');
+            btn.textContent = '🎤 Voice';
+            btn.style.background = '';
+            btn.style.borderColor = '';
+            btn.style.color = '';
+            isListening = false;
+        }
+
+        async function parseVoiceTranscript(transcript) {
+            try {
+                const res = await fetch('/dashboard/voice-parse', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Dashboard-Token': getCookie('dashboard_token')
+                    },
+                    body: JSON.stringify({ transcript })
+                });
+
+                const data = await res.json();
+
+                if (data.ok && data.fields) {
+                    const f = data.fields;
+
+                    // Open booking modal and fill fields
+                    openBookingModal(f.date || '');
+
+                    // Fill in parsed fields with slight delay for modal to open
+                    setTimeout(() => {
+                        if (f.name) document.getElementById('bookName').value = f.name;
+                        if (f.phone) document.getElementById('bookPhone').value = f.phone;
+                        if (f.address) document.getElementById('bookAddress').value = f.address;
+                        if (f.job) document.getElementById('bookJob').value = f.job;
+                        if (f.date) document.getElementById('bookDate').value = f.date;
+                        if (f.time) document.getElementById('bookTime').value = f.time;
+                    }, 100);
+
+                    resetVoiceBtn();
+
+                    // Show what was parsed
+                    const filled = [];
+                    if (f.name) filled.push(`Name: ${f.name}`);
+                    if (f.date) filled.push(`Date: ${f.date}`);
+                    if (f.time) filled.push(`Time: ${f.time}`);
+                    if (filled.length) {
+                        console.log('Voice parsed:', filled.join(', '));
+                    }
+
+                } else {
+                    resetVoiceBtn();
+                    alert('Could not parse your voice input. Please try again or fill in manually.');
+                }
+            } catch(e) {
+                resetVoiceBtn();
+                alert('Voice processing failed. Please try again.');
+            }
+        }
 
         // Load on startup
         loadDashboard();
