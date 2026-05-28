@@ -4682,13 +4682,19 @@ def dashboard():
             // Animate progress bar
             setTimeout(() => { progress.style.width = '100%'; }, 100);
     
-            // Fade out after 1.5 seconds
+            // Fade out after 2.5 seconds
             setTimeout(() => {
                 splash.style.opacity = '0';
                 setTimeout(() => {
                     splash.style.display = 'none';
                 }, 500);
-            }, 1500);
+            }, 2500);
+
+            // Safety fallback — always hide after 5 seconds no matter what
+            setTimeout(() => {
+                const splash = document.getElementById('splashScreen');
+                if (splash) splash.style.display = 'none';
+            }, 5000);
         }
 
         initSplash();
