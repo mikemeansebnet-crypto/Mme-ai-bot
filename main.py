@@ -3714,19 +3714,18 @@ def dashboard():
         align-items: center;
         justify-content: center;
         z-index: 9999;
-        transition: opacity 0.5s ease;
+        transition: opacity 0.6s ease;
     ">
         <img src="https://res.cloudinary.com/dkfshn604/image/upload/IMG_1664_jukqma.jpg" 
              style="width: 140px; height: 140px; border-radius: 32px; margin-bottom: 24px; box-shadow: 0 8px 32px rgba(0,0,0,0.3);">
-        <div style="color: white; font-family: 'DM Sans', sans-serif; font-size: 28px; font-weight: 700; letter-spacing: -0.5px;">
+        <div style="color: white; font-family: 'DM Sans', sans-serif; font-size: 28px; font-weight: 700;">
             Crew<span style="color: #bbf7d0">Cache</span>Pro
         </div>
-        
-    
         <div style="margin-top: 40px; width: 40px; height: 4px; background: rgba(255,255,255,0.3); border-radius: 2px; overflow: hidden;">
-            <div id="splashProgress" style="height: 100%; width: 0%; background: white; border-radius: 2px; transition: width 1s ease;"></div>
+            <div id="splashProgress" style="height: 100%; width: 0%; background: white; border-radius: 2px; transition: width 2s ease;"></div>
         </div>
     </div>
+    
     <header>
         <div>
             <div style="display:flex; align-items:center; gap:10px;">
@@ -4677,28 +4676,21 @@ def dashboard():
         // ── SPLASH SCREEN ──────────────────────────
         function initSplash() {
             const splash = document.getElementById('splashScreen');
-            const progress = document.getElementById('splashProgress');
-
             if (!splash) return;
 
             // Animate progress bar
-            setTimeout(() => { 
-                if (progress) progress.style.width = '100%'; 
+            setTimeout(() => {
+                const p = document.getElementById('splashProgress');
+                if (p) p.style.width = '100%';
             }, 100);
 
-            // Primary dismiss — fires when page fully loads
-            window.addEventListener('load', () => {
-                setTimeout(() => {
-                    splash.style.opacity = '0';
-                    setTimeout(() => { splash.style.display = 'none'; }, 500);
-                }, 800);
-            });
-
-            // Safety fallback — always hide after 5 seconds no matter what
+            // Always dismiss after 2 seconds — no dependency on anything else
             setTimeout(() => {
                 splash.style.opacity = '0';
-                setTimeout(() => { splash.style.display = 'none'; }, 500);
-            }, 5000);
+                setTimeout(() => {
+                    splash.style.display = 'none';
+                }, 600);
+            }, 2000);
         }
 
         initSplash();
