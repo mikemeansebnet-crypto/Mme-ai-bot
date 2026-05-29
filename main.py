@@ -2838,7 +2838,7 @@ def create_dashboard_token(contractor_id: str, twilio_number: str) -> str:
     payload = {
         "contractor_id": contractor_id,
         "twilio_number": twilio_number,
-        "exp": datetime.utcnow() + timedelta(days=7)
+        "exp": datetime.utcnow() + timedelta(days=30)
     }
     return pyjwt.encode(payload, DASHBOARD_SECRET, algorithm="HS256")
 
