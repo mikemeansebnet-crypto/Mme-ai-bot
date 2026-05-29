@@ -3103,10 +3103,11 @@ def dashboard_login():
         contractor_record_id = records[0]["id"]
 
         print(f"DASHBOARD LOGIN | contractor_id: {contractor_record_id} | twilio: {twilio_number}")
-
+        
         token = create_dashboard_token(contractor_record_id, twilio_number)
-        resp = make_response(redirect("/dashboard"))
-        resp.set_cookie("dashboard_token", token, max_age=7*24*3600, httponly=True, samesite="Lax")
+        resp = make_response(redirect(f"/dashboard?token={token}"))
+        resp.set_cookie("dashboard_token", token, max_age=30*24*3600, httponly=False, samesite="Lax")
+        
         return resp
 
     except Exception as e:
