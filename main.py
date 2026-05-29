@@ -4105,10 +4105,17 @@ def dashboard():
 
         async function loadDashboard() {
             try {
+                const token = getCookie('dashboard_token');
+                if (!token) {
+                    window.location.href = '/dashboard/login';
+                    return;
+                }
+
                 const res = await fetch('/dashboard/data', {
-                    headers: { 'X-Dashboard-Token': getCookie('dashboard_token') }
+                    headers: { 'X-Dashboard-Token': token }
                 });
                 if (res.status === 401) {
+                    localStorage.removeItem('dashboard_token');
                     window.location.href = '/dashboard/login';
                     return;
                 }
@@ -4121,6 +4128,7 @@ def dashboard():
                 console.error('Dashboard load error:', e);
             }
         }
+            
 
         function getCookie(name) {
             // Check URL param first (PWA login redirect)
