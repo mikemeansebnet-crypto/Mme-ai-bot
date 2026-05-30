@@ -4868,6 +4868,70 @@ def dashboard():
     </div>
 </div>
 
+    <!-- Walkthrough Recording Modal -->
+    <div class="modal-overlay" id="walkthroughModal">
+        <div class="booking-modal">
+            <div class="modal-title">🎙️ Property Walkthrough</div>
+            <div class="modal-date">Walk the property and describe everything you see</div>
+
+            <div class="form-group">
+                <label class="form-label">Customer Name</label>
+                <input type="text" class="form-input" id="wtCustomer" placeholder="John Smith">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Property Address</label>
+                <input type="text" class="form-input" id="wtAddress" placeholder="123 Main St, Bowie MD">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Project Type</label>
+                <select class="form-input" id="wtProjectType">
+                    <option>Lawn & Landscaping</option>
+                    <option>Home Remodel</option>
+                    <option>Exterior Project</option>
+                    <option>HVAC</option>
+                    <option>Electrical</option>
+                    <option>Carpentry</option>
+                    <option>Pressure Washing</option>
+                    <option>Snow & Ice</option>
+                    <option>General Contracting</option>
+                    <option>Other</option>
+                </select>
+            </div>
+
+            <!-- Recording area -->
+            <div style="background:var(--bg);border:1px solid var(--card-border);border-radius:12px;padding:16px;margin-bottom:16px;text-align:center">
+                <button id="wtRecordBtn" onclick="toggleWalkthroughRecording()" style="
+                    background:var(--gradient);color:white;border:none;
+                    border-radius:50%;width:72px;height:72px;font-size:28px;
+                    cursor:pointer;box-shadow:0 4px 16px rgba(37,99,235,0.3);
+                    margin-bottom:12px;display:block;margin:0 auto 12px;">
+                    🎙️
+                </button>
+                <div id="wtStatus" style="font-size:13px;color:var(--text-muted);font-family:'DM Mono',monospace;">
+                    Tap to start recording
+                </div>
+                <div id="wtTimer" style="font-size:24px;font-weight:700;color:var(--blue);margin-top:8px;display:none">
+                    0:00
+                </div>
+            </div>
+
+            <!-- Transcript preview -->
+            <div class="form-group">
+                <label class="form-label">Transcript (auto-filled from recording)</label>
+                <textarea class="form-input" id="wtTranscript" rows="4"
+                    placeholder="Your walkthrough notes will appear here as you speak. You can also type notes directly."
+                    style="resize:none;font-size:13px"></textarea>
+            </div>
+
+            <div class="modal-actions">
+                <button class="btn-cancel-modal" onclick="closeWalkthroughModal()">Cancel</button>
+                <button class="btn-book" id="wtSubmitBtn" onclick="submitWalkthrough()">
+                    Generate Estimate →
+                </button>
+            </div>
+        </div>
+    </div>
+
 </body>
 </html>
     '''
