@@ -4489,58 +4489,7 @@ def dashboard():
             }
         }
 
-        @app.route("/dashboard/voice-parse", methods=["POST"])
-        @dashboard_auth_required
-        def dashboard_voice_parse():
-            """Parses voice transcript into job fields using Claude."""
-            try:
-                data = request.get_json(silent=True) or {}
-                transcript = data.get("transcript", "").strip()
-
-                if not transcript:
-                    return jsonify({"ok": False, "error": "No transcript"}), 400
-
-                from zoneinfo import ZoneInfo
-                from datetime import datetime
-                eastern = ZoneInfo("America/New_York")
-                now = datetime.now(eastern)
-                today_str = now.strftime("%Y-%m-%d")
-                today_day = now.strftime("%A")
-
-                client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
-                response = client.messages.create(
-                    model="claude-haiku-4-5-20251001",
-                    max_tokens=500,
-                    messages=[{
-                        "role": "user",
-                        "content": f"""Extract job booking details from this voice transcript.
-        Today is {today_day}, {today_str}.
-
-        Transcript: "{transcript}"
-
-        Return ONLY valid JSON with these fields:
-        {{
-          "name": "customer full name or empty string",
-          "phone": "phone number with dashes or empty string",
-          "address": "service address or empty string",
-          "job": "job description or empty string",
-          "date": "YYYY-MM-DD format — interpret relative dates like 'tomorrow', 'Thursday', 'next Monday' based on today being {today_str}",
-          "time": "HH:MM in 24hr format or 09:00 if not mentioned"
-        }}
-
-        Only return the JSON object, nothing else."""
-                    }]
-                )
-
-                import json as json_lib
-                raw = response.content[0].text.strip()
-                parsed = json_lib.loads(raw)
-                print(f"VOICE PARSE | {transcript[:50]} | {parsed}")
-                return jsonify({"ok": True, "fields": parsed})
-
-            except Exception as e:
-                print(f"VOICE PARSE ERROR | {e}")
-                return jsonify({"ok": False, "error": str(e)}), 500
+        
 
         // ── REGULAR CLIENTS ──────────────────────────
         let regularBookData = {};
