@@ -5316,6 +5316,261 @@ Only return the JSON object, nothing else."""
         print(f"VOICE PARSE ERROR | {e}")
         return jsonify({"ok": False, "error": str(e)}), 500
 
+@app.route("/dashboard/walkthrough", methods=["POST"])
+@dashboard_auth_required
+def dashboard_walkthrough():
+    """
+    Processes a property walkthrough voice recording.
+    Transcript → Claude AI → structured estimate → PDF → email to contractor.
+    """
+    try:
+        data = request.get_json(silent=True) or {}
+        transcript = data.get("transcript", "").strip()
+        customer_name = data.get("customer_name", "").strip()
+        property_address = data.get("property_address", "").strip()
+        project_type = data.get("project_type", "General Contracting").strip()
+        twilio_number = request.twilio_number
+        contractor_record_id = request.contractor_id
+
+        if not transcript:
+            return jsonify({"ok": False, "error": "No transcript provided"}), 400
+
+        contractor = get_contractor_by_twilio_number(twilio_number) or {}
+        business_name = contractor.get("Business Name", "Your Business")
+        notify_email = contractor.get("Notify Email", "").strip()
+
+        print(f"WALKTHROUGH | {customer_name} | {project_type} | {len(transcript)} chars")
+
+        # Step 1 — Claude analyzes transcript and generates estimate
+        client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
+        response = client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=2000,
+            messages=[{
+                "role": "user",
+                "content": f"""You are an expert contractor estimator for {business_name}.
+
+A contractor just walked a property and recorded their observations. 
+Analyze this walkthrough transcript and generate a detailed professional estimate.
+
+Customer: {customer_name}
+Property: {property_address}
+Project Type: {project_type}
+
+WALKTHROUGH TRANSCRIPT:
+{transcript}
+
+Generate a detailed contractor estimate with:
+1. PROJECT SUMMARY — What you observed and what needs to be done
+2. SCOPE OF WORK — Detailed breakdown of all work items
+3. LINE ITEMS — Each task with labor and material costs
+4. TIMELINE — Estimated completion time
+5. IMPORTANT NOTES — Any concerns, conditions, or recommendations
+
+Format as JSON only:
+{{
+  "project_summary": "2-3 sentence overview",
+  "scope_of_work": "detailed paragraph",
+  "line_items": [
+    {{"description": "Item name", "detail": "specifics", "labor": 0.00, "materials": 0.00, "total": 0.00}},
+  ],
+  "timeline": "estimated timeline",
+  "notes": "important observations and recommendations",
+  "estimate_total": 0.00,
+  "estimate_range": "$X,XXX - $X,XXX"
+}}
+
+Base all pricing on current US contractor rates for the {property_address} area.
+Be thorough and realistic — this is what the contractor will send to the customer."""
+            }]
+        )
+
+        import json as json_lib
+        raw = response.content[0].text.strip()
+        json_match = __import__('re').search(r'\{.*\}', raw, __import__('re').DOTALL)
+        if not json_match:
+            raise ValueError("No JSON in Claude response")
+        estimate_data = json_lib.loads(json_match.group(0))
+
+        print(f"WALKTHROUGH | Claude estimate generated | ${estimate_data.get('estimate_total', 0)}")
+
+        # Step 2 — Generate PDF
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib.pagesizes import letter
+        from reportlab.lib import colors
+        from reportlab.lib.units import inch
+        from datetime import datetime
+
+        os.makedirs("/tmp/walkthroughs", exist_ok=True)
+        safe_name = (customer_name or "estimate").replace(" ", "_")[:20]
+        pdf_path = f"/tmp/walkthroughs/{safe_name}_walkthrough.pdf"
+
+        doc = SimpleDocTemplate(
+            pdf_path,
+            pagesize=letter,
+            rightMargin=0.6*inch,
+            leftMargin=0.6*inch,
+            topMargin=0.6*inch,
+            bottomMargin=0.6*inch
+        )
+
+        styles = getSampleStyleSheet()
+        title_style = ParagraphStyle("T", parent=styles["Title"], fontSize=22,
+            textColor=colors.HexColor("#111111"), spaceAfter=4)
+        brand_style = ParagraphStyle("B", parent=styles["Normal"], fontSize=10,
+            textColor=colors.HexColor("#22c55e"), spaceAfter=16)
+        heading_style = ParagraphStyle("H", parent=styles["Heading2"], fontSize=13,
+            textColor=colors.HexColor("#111111"), spaceBefore=14, spaceAfter=6)
+        normal_style = ParagraphStyle("N", parent=styles["Normal"], fontSize=10, leading=15)
+        small_style = ParagraphStyle("S", parent=styles["Normal"], fontSize=8.5,
+            textColor=colors.gray, leading=12)
+
+        story = []
+
+        # Header
+        story.append(Paragraph(business_name, title_style))
+        story.append(Paragraph("Powered by CrewCachePro", brand_style))
+        story.append(Paragraph("Property Walkthrough Estimate", heading_style))
+
+        # Info table
+        info_data = [
+            ["Customer", customer_name or "—"],
+            ["Property", property_address or "—"],
+            ["Project Type", project_type],
+            ["Date Prepared", datetime.now().strftime("%B %d, %Y")],
+            ["Estimate Range", estimate_data.get("estimate_range", "TBD")],
+        ]
+        info_table = Table(info_data, colWidths=[1.8*inch, 4.7*inch])
+        info_table.setStyle(TableStyle([
+            ("BACKGROUND", (0,0), (0,-1), colors.HexColor("#f3f4f6")),
+            ("FONTNAME", (0,0), (0,-1), "Helvetica-Bold"),
+            ("FONTSIZE", (0,0), (-1,-1), 9.5),
+            ("GRID", (0,0), (-1,-1), 0.5, colors.HexColor("#dddddd")),
+            ("PADDING", (0,0), (-1,-1), 8),
+        ]))
+        story.append(info_table)
+        story.append(Spacer(1, 12))
+
+        # Project Summary
+        story.append(Paragraph("Project Summary", heading_style))
+        story.append(Paragraph(estimate_data.get("project_summary", ""), normal_style))
+
+        # Scope of Work
+        story.append(Paragraph("Scope of Work", heading_style))
+        story.append(Paragraph(estimate_data.get("scope_of_work", ""), normal_style))
+
+        # Line Items
+        story.append(Paragraph("Estimate Breakdown", heading_style))
+        line_items = estimate_data.get("line_items", [])
+        if line_items:
+            li_data = [["Description", "Labor", "Materials", "Total"]]
+            for item in line_items:
+                li_data.append([
+                    item.get("description", "")[:45],
+                    f"${float(item.get('labor', 0)):,.2f}",
+                    f"${float(item.get('materials', 0)):,.2f}",
+                    f"${float(item.get('total', 0)):,.2f}",
+                ])
+            # Total row
+            total = float(estimate_data.get("estimate_total", 0))
+            li_data.append(["TOTAL ESTIMATE", "", "", f"${total:,.2f}"])
+
+            li_table = Table(li_data, colWidths=[3.2*inch, 1.0*inch, 1.1*inch, 1.0*inch])
+            li_table.setStyle(TableStyle([
+                ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#1A4D2E")),
+                ("TEXTCOLOR", (0,0), (-1,0), colors.white),
+                ("FONTNAME", (0,0), (-1,0), "Helvetica-Bold"),
+                ("FONTSIZE", (0,0), (-1,-1), 9),
+                ("GRID", (0,0), (-1,-2), 0.5, colors.HexColor("#dddddd")),
+                ("BACKGROUND", (0,-1), (-1,-1), colors.HexColor("#0f2a1a")),
+                ("TEXTCOLOR", (0,-1), (-1,-1), colors.HexColor("#22c55e")),
+                ("FONTNAME", (0,-1), (-1,-1), "Helvetica-Bold"),
+                ("FONTSIZE", (0,-1), (-1,-1), 11),
+                ("PADDING", (0,0), (-1,-1), 8),
+                ("ROWBACKGROUNDS", (0,1), (-1,-2), [colors.white, colors.HexColor("#f9fafb")]),
+            ]))
+            story.append(li_table)
+
+        story.append(Spacer(1, 12))
+
+        # Timeline
+        story.append(Paragraph("Timeline", heading_style))
+        story.append(Paragraph(estimate_data.get("timeline", ""), normal_style))
+
+        # Notes
+        if estimate_data.get("notes"):
+            story.append(Paragraph("Important Notes", heading_style))
+            story.append(Paragraph(estimate_data.get("notes", ""), normal_style))
+
+        story.append(Spacer(1, 16))
+        story.append(Paragraph(
+            f"{business_name} · {contractor.get('Notify SMS', '')} · {notify_email}",
+            small_style
+        ))
+
+        doc.build(story)
+        print(f"WALKTHROUGH | PDF generated | {pdf_path}")
+
+        # Step 3 — Save to Airtable
+        import requests as req
+        AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
+        AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
+        at_headers = {
+            "Authorization": f"Bearer {AIRTABLE_TOKEN}",
+            "Content-Type": "application/json"
+        }
+        airtable_resp = req.post(
+            f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tblAlqryj3Vhw5JaK",
+            headers=at_headers,
+            json={"fields": {
+                "fldSvpPnDN4Ge4fTl": f"{customer_name} — {project_type}",
+                "fldB2KMaHLg60sfAP": customer_name,
+                "fldcCpcv3WRaSqBzT": property_address,
+                "flddiv0HZH3kxaJWP": project_type,
+                "fldLtbD7qbheLVbnG": transcript,
+                "fldErOKh8ZVxDAnbn": estimate_data.get("project_summary", "") + "\n\n" + estimate_data.get("scope_of_work", ""),
+                "fldo5WzLTsgo2QTTD": float(estimate_data.get("estimate_total", 0)),
+                "fldyLFd8XVT6iAcgh": "Draft",
+                "fldknADF18Bq2mQdH": twilio_number,
+            }}
+        )
+        record_id = airtable_resp.json().get("id", "")
+        print(f"WALKTHROUGH | Airtable saved | {record_id}")
+
+        # Step 4 — Email PDF to contractor
+        if notify_email:
+            email_body = (
+                f"🎙️ Property Walkthrough Estimate — {customer_name}\n\n"
+                f"Property: {property_address}\n"
+                f"Project Type: {project_type}\n"
+                f"Estimate Range: {estimate_data.get('estimate_range', 'TBD')}\n"
+                f"Total: ${float(estimate_data.get('estimate_total', 0)):,.2f}\n\n"
+                f"Full estimate PDF attached. Review, adjust if needed, and send to customer.\n\n"
+                f"Timeline: {estimate_data.get('timeline', '')}\n\n"
+                f"Notes: {estimate_data.get('notes', '')}"
+            )
+            send_email(
+                subject=f"🎙️ Walkthrough Estimate — {customer_name} | {estimate_data.get('estimate_range', '')}",
+                body=email_body,
+                to_email=notify_email,
+                attachment_path=pdf_path,
+            )
+            print(f"WALKTHROUGH | Email sent | {notify_email}")
+
+        return jsonify({
+            "ok": True,
+            "estimate_range": estimate_data.get("estimate_range", ""),
+            "estimate_total": estimate_data.get("estimate_total", 0),
+            "project_summary": estimate_data.get("project_summary", ""),
+            "timeline": estimate_data.get("timeline", ""),
+            "record_id": record_id,
+        })
+
+    except Exception as e:
+        print(f"WALKTHROUGH ERROR | {type(e).__name__} | {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
 @app.route("/dashboard/recurring")
 @dashboard_auth_required
 def dashboard_recurring():
