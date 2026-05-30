@@ -3778,6 +3778,9 @@ def dashboard():
         <div style="display:flex;gap:8px;align-items:center">
             <button onclick="startVoiceInput()" id="voiceBtn" style="background:var(--bg);border:1px solid var(--card-border);color:var(--text);border-radius:10px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif">
                 🎤 Voice
+            <button onclick="openWalkthroughModal()" style="background:var(--bg);border:1px solid var(--card-border);color:var(--text);border-radius:10px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif">
+                🎙️ Walkthrough
+            </button>
             </button>
             <button onclick="openBookingModal('')" style="background:var(--gradient);color:white;border:none;border-radius:10px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif">+ Add Job</button>
             <a href="/dashboard/logout" class="logout-btn">Sign out</a>
@@ -4766,6 +4769,166 @@ def dashboard():
             } catch(e) {
                 resetVoiceBtn();
                 alert('Voice processing failed. Please try again.');
+            }
+        }
+
+        // ── WALKTHROUGH RECORDING ──────────────────────────
+        let wtRecognition = null;
+        let wtIsRecording = false;
+        let wtTranscriptFull = '';
+        let wtTimerInterval = null;
+        let wtSeconds = 0;
+
+        function openWalkthroughModal() {
+            wtTranscriptFull = '';
+            wtSeconds = 0;
+            document.getElementById('wtCustomer').value = '';
+            document.getElementById('wtAddress').value = '';
+            document.getElementById('wtTranscript').value = '';
+            document.getElementById('wtStatus').textContent = 'Tap to start recording';
+            document.getElementById('wtTimer').style.display = 'none';
+            document.getElementById('wtRecordBtn').textContent = '🎙️';
+            document.getElementById('wtRecordBtn').style.background = 'var(--gradient)';
+            document.getElementById('wtSubmitBtn').disabled = false;
+            document.getElementById('wtSubmitBtn').textContent = 'Generate Estimate →';
+            document.getElementById('walkthroughModal').classList.add('active');
+        }    
+
+        function closeWalkthroughModal() {
+            stopWalkthroughRecording();
+            document.getElementById('walkthroughModal').classList.remove('active');
+        }
+
+        function toggleWalkthroughRecording() {
+            if (wtIsRecording) {
+                stopWalkthroughRecording();
+            } else {
+                startWalkthroughRecording();
+            }
+        }  
+
+        function startWalkthroughRecording() {
+            if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+                alert('Voice recording not supported. Please use Safari on iPhone/iPad or Chrome on desktop.');
+                return;
+            }
+
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            wtRecognition = new SpeechRecognition();
+            wtRecognition.continuous = true;
+            wtRecognition.interimResults = true;
+            wtRecognition.lang = 'en-US';
+
+            let interimTranscript = '';
+
+            wtRecognition.onresult = (event) => {
+                interimTranscript = '';
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    if (event.results[i].isFinal) {
+                        wtTranscriptFull += event.results[i][0].transcript + ' ';
+                    } else {
+                        interimTranscript += event.results[i][0].transcript;
+                    }
+                }
+                document.getElementById('wtTranscript').value = wtTranscriptFull + interimTranscript;
+            };
+
+            wtRecognition.onerror = (e) => {
+                if (e.error !== 'no-speech') {
+                    console.error('Walkthrough recording error:', e.error);
+                }
+            };
+
+            // Restart when it stops (iOS Safari stops after ~60 seconds)
+            wtRecognition.onend = () => {
+                if (wtIsRecording) {
+                    wtRecognition.start();
+                }
+            };
+
+            wtRecognition.start();
+            wtIsRecording = true;
+
+            // Update UI
+            document.getElementById('wtRecordBtn').textContent = '⏹️';
+            document.getElementById('wtRecordBtn').style.background = '#dc2626';
+            document.getElementById('wtStatus').textContent = '🔴 Recording — speak naturally as you walk';
+            document.getElementById('wtTimer').style.display = 'block';
+
+            // Start timer
+            wtSeconds = 0;
+            wtTimerInterval = setInterval(() => {
+                wtSeconds++;
+                const m = Math.floor(wtSeconds / 60);
+                const s = wtSeconds % 60;
+                document.getElementById('wtTimer').textContent = `${m}:${s.toString().padStart(2, '0')}`;
+            }, 1000);
+        }
+
+        function stopWalkthroughRecording() {
+            if (wtRecognition) {
+                wtIsRecording = false;
+                wtRecognition.stop();
+                wtRecognition = null;
+            }
+            if (wtTimerInterval) {
+                clearInterval(wtTimerInterval);
+                wtTimerInterval = null;
+            }
+            document.getElementById('wtRecordBtn').textContent = '🎙️';
+            document.getElementById('wtRecordBtn').style.background = 'var(--gradient)';
+            document.getElementById('wtStatus').textContent = '✅ Recording stopped — review transcript below';
+        }
+
+        async function submitWalkthrough() {
+            const customer = document.getElementById('wtCustomer').value.trim();
+            const address = document.getElementById('wtAddress').value.trim();
+            const projectType = document.getElementById('wtProjectType').value;
+            const transcript = document.getElementById('wtTranscript').value.trim();
+
+            if (!transcript) {
+                alert('Please record a walkthrough or type your notes first.');
+                return;
+            }
+
+            const btn = document.getElementById('wtSubmitBtn');
+            btn.textContent = '⏳ Generating estimate...';
+            btn.disabled = true;
+
+            try {
+                const res = await fetch('/dashboard/walkthrough', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Dashboard-Token': getCookie('dashboard_token')
+                    },
+                    body: JSON.stringify({
+                        transcript,
+                        customer_name: customer,
+                        property_address: address,
+                        project_type: projectType
+                    })
+                });
+
+                const data = await res.json();
+
+                if (data.ok) {
+                    closeWalkthroughModal();
+                    alert(
+                        `✅ Walkthrough estimate generated!\n\n` +
+                        `📋 ${data.project_summary?.substring(0, 100)}...\n\n` +
+                        `💰 Estimate: ${data.estimate_range}\n` +
+                        `⏱️ Timeline: ${data.timeline}\n\n` +
+                        `PDF emailed to you — review and send to customer!`
+                    );
+                } else {
+                    alert('Error: ' + (data.error || 'Something went wrong'));
+                }
+            } catch(e) {
+                alert('Request failed. Please try again.');
+            } finally {
+                btn.textContent = 'Generate Estimate →';
+                btn.disabled = false;
             }
         }
 
