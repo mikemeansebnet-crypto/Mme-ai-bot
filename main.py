@@ -1007,6 +1007,42 @@ def manifest():
         ]
     })
 
+@app.route("/onesignal/register", methods=["POST"])
+@dashboard_auth_required
+def onesignal_register():
+    """Saves OneSignal player ID with contractor's twilio number as a tag."""
+    try:
+        data = request.get_json(silent=True) or {}
+        player_id = data.get("player_id", "")
+        twilio_number = request.twilio_number
+
+        if not player_id:
+            return jsonify({"ok": False}), 400
+
+        import requests as req
+        ONESIGNAL_APP_ID = os.environ.get("ONESIGNAL_APP_ID")
+        ONESIGNAL_API_KEY = os.environ.get("ONESIGNAL_API_KEY")
+
+        # Tag the device with the contractor's twilio number
+        resp = req.put(
+            f"https://onesignal.com/api/v1/players/{player_id}",
+            headers={
+                "Authorization": f"Basic {ONESIGNAL_API_KEY}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "app_id": ONESIGNAL_APP_ID,
+                "tags": {"twilio_number": twilio_number}
+            },
+            timeout=10
+        )
+        print(f"ONESIGNAL | Registered | {twilio_number} | {player_id}")
+        return jsonify({"ok": True})
+
+    except Exception as e:
+        print(f"ONESIGNAL REGISTER ERROR | {e}")
+        return jsonify({"ok": False}), 500
+
 @app.route("/clear-cache")
 def clear_cache():
     if redis_client:
