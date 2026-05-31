@@ -98,6 +98,44 @@ from app.app.conversation import conversation_bp, init_sock, get_claude_client
 app.register_blueprint(conversation_bp)
 init_sock(app)
 
+def send_push_notification(twilio_number, title, message, url="/dashboard"):
+    """Send OneSignal push notification to contractor."""
+    try:
+        import requests as req
+        ONESIGNAL_APP_ID = os.environ.get("ONESIGNAL_APP_ID")
+        ONESIGNAL_API_KEY = os.environ.get("ONESIGNAL_API_KEY")
+
+        if not ONESIGNAL_APP_ID or not ONESIGNAL_API_KEY:
+            print("ONESIGNAL | Missing credentials")
+            return False
+
+        payload = {
+            "app_id": ONESIGNAL_APP_ID,
+            "filters": [
+                {"field": "tag", "key": "twilio_number", "relation": "=", "value": twilio_number}
+            ],
+            "headings": {"en": title},
+            "contents": {"en": message},
+            "url": f"https://mme-ai-bot.onrender.com{url}",
+            "chrome_web_icon": "https://res.cloudinary.com/dkfshn604/image/upload/IMG_1664_jukqma.jpg",
+        }
+
+        resp = req.post(
+            "https://onesignal.com/api/v1/notifications",
+            headers={
+                "Authorization": f"Basic {ONESIGNAL_API_KEY}",
+                "Content-Type": "application/json"
+            },
+            json=payload,
+            timeout=10
+        )
+        print(f"ONESIGNAL | Sent | {resp.status_code} | {title}")
+        return resp.status_code in [200, 201]
+
+    except Exception as e:
+        print(f"ONESIGNAL ERROR | {e}")
+        return False
+
 
 
 # ─────────────────────────────────────────────
