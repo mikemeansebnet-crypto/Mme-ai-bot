@@ -6563,6 +6563,17 @@ def dashboard_add_job():
         lead_record_id = airtable_resp.json().get("id", "")
         print(f"DASHBOARD ADD JOB | Lead created | {lead_record_id} | {customer_name}")
 
+        # After lead is created in Airtable
+        try:  
+            send_push_notification(
+                twilio_number=to_number,
+                title="🔔 New Lead!",
+                message=f"{caller_name} — {job_description[:60]}",
+                url="/dashboard"
+            )
+        except Exception as e:
+            print(f"PUSH NOTIFICATION ERROR | {e}")
+
         # 2 — Add to Google Calendar
         from app.app.cal_service import create_google_calendar_event
 
