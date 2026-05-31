@@ -4999,6 +4999,35 @@ def dashboard():
             }
         }
 
+        // ── ONESIGNAL PUSH NOTIFICATIONS ──────────────────────────
+        async function registerOneSignal() {
+            try {
+                if (typeof OneSignalDeferred === 'undefined') return;
+
+                OneSignalDeferred.push(async function(OneSignal) {
+                    try:
+                        await OneSignal.Notifications.requestPermission();
+                        const playerId = OneSignal.User.PushSubscription.id;
+                        if (!playerId) return;
+
+                        await fetch('/onesignal/register', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-Dashboard-Token': getCookie('dashboard_token')
+                            },
+                            body: JSON.stringify({ player_id: playerId })
+                        });
+                        console.log('OneSignal registered:', playerId);
+                    } catch(e) {
+                        console.log('OneSignal inner error:', e);
+                    }
+                });
+            } catch(e) {
+                console.log('OneSignal registration error:', e);
+            }
+        }
+
         // Load on startup
         loadDashboard();
         // Auto-refresh every 5 minutes
