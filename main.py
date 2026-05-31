@@ -1088,7 +1088,7 @@ def handle_contractor_photo_estimate(request, contractor, from_number, to_number
                 claude_client = get_claude_client()
 
                 image_blocks = []
-                for photo_data in photo_urls[:5]:
+                for photo_data in photo_urls[:25]:
                     b64 = base64.standard_b64encode(photo_data).decode("utf-8")
                     image_blocks.append({
                         "type": "image",
@@ -1667,6 +1667,7 @@ def sms():
     # ── Contractor photo estimate flow ─────────────────────────────
     notify_sms = (contractor.get("Notify SMS") or "").strip()
     num_media = int(request.form.get("NumMedia", 0))
+    num_media = min(num_media, 25)  # cap at 25
     if from_number == notify_sms and num_media > 0:
         if not has_feature(contractor, "photo_estimates"):
             return Response(
