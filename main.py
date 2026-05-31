@@ -3197,6 +3197,17 @@ def dashboard():
     <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#2563EB">
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+    <script>
+        window.OneSignalDeferred = window.OneSignalDeferred || [];
+        OneSignalDeferred.push(async function(OneSignal) {
+            await OneSignal.init({
+                appId: "8c26bbef-107f-430b-9aef-f3b5137467fa",
+                notifyButton: { enable: false },
+                allowLocalhostAsSecureOrigin: true,
+            });
+        });
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
     <title>CrewCachePro Dashboard</title>
     <style>
