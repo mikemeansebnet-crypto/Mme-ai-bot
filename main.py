@@ -1007,6 +1007,20 @@ def manifest():
         ]
     })
 
+@app.route('/OneSignalSDKWorker.js')
+def onesignal_worker():
+    """Serves OneSignal service worker required for push notifications."""
+    worker_content = """importScripts('https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.sw.js');"""
+    from flask import Response
+    return Response(
+        worker_content,
+        mimetype='application/javascript',
+        headers={
+            'Service-Worker-Allowed': '/',
+            'Cache-Control': 'no-cache'
+        }
+    )
+
 
 
 @app.route("/clear-cache")
