@@ -3778,10 +3778,7 @@ def dashboard():
         <div style="display:flex;gap:8px;align-items:center">
             <button onclick="startVoiceInput()" id="voiceBtn" style="background:var(--bg);border:1px solid var(--card-border);color:var(--text);border-radius:10px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif">
                 🎤 Voice
-            <button onclick="openWalkthroughModal()" style="background:var(--bg);border:1px solid var(--card-border);color:var(--text);border-radius:10px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif">
-                🎙️ Walkthrough
-            </button>
-            </button>
+            
             <button onclick="openBookingModal('')" style="background:var(--gradient);color:white;border:none;border-radius:10px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif">+ Add Job</button>
             <a href="/dashboard/logout" class="logout-btn">Sign out</a>
         </div>
