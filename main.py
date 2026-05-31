@@ -5028,6 +5028,32 @@ def dashboard():
             }
         }
 
+        async function loadDashboard() {
+            try {
+                const token = getCookie('dashboard_token');
+                if (!token) {
+                    window.location.href = '/dashboard/login';
+                    return;
+                }
+                const res = await fetch('/dashboard/data', {
+                    headers: { 'X-Dashboard-Token': token }
+                });
+                if (res.status === 401) {
+                    localStorage.removeItem('dashboard_token');
+                    window.location.href = '/dashboard/login';
+                    return;
+                }
+                dashboardData = await res.json();
+                renderAll();
+                loadRecurringCustomers();
+                loadRevenue();
+                loadRegularClients();
+                registerOneSignal();  // ← ADD THIS LINE
+            } catch(e) {
+                console.error('Dashboard load error:', e);
+            }
+        }
+
         // Load on startup
         loadDashboard();
         // Auto-refresh every 5 minutes
