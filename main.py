@@ -5002,14 +5002,18 @@ def dashboard():
         // ── ONESIGNAL PUSH NOTIFICATIONS ──────────────────────────
         async function registerOneSignal() {
             try {
-                if (typeof OneSignalDeferred === 'undefined') return;
-
+                if (typeof OneSignalDeferred === 'undefined') {
+                    console.log('OneSignal not loaded');
+                    return;
+                }
                 OneSignalDeferred.push(async function(OneSignal) {
-                    try:
-                        await OneSignal.Notifications.requestPermission();
+                    try {
+                        const permission = await OneSignal.Notifications.permission;
+                        if (!permission) {
+                            await OneSignal.Notifications.requestPermission();
+                        }
                         const playerId = OneSignal.User.PushSubscription.id;
                         if (!playerId) return;
-
                         await fetch('/onesignal/register', {
                             method: 'POST',
                             headers: {
@@ -5018,13 +5022,12 @@ def dashboard():
                             },
                             body: JSON.stringify({ player_id: playerId })
                         });
-                        console.log('OneSignal registered:', playerId);
                     } catch(e) {
                         console.log('OneSignal inner error:', e);
                     }
                 });
             } catch(e) {
-                console.log('OneSignal registration error:', e);
+                console.log('OneSignal error:', e);
             }
         }
 
