@@ -1843,6 +1843,17 @@ def sms():
         except Exception as e:
             print("SMS INTAKE SUMMARY ERROR |", e)
 
+        # After lead created in SMS route
+        try:
+            send_push_notification(
+                twilio_number=to_number,
+                title="🔔 New Lead!",
+                message=f"{caller_name} — {job_description[:60]}",
+                url="/dashboard"
+            )
+        except Exception as e:
+            print(f"PUSH NOTIFICATION ERROR | {e}")
+
         booking_link = build_cal_booking_link(contractor, sms_state)
         first_name = sms_state.get('name', '').split()[0] if sms_state.get('name') else ''
 
