@@ -4926,7 +4926,7 @@ def dashboard():
                 document.getElementById("wtRecordBtn").textContent = "STOP";
                 document.getElementById("wtRecordBtn").style.background = "#dc2626";
                 document.getElementById("wtRecordBtn").onclick = stopWalkthroughRecording;
-                document.getElementById("wtStatus").textContent = "Recording — walk and describe everything";
+                document.getElementById("wtStatus").textContent = "Recording - walk and describe everything";
                 document.getElementById("wtTimer").style.display = "block";
 
                 wtSeconds = 0;
