@@ -1862,7 +1862,8 @@ def sms():
             send_push_notification(
                 twilio_number=to_number,
                 title="🔔 New Lead!",
-                message=f"{caller_name} — {job_description[:60]}",
+                
+                message=f"{sms_state.get('name', 'New Customer')} — {sms_state.get('job_description', '')[:60]}",
                 url="/dashboard"
             )
         except Exception as e:
