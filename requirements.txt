@@ -40,3 +40,4 @@ Pillow
 reportlab
 apscheduler
 stripe
+google-generativeai
