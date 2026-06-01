@@ -5175,7 +5175,7 @@ def dashboard():
     <div class="modal-overlay" id="walkthroughModal">
         <div class="booking-modal">
             <div class="modal-title">🎥 Video Walkthrough</div>
-            <div class="modal-date">Record a video walking the property — AI generates the estimate</div>
+            <div class="modal-date">Record a video walking the property. AI generates the estimate.</div>
 
             <div class="form-group">
                 <label class="form-label">Customer Name</label>
