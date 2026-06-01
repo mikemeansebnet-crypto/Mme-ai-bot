@@ -5238,7 +5238,7 @@ def dashboard():
     </div>
 </body>
 </html>
-    """
+    '''
 
 
 @app.route("/dashboard/data")
