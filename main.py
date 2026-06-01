@@ -5723,81 +5723,125 @@ Only return the JSON object, nothing else."""
 @dashboard_auth_required
 def dashboard_walkthrough():
     """
-    Processes a property walkthrough voice recording.
-    Transcript → Claude AI → structured estimate → PDF → email to contractor.
+    Processes a property walkthrough VIDEO recording.
+    Video → Gemini Vision → structured estimate → PDF → email to contractor.
     """
     try:
-        data = request.get_json(silent=True) or {}
-        transcript = data.get("transcript", "").strip()
-        customer_name = data.get("customer_name", "").strip()
-        property_address = data.get("property_address", "").strip()
-        project_type = data.get("project_type", "General Contracting").strip()
+        import google.generativeai as genai
+        import tempfile
+        import mimetypes
+
         twilio_number = request.twilio_number
         contractor_record_id = request.contractor_id
-
-        if not transcript:
-            return jsonify({"ok": False, "error": "No transcript provided"}), 400
-
         contractor = get_contractor_by_twilio_number(twilio_number) or {}
         business_name = contractor.get("Business Name", "Your Business")
         notify_email = contractor.get("Notify Email", "").strip()
 
-        print(f"WALKTHROUGH | {customer_name} | {project_type} | {len(transcript)} chars")
+        # Get form data
+        customer_name = request.form.get("customer_name", "").strip()
+        property_address = request.form.get("property_address", "").strip()
+        project_type = request.form.get("project_type", "General Contracting").strip()
+        video_file = request.files.get("video")
 
-        # Step 1 — Claude analyzes transcript and generates estimate
-        client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
-        response = client.messages.create(
-            model="claude-sonnet-4-20250514",
-            max_tokens=2000,
-            messages=[{
-                "role": "user",
-                "content": f"""You are an expert contractor estimator for {business_name}.
+        if not video_file:
+            return jsonify({"ok": False, "error": "No video file provided"}), 400
 
-A contractor just walked a property and recorded their observations. 
-Analyze this walkthrough transcript and generate a detailed professional estimate.
+        print(f"WALKTHROUGH | {customer_name} | {project_type} | video: {video_file.filename}")
+
+        # Step 1 — Save video to temp file
+        suffix = ".mp4"
+        if video_file.filename.endswith(".mov"):
+            suffix = ".mov"
+
+        with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+            video_file.save(tmp.name)
+            tmp_path = tmp.name
+
+        print(f"WALKTHROUGH | Video saved to temp | {tmp_path}")
+
+        # Step 2 — Upload to Cloudinary for storage
+        video_url = ""
+        try:
+            import cloudinary.uploader as cloud_upload
+            timestamp = int(time.time())
+            safe_name = (customer_name or "walkthrough").replace(" ", "_")[:20]
+            upload_result = cloud_upload.upload(
+                tmp_path,
+                resource_type="video",
+                public_id=f"contractoros/walkthroughs/{safe_name}_{timestamp}",
+                overwrite=True
+            )
+            video_url = upload_result.get("secure_url", "")
+            print(f"WALKTHROUGH | Video uploaded to Cloudinary | {video_url}")
+        except Exception as e:
+            print(f"WALKTHROUGH | Cloudinary video upload error | {e}")
+
+        # Step 3 — Send video to Gemini for analysis
+        genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
+
+        print(f"WALKTHROUGH | Uploading video to Gemini...")
+        video_gemini = genai.upload_file(
+            path=tmp_path,
+            mime_type="video/mp4" if suffix == ".mp4" else "video/quicktime"
+        )
+
+        # Wait for processing
+        import time as time_module
+        while video_gemini.state.name == "PROCESSING":
+            print("WALKTHROUGH | Gemini processing video...")
+            time_module.sleep(3)
+            video_gemini = genai.get_file(video_gemini.name)
+
+        print(f"WALKTHROUGH | Gemini video ready | {video_gemini.name}")
+
+        # Step 4 — Analyze with Gemini
+        model = genai.GenerativeModel("gemini-2.0-flash")
+        prompt = f"""You are an expert contractor estimator for {business_name}.
+
+Analyze this property walkthrough video carefully. Watch every frame and listen to all audio.
 
 Customer: {customer_name}
 Property: {property_address}
 Project Type: {project_type}
 
-WALKTHROUGH TRANSCRIPT:
-{transcript}
+Based on what you SEE in the video and HEAR from the contractor's narration:
 
-Generate a detailed contractor estimate with:
-1. PROJECT SUMMARY — What you observed and what needs to be done
-2. SCOPE OF WORK — Detailed breakdown of all work items
-3. LINE ITEMS — Each task with labor and material costs
-4. TIMELINE — Estimated completion time
-5. IMPORTANT NOTES — Any concerns, conditions, or recommendations
+1. Identify every area, room, or surface that needs work
+2. Note the condition, size, and complexity of each area
+3. Generate a complete professional contractor estimate
 
-Format as JSON only:
+Return ONLY this JSON format:
 {{
-  "project_summary": "2-3 sentence overview",
-  "scope_of_work": "detailed paragraph",
+  "project_summary": "2-3 sentence overview of what you observed",
+  "scope_of_work": "detailed paragraph of all work needed",
   "line_items": [
-    {{"description": "Item name", "detail": "specifics", "labor": 0.00, "materials": 0.00, "total": 0.00}},
+    {{"description": "Specific task", "detail": "Location and specifics", "labor": 0.00, "materials": 0.00, "total": 0.00}},
   ],
-  "timeline": "estimated timeline",
-  "notes": "important observations and recommendations",
+  "timeline": "estimated completion time",
+  "notes": "important observations, concerns, or recommendations",
   "estimate_total": 0.00,
-  "estimate_range": "$X,XXX - $X,XXX"
+  "estimate_range": "$X,XXX - $X,XXX",
+  "areas_identified": ["list of areas/rooms identified in video"]
 }}
 
-Base all pricing on current US contractor rates for the {property_address} area.
-Be thorough and realistic — this is what the contractor will send to the customer."""
-            }]
-        )
+Base pricing on current US contractor rates for the {property_address} region.
+Be thorough — price every single item you observe needs attention."""
 
+        response = model.generate_content([video_gemini, prompt])
+        raw = response.text.strip()
+        print(f"WALKTHROUGH | Gemini analysis complete | {raw[:200]}")
+
+        # Parse JSON
         import json as json_lib
-        raw = response.content[0].text.strip()
-        json_match = __import__('re').search(r'\{.*\}', raw, __import__('re').DOTALL)
+        import re as re_lib
+        json_match = re_lib.search(r'\{.*\}', raw, re_lib.DOTALL)
         if not json_match:
-            raise ValueError("No JSON in Claude response")
+            raise ValueError("No JSON in Gemini response")
         estimate_data = json_lib.loads(json_match.group(0))
 
-        print(f"WALKTHROUGH | Claude estimate generated | ${estimate_data.get('estimate_total', 0)}")
+        print(f"WALKTHROUGH | Estimate generated | ${estimate_data.get('estimate_total', 0)}")
 
-        # Step 2 — Generate PDF
+        # Step 5 — Generate PDF
         from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
         from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
         from reportlab.lib.pagesizes import letter
@@ -5806,8 +5850,8 @@ Be thorough and realistic — this is what the contractor will send to the custo
         from datetime import datetime
 
         os.makedirs("/tmp/walkthroughs", exist_ok=True)
-        safe_name = (customer_name or "estimate").replace(" ", "_")[:20]
-        pdf_path = f"/tmp/walkthroughs/{safe_name}_walkthrough.pdf"
+        safe_customer = (customer_name or "estimate").replace(" ", "_")[:20]
+        pdf_path = f"/tmp/walkthroughs/{safe_customer}_walkthrough_{int(time.time())}.pdf"
 
         doc = SimpleDocTemplate(
             pdf_path,
@@ -5831,10 +5875,9 @@ Be thorough and realistic — this is what the contractor will send to the custo
 
         story = []
 
-        # Header
         story.append(Paragraph(business_name, title_style))
         story.append(Paragraph("Powered by CrewCachePro", brand_style))
-        story.append(Paragraph("Property Walkthrough Estimate", heading_style))
+        story.append(Paragraph("Video Walkthrough Estimate", heading_style))
 
         # Info table
         info_data = [
@@ -5855,6 +5898,13 @@ Be thorough and realistic — this is what the contractor will send to the custo
         story.append(info_table)
         story.append(Spacer(1, 12))
 
+        # Areas identified
+        areas = estimate_data.get("areas_identified", [])
+        if areas:
+            story.append(Paragraph("Areas Identified in Walkthrough", heading_style))
+            areas_text = " · ".join(areas)
+            story.append(Paragraph(areas_text, normal_style))
+
         # Project Summary
         story.append(Paragraph("Project Summary", heading_style))
         story.append(Paragraph(estimate_data.get("project_summary", ""), normal_style))
@@ -5870,12 +5920,11 @@ Be thorough and realistic — this is what the contractor will send to the custo
             li_data = [["Description", "Labor", "Materials", "Total"]]
             for item in line_items:
                 li_data.append([
-                    item.get("description", "")[:45],
+                    f"{item.get('description', '')[:35]}\n{item.get('detail', '')[:45]}",
                     f"${float(item.get('labor', 0)):,.2f}",
                     f"${float(item.get('materials', 0)):,.2f}",
                     f"${float(item.get('total', 0)):,.2f}",
                 ])
-            # Total row
             total = float(estimate_data.get("estimate_total", 0))
             li_data.append(["TOTAL ESTIMATE", "", "", f"${total:,.2f}"])
 
@@ -5892,19 +5941,23 @@ Be thorough and realistic — this is what the contractor will send to the custo
                 ("FONTSIZE", (0,-1), (-1,-1), 11),
                 ("PADDING", (0,0), (-1,-1), 8),
                 ("ROWBACKGROUNDS", (0,1), (-1,-2), [colors.white, colors.HexColor("#f9fafb")]),
+                ("VALIGN", (0,0), (-1,-1), "TOP"),
             ]))
             story.append(li_table)
 
         story.append(Spacer(1, 12))
 
-        # Timeline
-        story.append(Paragraph("Timeline", heading_style))
-        story.append(Paragraph(estimate_data.get("timeline", ""), normal_style))
+        if estimate_data.get("timeline"):
+            story.append(Paragraph("Timeline", heading_style))
+            story.append(Paragraph(estimate_data.get("timeline"), normal_style))
 
-        # Notes
         if estimate_data.get("notes"):
             story.append(Paragraph("Important Notes", heading_style))
-            story.append(Paragraph(estimate_data.get("notes", ""), normal_style))
+            story.append(Paragraph(estimate_data.get("notes"), normal_style))
+
+        if video_url:
+            story.append(Paragraph("Video Walkthrough", heading_style))
+            story.append(Paragraph(f"Recording: {video_url}", small_style))
 
         story.append(Spacer(1, 16))
         story.append(Paragraph(
@@ -5915,7 +5968,7 @@ Be thorough and realistic — this is what the contractor will send to the custo
         doc.build(story)
         print(f"WALKTHROUGH | PDF generated | {pdf_path}")
 
-        # Step 3 — Save to Airtable
+        # Step 6 — Save to Airtable
         import requests as req
         AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
         AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
@@ -5923,7 +5976,7 @@ Be thorough and realistic — this is what the contractor will send to the custo
             "Authorization": f"Bearer {AIRTABLE_TOKEN}",
             "Content-Type": "application/json"
         }
-        airtable_resp = req.post(
+        at_resp = req.post(
             f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tblAlqryj3Vhw5JaK",
             headers=at_headers,
             json={"fields": {
@@ -5931,35 +5984,44 @@ Be thorough and realistic — this is what the contractor will send to the custo
                 "fldB2KMaHLg60sfAP": customer_name,
                 "fldcCpcv3WRaSqBzT": property_address,
                 "flddiv0HZH3kxaJWP": project_type,
-                "fldLtbD7qbheLVbnG": transcript,
-                "fldErOKh8ZVxDAnbn": estimate_data.get("project_summary", "") + "\n\n" + estimate_data.get("scope_of_work", ""),
+                "fldLtbD7qbheLVbnG": estimate_data.get("project_summary", "") + "\n\n" + estimate_data.get("scope_of_work", ""),
+                "fldErOKh8ZVxDAnbn": json_lib.dumps(estimate_data, indent=2),
                 "fldo5WzLTsgo2QTTD": float(estimate_data.get("estimate_total", 0)),
                 "fldyLFd8XVT6iAcgh": "Draft",
                 "fldknADF18Bq2mQdH": twilio_number,
+                "fldltvDOf7ZTSPMg1": video_url,
             }}
         )
-        record_id = airtable_resp.json().get("id", "")
+        record_id = at_resp.json().get("id", "")
         print(f"WALKTHROUGH | Airtable saved | {record_id}")
 
-        # Step 4 — Email PDF to contractor
+        # Step 7 — Email PDF to contractor
         if notify_email:
             email_body = (
-                f"🎙️ Property Walkthrough Estimate — {customer_name}\n\n"
+                f"🎥 Video Walkthrough Estimate — {customer_name}\n\n"
                 f"Property: {property_address}\n"
                 f"Project Type: {project_type}\n"
+                f"Areas Identified: {', '.join(areas[:5])}\n"
                 f"Estimate Range: {estimate_data.get('estimate_range', 'TBD')}\n"
                 f"Total: ${float(estimate_data.get('estimate_total', 0)):,.2f}\n\n"
-                f"Full estimate PDF attached. Review, adjust if needed, and send to customer.\n\n"
+                f"Summary: {estimate_data.get('project_summary', '')}\n\n"
                 f"Timeline: {estimate_data.get('timeline', '')}\n\n"
-                f"Notes: {estimate_data.get('notes', '')}"
+                f"PDF attached — review, adjust if needed, and send to customer.\n"
+                f"Video recording: {video_url}"
             )
             send_email(
-                subject=f"🎙️ Walkthrough Estimate — {customer_name} | {estimate_data.get('estimate_range', '')}",
+                subject=f"🎥 Video Estimate — {customer_name} | {estimate_data.get('estimate_range', '')}",
                 body=email_body,
                 to_email=notify_email,
                 attachment_path=pdf_path,
             )
             print(f"WALKTHROUGH | Email sent | {notify_email}")
+
+        # Cleanup temp file
+        try:
+            os.remove(tmp_path)
+        except Exception:
+            pass
 
         return jsonify({
             "ok": True,
@@ -5967,11 +6029,15 @@ Be thorough and realistic — this is what the contractor will send to the custo
             "estimate_total": estimate_data.get("estimate_total", 0),
             "project_summary": estimate_data.get("project_summary", ""),
             "timeline": estimate_data.get("timeline", ""),
+            "areas_identified": areas,
             "record_id": record_id,
+            "video_url": video_url,
         })
 
     except Exception as e:
         print(f"WALKTHROUGH ERROR | {type(e).__name__} | {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({"ok": False, "error": str(e)}), 500
 
 @app.route("/dashboard/recurring")
