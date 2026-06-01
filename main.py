@@ -3257,7 +3257,7 @@ def dashboard():
 <!DOCTYPE html>
 <html>
 <head>
-
+    <meta charset="UTF-8">
     <link rel="apple-touch-icon" href="https://res.cloudinary.com/dkfshn604/image/upload/IMG_1664_jukqma.jpg">
     <link rel="icon" type="image/png" href="https://res.cloudinary.com/dkfshn604/image/upload/IMG_1664_jukqma.jpg">
     <link rel="manifest" href="/manifest.json">
