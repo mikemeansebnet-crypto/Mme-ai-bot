@@ -5174,8 +5174,8 @@ def dashboard():
     <!-- Walkthrough Recording Modal -->
     <div class="modal-overlay" id="walkthroughModal">
         <div class="booking-modal">
-            <div class="modal-title">🎙️ Property Walkthrough</div>
-            <div class="modal-date">Walk the property and describe everything you see</div>
+            <div class="modal-title">🎥 Video Walkthrough</div>
+            <div class="modal-date">Record a video walking the property — AI generates the estimate</div>
 
             <div class="form-group">
                 <label class="form-label">Customer Name</label>
@@ -5201,43 +5201,50 @@ def dashboard():
                 </select>
             </div>
 
-            <!-- Recording area -->
+            <!-- Video capture area -->
             <div style="background:var(--bg);border:1px solid var(--card-border);border-radius:12px;padding:16px;margin-bottom:16px;text-align:center">
-                <button id="wtRecordBtn" onclick="toggleWalkthroughRecording()" style="
-                    background:var(--gradient);color:white;border:none;
-                    border-radius:50%;width:72px;height:72px;font-size:28px;
-                    cursor:pointer;box-shadow:0 4px 16px rgba(37,99,235,0.3);
-                    margin-bottom:12px;display:block;margin:0 auto 12px;">
-                    🎙️
-                </button>
-                <div id="wtStatus" style="font-size:13px;color:var(--text-muted);font-family:'DM Mono',monospace;">
-                    Tap to start recording
+                <div id="wtVideoPreview" style="display:none;margin-bottom:12px">
+                    <video id="wtVideoPlayer" controls style="width:100%;border-radius:8px;max-height:200px"></video>
                 </div>
-                <div id="wtTimer" style="font-size:24px;font-weight:700;color:var(--blue);margin-top:8px;display:none">
-                    0:00
+
+                <div id="wtRecordArea">
+                    <button id="wtRecordBtn" onclick="startWalkthroughRecording()" style="
+                        background:var(--gradient);color:white;border:none;
+                        border-radius:50%;width:72px;height:72px;font-size:28px;
+                        cursor:pointer;box-shadow:0 4px 16px rgba(37,99,235,0.3);
+                        display:block;margin:0 auto 12px;">
+                        🎥
+                    </button>
+                    <div id="wtStatus" style="font-size:13px;color:var(--text-muted);font-family:'DM Mono',monospace;">
+                        Tap to record video walkthrough
+                    </div>
+                    <div id="wtTimer" style="font-size:24px;font-weight:700;color:var(--blue);margin-top:8px;display:none">
+                        0:00
+                    </div>
+                </div>
+
+                <!-- Or upload existing video -->
+                <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--card-border)">
+                    <label style="font-size:12px;color:var(--text-muted);font-family:'DM Mono',monospace;display:block;margin-bottom:8px">
+                        OR UPLOAD EXISTING VIDEO
+                    </label>
+                    <input type="file" id="wtVideoFile" accept="video/*" onchange="handleVideoUpload(this)"
+                        style="font-size:13px;color:var(--text-muted)">
                 </div>
             </div>
 
-            <!-- Transcript preview -->
-            <div class="form-group">
-                <label class="form-label">Transcript (auto-filled from recording)</label>
-                <textarea class="form-input" id="wtTranscript" rows="4"
-                    placeholder="Your walkthrough notes will appear here as you speak. You can also type notes directly."
-                    style="resize:none;font-size:13px"></textarea>
+            <div id="wtVideoStatus" style="display:none;text-align:center;padding:12px;background:#dcfce7;border-radius:10px;margin-bottom:12px;font-size:13px;color:#16a34a;font-family:'DM Mono',monospace">
+                ✅ Video ready — tap Generate Estimate
             </div>
 
             <div class="modal-actions">
                 <button class="btn-cancel-modal" onclick="closeWalkthroughModal()">Cancel</button>
                 <button class="btn-book" id="wtSubmitBtn" onclick="submitWalkthrough()">
-                    Generate Estimate →
+                    🎥 Generate Estimate →
                 </button>
             </div>
         </div>
     </div>
-
-</body>
-</html>
-    '''
 
 
 @app.route("/dashboard/data")
