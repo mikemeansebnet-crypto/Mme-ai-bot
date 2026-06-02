@@ -3253,7 +3253,7 @@ def dashboard_login_error(message: str):
 @dashboard_auth_required
 def dashboard():
     """Main dashboard page — mobile optimized."""
-    return '''
+    return """
 <!DOCTYPE html>
 <html>
 <head>
