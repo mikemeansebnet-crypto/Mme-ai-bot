@@ -4221,16 +4221,20 @@ def dashboard():
 
         function getCookie(name) {
             // Check URL param first (PWA login redirect)
-            const urlParams = new URLSearchParams(window.location.search);
-            const urlToken = urlParams.get('token');
-            if (urlToken) {
-                localStorage.setItem('dashboard_token', urlToken);
-                window.history.replaceState({}, '', '/dashboard');
-                return urlToken;
-            }
-            // Check localStorage
-            const localToken = localStorage.getItem('dashboard_token');
-            if (localToken) return localToken;
+            try {
+                const urlParams = new URLSearchParams(window.location.search);
+                const urlToken = urlParams.get('token');
+                if (urlToken) {
+                    try { localStorage.setItem('dashboard_token', urlToken); } catch(e) {}
+                    window.history.replaceState({}, '', '/dashboard');
+                    return urlToken;
+                }
+                // Check localStorage
+                try {
+                    const localToken = localStorage.getItem('dashboard_token');
+                    if (localToken) return localToken;
+                } catch(e) {}
+            } catch(e) {}
             // Fall back to cookie
             const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
             return match ? match[2] : '';
