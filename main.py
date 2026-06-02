@@ -5210,7 +5210,7 @@ def dashboard():
 @app.route("/dashboard/data")
 @dashboard_auth_required
 def dashboard_data():
-    """Returns JSON data for the dashboard — contractor specific."""
+    """Returns JSON data for the dashboard."""
     try:
         import requests as req
         from zoneinfo import ZoneInfo
