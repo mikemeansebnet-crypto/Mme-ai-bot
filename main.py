@@ -4899,7 +4899,7 @@ def dashboard():
 
         function startWalkthroughRecording() {
             if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-                alert(`Voice recording not supported. Use Safari on iPhone or Chrome on desktop.');
+                alert(`Voice recording not supported. Use Safari on iPhone or Chrome on desktop.`);
                 return;
             }
             const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
