@@ -4991,7 +4991,7 @@ def dashboard():
                 var data = await res.json();
                 if (data.ok) {
                     closeWalkthroughModal();
-                    alert('Walkthrough estimate generated!\n\nEstimate: ' + data.estimate_range + '\nTimeline: ' + data.timeline + '\n\nPDF emailed to you!');
+                    alert(`Walkthrough estimate generated!\n\nEstimate: ${data.estimate_range}\nTimeline: ${data.timeline}\n\nPDF emailed to you!`);
                 } else {
                     alert('Error: ' + (data.error || 'Something went wrong'));
                 }
