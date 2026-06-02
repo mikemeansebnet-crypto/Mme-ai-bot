@@ -4862,169 +4862,143 @@ def dashboard():
             }
         }
 
-        // ── VIDEO WALKTHROUGH ──────────────────────────
-        let wtMediaRecorder = null;
-        let wtVideoChunks = [];
-        let wtVideoBlob = null;
+        // -- WALKTHROUGH RECORDING --
+        let wtRecognition = null;
+        let wtIsRecording = false;
+        let wtTranscriptFull = '';
         let wtTimerInterval = null;
         let wtSeconds = 0;
-        let wtStream = null;
 
         function openWalkthroughModal() {
-            wtVideoBlob = null;
-            wtVideoChunks = [];
+            wtTranscriptFull = '';
             wtSeconds = 0;
-            document.getElementById("wtCustomer").value = "";
-            document.getElementById("wtAddress").value = "";
-            document.getElementById("wtVideoPreview").style.display = "none";
-            document.getElementById("wtRecordArea").style.display = "block";
-            document.getElementById("wtVideoStatus").style.display = "none";
-            document.getElementById("wtRecordBtn").textContent = "REC";
-            document.getElementById("wtRecordBtn").style.background = "var(--gradient)";
-            document.getElementById("wtRecordBtn").onclick = startWalkthroughRecording;
-            document.getElementById("wtStatus").textContent = "Tap to record video walkthrough";
-            document.getElementById("wtTimer").style.display = "none";
-            document.getElementById("wtVideoFile").value = "";
-            document.getElementById("wtSubmitBtn").disabled = false;
-            document.getElementById("wtSubmitBtn").textContent = "Generate Estimate";
-            document.getElementById("walkthroughModal").classList.add("active");
+            document.getElementById('wtCustomer').value = '';
+            document.getElementById('wtAddress').value = '';
+            document.getElementById('wtTranscript').value = '';
+            document.getElementById('wtStatus').textContent = 'Tap to start recording';
+            document.getElementById('wtTimer').style.display = 'none';
+            document.getElementById('wtRecordBtn').textContent = 'REC';
+            document.getElementById('wtRecordBtn').style.background = 'var(--gradient)';
+            document.getElementById('wtSubmitBtn').disabled = false;
+            document.getElementById('wtSubmitBtn').textContent = 'Generate Estimate';
+            document.getElementById('walkthroughModal').classList.add('active');
         }
 
         function closeWalkthroughModal() {
             stopWalkthroughRecording();
-            document.getElementById("walkthroughModal").classList.remove("active");
+            document.getElementById('walkthroughModal').classList.remove('active');
         }
 
-        async function startWalkthroughRecording() {
-            try {
-                wtStream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: "environment" },
-                    audio: true
-                });
-
-                wtVideoChunks = [];
-                let mimeType = "video/mp4";
-                if (!MediaRecorder.isTypeSupported("video/mp4")) {
-                    mimeType = "video/webm";
-                }
-                wtMediaRecorder = new MediaRecorder(wtStream, { mimeType: mimeType });
-
-                wtMediaRecorder.ondataavailable = (e) => {
-                    if (e.data.size > 0) wtVideoChunks.push(e.data);
-                };
-
-                wtMediaRecorder.onstop = () => {
-                    wtVideoBlob = new Blob(wtVideoChunks, { type: mimeType });
-                    const videoURL = URL.createObjectURL(wtVideoBlob);
-                    document.getElementById("wtVideoPlayer").src = videoURL;
-                    document.getElementById("wtVideoPreview").style.display = "block";
-                    document.getElementById("wtVideoStatus").style.display = "block";
-                    if (wtStream) {
-                        wtStream.getTracks().forEach(t => t.stop());
-                        wtStream = null;
-                    }
-                };
-
-                wtMediaRecorder.start(1000);
-
-                document.getElementById("wtRecordBtn").textContent = "STOP";
-                document.getElementById("wtRecordBtn").style.background = "#dc2626";
-                document.getElementById("wtRecordBtn").onclick = stopWalkthroughRecording;
-                document.getElementById("wtStatus").textContent = "Recording - walk and describe everything";
-                document.getElementById("wtTimer").style.display = "block";
-
-                wtSeconds = 0;
-                wtTimerInterval = setInterval(() => {
-                    wtSeconds++;
-                    const m = Math.floor(wtSeconds / 60);
-                    const s = wtSeconds % 60;
-                    document.getElementById("wtTimer").textContent = m + ":" + String(s).padStart(2, "0");
-                }, 1000);
-
-            } catch(e) {
-                if (e.name === "NotAllowedError") {
-                    alert("Camera access denied. Please allow camera access and try again.");
-                } else {
-                    alert("Could not start recording: " + e.message + ". Please upload a video file instead.");
-                }
+        function toggleWalkthroughRecording() {
+            if (wtIsRecording) {
+                stopWalkthroughRecording();
+            } else {
+                startWalkthroughRecording();
             }
         }
 
+        function startWalkthroughRecording() {
+            if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+                alert('Voice recording not supported. Use Safari on iPhone or Chrome on desktop.');
+                return;
+            }
+            const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+            wtRecognition = new SR();
+            wtRecognition.continuous = true;
+            wtRecognition.interimResults = true;
+            wtRecognition.lang = 'en-US';
+            let interim = '';
+            wtRecognition.onresult = function(event) {
+                interim = '';
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    if (event.results[i].isFinal) {
+                        wtTranscriptFull += event.results[i][0].transcript + ' ';
+                    } else {
+                        interim += event.results[i][0].transcript;
+                    }
+                }
+                document.getElementById('wtTranscript').value = wtTranscriptFull + interim;
+            };
+            wtRecognition.onerror = function(e) {
+                if (e.error !== 'no-speech') console.error('Walkthrough error:', e.error);
+            };
+            wtRecognition.onend = function() {
+                if (wtIsRecording) wtRecognition.start();
+            };
+            wtRecognition.start();
+            wtIsRecording = true;
+            document.getElementById('wtRecordBtn').textContent = 'STOP';
+            document.getElementById('wtRecordBtn').style.background = '#dc2626';
+            document.getElementById('wtStatus').textContent = 'Recording - speak as you walk the property';
+            document.getElementById('wtTimer').style.display = 'block';
+            wtSeconds = 0;
+            wtTimerInterval = setInterval(function() {
+                wtSeconds++;
+                var m = Math.floor(wtSeconds / 60);
+                var s = wtSeconds % 60;
+                document.getElementById('wtTimer').textContent = m + ':' + (s < 10 ? '0' : '') + s;
+            }, 1000);
+        }
+
         function stopWalkthroughRecording() {
-            if (wtMediaRecorder && wtMediaRecorder.state !== "inactive") {
-                wtMediaRecorder.stop();
+            if (wtRecognition) {
+                wtIsRecording = false;
+                try { wtRecognition.abort(); } catch(e) {}
+                wtRecognition = null;
             }
             if (wtTimerInterval) {
                 clearInterval(wtTimerInterval);
                 wtTimerInterval = null;
             }
-            document.getElementById("wtRecordBtn").textContent = "REC";
-            document.getElementById("wtRecordBtn").style.background = "var(--gradient)";
-            document.getElementById("wtStatus").textContent = "Recording complete";
-            document.getElementById("wtTimer").style.display = "none";
-        }
-
-        function handleVideoUpload(input) {
-            const file = input.files[0];
-            if (!file) return;
-            wtVideoBlob = file;
-            const videoURL = URL.createObjectURL(file);
-            document.getElementById("wtVideoPlayer").src = videoURL;
-            document.getElementById("wtVideoPreview").style.display = "block";
-            document.getElementById("wtVideoStatus").style.display = "block";
-            document.getElementById("wtStatus").textContent = "Video selected";
+            var btn = document.getElementById('wtRecordBtn');
+            if (btn) {
+                btn.textContent = 'REC';
+                btn.style.background = 'var(--gradient)';
+            }
+            document.getElementById('wtStatus').textContent = 'Recording stopped - review transcript below';
+            document.getElementById('wtTimer').style.display = 'none';
         }
 
         async function submitWalkthrough() {
-            if (!wtVideoBlob) {
-                alert("Please record or upload a video first.");
+            var customer = document.getElementById('wtCustomer').value.trim();
+            var address = document.getElementById('wtAddress').value.trim();
+            var projectType = document.getElementById('wtProjectType').value;
+            var transcript = document.getElementById('wtTranscript').value.trim();
+
+            if (!transcript) {
+                alert('Please record a walkthrough or type notes first.');
                 return;
             }
 
-            const customer = document.getElementById("wtCustomer").value.trim();
-            const address = document.getElementById("wtAddress").value.trim();
-            const projectType = document.getElementById("wtProjectType").value;
-
-            const btn = document.getElementById("wtSubmitBtn");
-            btn.textContent = "Analyzing video...";
+            var btn = document.getElementById('wtSubmitBtn');
+            btn.textContent = 'Generating estimate...';
             btn.disabled = true;
 
             try {
-                const formData = new FormData();
-                formData.append("video", wtVideoBlob, "walkthrough.mp4");
-                formData.append("customer_name", customer);
-                formData.append("property_address", address);
-                formData.append("project_type", projectType);
-
-                const res = await fetch("/dashboard/walkthrough", {
-                    method: "POST",
+                var res = await fetch('/dashboard/walkthrough', {
+                    method: 'POST',
                     headers: {
-                        "X-Dashboard-Token": getCookie("dashboard_token")
+                        'Content-Type': 'application/json',
+                        'X-Dashboard-Token': getCookie('dashboard_token')
                     },
-                    body: formData
+                    body: JSON.stringify({
+                        transcript: transcript,
+                        customer_name: customer,
+                        property_address: address,
+                        project_type: projectType
+                    })
                 });
-
-                const data = await res.json();
-
+                var data = await res.json();
                 if (data.ok) {
                     closeWalkthroughModal();
-                    const areas = data.areas_identified ? data.areas_identified.join(", ") : "";
-                    alert(
-                        "Video Walkthrough Estimate Generated!\n\n" +
-                        (data.project_summary ? data.project_summary.substring(0, 120) + "...\n\n" : "") +
-                        (areas ? "Areas: " + areas + "\n" : "") +
-                        "Estimate: " + data.estimate_range + "\n" +
-                        "Timeline: " + data.timeline + "\n\n" +
-                        "PDF emailed to you - review and send to customer!"
-                    );
+                    alert('Walkthrough estimate generated!\n\nEstimate: ' + data.estimate_range + '\nTimeline: ' + data.timeline + '\n\nPDF emailed to you!');
                 } else {
-                    alert("Error: " + (data.error || "Something went wrong"));
+                    alert('Error: ' + (data.error || 'Something went wrong'));
                 }
             } catch(e) {
-                alert("Upload failed. Please try again.");
-                console.error("Walkthrough error:", e);
+                alert('Request failed. Please try again.');
             } finally {
-                btn.textContent = "Generate Estimate";
+                btn.textContent = 'Generate Estimate';
                 btn.disabled = false;
             }
         }
