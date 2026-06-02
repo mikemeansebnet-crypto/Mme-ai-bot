@@ -5206,6 +5206,10 @@ def dashboard():
         </div>
     </div>
 
+    </body>
+</html>
+    '''
+
 
 @app.route("/dashboard/data")
 @dashboard_auth_required
