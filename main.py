@@ -5211,6 +5211,42 @@ def dashboard():
         </div>
     </div>
 
+    <!-- Add Contractor Modal -->
+    <div class="modal-overlay" id="addContractorModal">
+        <div class="booking-modal">
+            <div class="modal-title">Add Contractor</div>
+            <div class="modal-date">New contractor onboarding</div>
+            <div class="form-group">
+                <label class="form-label">Contractor Name *</label>
+                <input type="text" class="form-input" id="cName" placeholder="John Smith">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Business Name</label>
+                <input type="text" class="form-input" id="cBusiness" placeholder="Smith Lawn Care LLC">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Their Phone Number *</label>
+                <input type="tel" class="form-input" id="cPhone" placeholder="+12025551234">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Email</label>
+                <input type="email" class="form-input" id="cEmail" placeholder="john@smithlawn.com">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Their Twilio Number *</label>
+                <input type="tel" class="form-input" id="cTwilio" placeholder="+12405551234">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Dashboard Password *</label>
+                <input type="text" class="form-input" id="cPassword" placeholder="Create a password for them">
+            </div>
+            <div class="modal-actions">
+                <button class="btn-cancel-modal" onclick="closeAddContractorModal()">Cancel</button>
+                <button class="btn-book" id="addContractorBtn" onclick="submitAddContractor()">Add and Send Invite</button>
+            </div>
+        </div>
+    </div>
+
     </body>
 </html>
     '''
