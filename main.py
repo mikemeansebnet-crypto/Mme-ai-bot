@@ -6501,7 +6501,11 @@ def dashboard_add_contractor():
                 "Twilio Number": twilio_number,                        # fldSgEmSzXBZMePeo
                 "Dashboard Password": password_hash,                   # flduWr6PWkcmWaOkc
                 "Active": True,                                        # fldNMuQUdMrBmBFBB
-            }}
+             
+                }
+            }
+        )
+        
 
         if resp.status_code not in [200, 201]:
             print(f"ADD CONTRACTOR | Airtable error | {resp.text}")
