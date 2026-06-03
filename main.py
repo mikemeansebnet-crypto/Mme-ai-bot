@@ -5066,6 +5066,69 @@ def dashboard():
             }
         }
 
+        // -- ADD CONTRACTOR --
+        function openAddContractorModal() {
+            document.getElementById("cName").value = "";
+            document.getElementById("cBusiness").value = "";
+            document.getElementById("cPhone").value = "";
+            document.getElementById("cEmail").value = "";
+            document.getElementById("cTwilio").value = "";
+            document.getElementById("cPassword").value = "";
+            document.getElementById("addContractorModal").classList.add("active");
+        }
+
+        function closeAddContractorModal() {
+            document.getElementById("addContractorModal").classList.remove("active");
+        }
+
+        async function submitAddContractor() {
+            var name = document.getElementById("cName").value.trim();
+            var business = document.getElementById("cBusiness").value.trim();
+            var phone = document.getElementById("cPhone").value.trim();
+            var email = document.getElementById("cEmail").value.trim();
+            var twilio = document.getElementById("cTwilio").value.trim();
+            var password = document.getElementById("cPassword").value.trim();
+
+            if (!name || !phone || !twilio || !password) {
+                alert("Please fill in Name, Phone, Twilio Number and Password.");
+                return;
+            }
+
+            var btn = document.getElementById("addContractorBtn");
+            btn.textContent = "Adding...";
+            btn.disabled = true;
+
+            try {
+                var res = await fetch("/dashboard/action/add-contractor", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "X-Dashboard-Token": getCookie("dashboard_token")
+                    },
+                    body: JSON.stringify({
+                        contractor_name: name,
+                        business_name: business,
+                        phone: phone,
+                        email: email,
+                        twilio_number: twilio,
+                        password: password
+                    })
+                });
+                var data = await res.json();
+                if (data.ok) {
+                    closeAddContractorModal();
+                    alert("Contractor added! SMS and email sent with login details and Google Calendar setup link.\n\nRecord ID: " + data.record_id);
+                } else {
+                    alert("Error: " + (data.error || "Something went wrong"));
+                }
+            } catch(e) {
+                alert("Request failed. Please try again.");
+            } finally {
+                btn.textContent = "Add and Send Invite";
+                btn.disabled = false;
+            }
+        }
+
         // Load on startup
         loadDashboard();
         // Auto-refresh every 5 minutes
