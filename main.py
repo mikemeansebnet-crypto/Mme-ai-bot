@@ -6495,16 +6495,18 @@ def dashboard_add_contractor():
             contractors_url,
             headers=headers,
             json={"fields": {
-                "Business Name": business_name or contractor_name,    # fldKEO0aWYZbhBeXt
-                "Notify SMS": phone,                                   # fldZ5hBUeysxIxwI2
-                "Notify Email": email,                                 # fldS9obEdJAwA0hcE
-                "Twilio Number": twilio_number,                        # fldSgEmSzXBZMePeo
-                "Dashboard Password": password_hash,                   # flduWr6PWkcmWaOkc
-                "Active": True,                                        # fldNMuQUdMrBmBFBB
-             
-                }
-            }
+                "Business Name": business_name or contractor_name,
+                "Notify SMS": phone,
+                "Notify Email": email,
+                "Twilio Number": twilio_number,
+                "Dashboard Password": password_hash,
+                "Active": True,
+            }}
         )
+
+        if resp.status_code not in [200, 201]:
+            print(f"ADD CONTRACTOR | Airtable error | {resp.text}")
+            return jsonify({"ok": False, "error": "Failed to create contractor in Airtable"}), 500
         
 
         if resp.status_code not in [200, 201]:
