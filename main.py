@@ -3020,108 +3020,509 @@ def dashboard_login():
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>CrewCachePro — Login</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+        :root {
+            --blue: #2563EB;
+            --green: #16a34a;
+            --gradient: linear-gradient(135deg, #2563EB, #16a34a);
+            --bg: #0f172a;
+            --card: #1e293b;
+            --card-border: #334155;
+            --text: #f1f5f9;
+            --text-muted: #94a3b8;
+            --text-light: #64748b;
+            --success: #22c55e;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+        }
+
         body {
-            font-family: "Georgia", serif;
-            background: #0a0a0a;
+            font-family: 'DM Sans', sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #0d2137 50%, #0f2818 100%);
+            color: var(--text);
             min-height: 100vh;
+            padding-bottom: 80px;
+        }
+
+        header {
+            background: linear-gradient(135deg, #2563EB, #16a34a);
+            padding: 14px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 2px 20px rgba(37, 99, 235, 0.4);
+        }
+
+        header h1 {
+            font-size: 20px;
+            font-weight: 700;
+            color: white;
+        }
+
+        .business-name {
+            font-size: 11px;
+            color: rgba(255,255,255,0.7);
+            font-family: 'DM Mono', monospace;
+            margin-top: 2px;
+        }
+
+        .logout-btn {
+            background: rgba(255,255,255,0.15);
+            border: 1px solid rgba(255,255,255,0.3);
+            color: white;
+            padding: 8px 14px;
+            border-radius: 8px;
+            font-size: 12px;
+            cursor: pointer;
+            text-decoration: none;
+            font-family: 'DM Mono', monospace;
+        }
+
+        .content { padding: 16px; }
+
+        /* Revenue Bar */
+        .revenue-bar {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+
+        .revenue-card {
+            background: linear-gradient(135deg, #1e3a5f, #1a3a2a);
+            border: 1px solid #334155;
+            border-radius: 14px;
+            padding: 14px 16px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+        }
+
+        .revenue-label {
+            font-size: 10px;
+            color: var(--text-muted);
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            font-family: 'DM Mono', monospace;
+            margin-bottom: 6px;
+        }
+
+        .revenue-amount {
+            font-size: 22px;
+            font-weight: 700;
+            color: #22c55e;
+        }
+
+        .revenue-amount.red { color: var(--danger); }
+        .revenue-amount.white { color: white; }
+        .revenue-sub {
+            font-size: 11px;
+            color: var(--text-light);
+            font-family: 'DM Mono', monospace;
+            margin-top: 2px;
+        }
+
+        /* Calendar */
+        .calendar-card {
+            background: var(--card);
+            border: 1px solid var(--card-border);
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 16px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+        }
+
+        .calendar-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .calendar-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: white;
+        }
+
+        .calendar-nav { display: flex; gap: 8px; }
+
+        .cal-btn {
+            background: #334155;
+            border: 1px solid #475569;
+            color: white;
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 20px;
         }
-        .login-card {
-            background: #111;
-            border: 1px solid #222;
-            border-radius: 16px;
-            padding: 40px 32px;
-            width: 100%;
-            max-width: 380px;
+
+        .cal-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 4px;
         }
-        .logo {
+
+        .cal-day-header {
             text-align: center;
-            margin-bottom: 32px;
+            font-size: 10px;
+            color: var(--text-muted);
+            font-family: 'DM Mono', monospace;
+            padding: 4px 0;
+            letter-spacing: 1px;
         }
-        .logo h1 {
-            font-size: 24px;
-            color: #fff;
-            letter-spacing: -0.5px;
-        }
-        .logo span {
-            color: #22c55e;
-        }
-        .logo p {
-            color: #555;
+
+        .cal-day {
+            aspect-ratio: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
             font-size: 13px;
-            margin-top: 4px;
-            font-family: monospace;
+            cursor: pointer;
+            color: var(--text-muted);
+            transition: background 0.15s;
         }
-        label {
-            display: block;
-            color: #888;
+
+        .cal-day:hover { background: #334155; }
+
+        .cal-day.has-job {
+            background: linear-gradient(135deg, rgba(37,99,235,0.3), rgba(22,163,74,0.3));
+            color: #22c55e;
+            font-weight: 700;
+            border: 1px solid #22c55e;
+        }
+
+        .cal-day.today {
+            background: var(--gradient);
+            color: white;
+            font-weight: 700;
+        }
+
+        .cal-day.today.has-job {
+            background: var(--gradient);
+            color: white;
+        }
+
+        .cal-day.other-month { color: #334155; }
+
+        /* Sections */
+        .section { margin-bottom: 16px; }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .section-title {
+            font-size: 11px;
+            color: var(--text-muted);
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            font-family: 'DM Mono', monospace;
+            font-weight: 500;
+        }
+
+        .section-count {
+            background: rgba(37,99,235,0.2);
+            color: #60a5fa;
+            font-size: 11px;
+            padding: 3px 8px;
+            border-radius: 20px;
+            font-family: 'DM Mono', monospace;
+        }
+
+        /* Cards */
+        .job-card {
+            background: var(--card);
+            border: 1px solid var(--card-border);
+            border-radius: 14px;
+            padding: 16px;
+            margin-bottom: 10px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+            transition: box-shadow 0.2s;
+        }
+
+        .job-card:active { box-shadow: 0 8px 24px rgba(37,99,235,0.2); }
+        .job-card.urgent { border-left: 3px solid var(--danger); }
+        .job-card.today-job { border-left: 3px solid #22c55e; }
+
+        .job-time {
             font-size: 12px;
+            color: #60a5fa;
+            font-family: 'DM Mono', monospace;
+            margin-bottom: 4px;
+            font-weight: 500;
+        }
+
+        .job-name {
+            font-size: 16px;
+            font-weight: 700;
+            margin-bottom: 3px;
+            color: white;
+        }
+
+        .job-address {
+            font-size: 13px;
+            color: var(--text-muted);
+            margin-bottom: 3px;
+        }
+
+        .job-type {
+            font-size: 12px;
+            color: var(--text-light);
+            font-family: 'DM Mono', monospace;
+        }
+
+        .job-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .action-btn {
+            flex: 1;
+            padding: 10px;
+            border-radius: 10px;
+            border: none;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            text-align: center;
+            text-decoration: none;
+            display: block;
+            font-family: 'DM Sans', sans-serif;
+            transition: opacity 0.15s;
+        }
+
+        .action-btn:active { opacity: 0.85; }
+
+        .btn-call {
+            background: var(--gradient);
+            color: white;
+        }
+
+        .btn-sms {
+            background: #334155;
+            border: 1px solid #475569;
+            color: var(--text);
+        }
+
+        .invoice-card {
+            background: var(--card);
+            border: 1px solid var(--card-border);
+            border-radius: 14px;
+            padding: 16px;
+            margin-bottom: 10px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+        }
+
+        .invoice-amount {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--danger);
+        }
+
+        .invoice-days {
+            font-size: 11px;
+            color: var(--text-light);
+            font-family: 'DM Mono', monospace;
+            margin-top: 2px;
+        }
+
+        .empty-state {
+            text-align: center;
+            color: var(--text-light);
+            font-size: 14px;
+            padding: 24px;
+            font-family: 'DM Mono', monospace;
+            background: var(--card);
+            border-radius: 14px;
+            border: 1px dashed var(--card-border);
+        }
+
+        .loading {
+            text-align: center;
+            color: var(--text-light);
+            font-size: 13px;
+            padding: 20px;
+            font-family: 'DM Mono', monospace;
+        }
+
+        .refresh-btn {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: var(--gradient);
+            color: white;
+            border: none;
+            width: 52px;
+            height: 52px;
+            border-radius: 50%;
+            font-size: 20px;
+            cursor: pointer;
+            box-shadow: 0 4px 20px rgba(37, 99, 235, 0.4);
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 20px;
+            font-size: 10px;
+            font-family: 'DM Mono', monospace;
+            letter-spacing: 1px;
+            margin-left: 8px;
+        }
+
+        .badge-new { background: rgba(34,197,94,0.2); color: #22c55e; }
+        .badge-urgent { background: rgba(239,68,68,0.2); color: var(--danger); }
+        .badge-overdue { background: rgba(239,68,68,0.2); color: var(--danger); }
+
+        /* Payment Method Grid */
+        .payment-method-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+
+        .payment-method-btn {
+            padding: 12px;
+            border-radius: 10px;
+            border: 2px solid var(--card-border);
+            background: var(--card);
+            color: var(--text-muted);
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.15s;
+            font-family: 'DM Sans', sans-serif;
+        }
+
+        .payment-method-btn.selected {
+            border-color: #2563EB;
+            background: rgba(37,99,235,0.2);
+            color: #60a5fa;
+        }
+
+        .email-field { display: none; }
+        .email-field.visible { display: block; }
+
+        /* Modals */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.8);
+            z-index: 200;
+            align-items: flex-end;
+            justify-content: center;
+            backdrop-filter: blur(4px);
+        }
+
+        .modal-overlay.active { display: flex; }
+
+        .booking-modal {
+            background: #1e293b;
+            border-radius: 24px 24px 0 0;
+            padding: 24px 20px 40px;
+            width: 100%;
+            max-width: 500px;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 -8px 40px rgba(37,99,235,0.3);
+            border-top: 1px solid #334155;
+        }
+
+        .modal-title {
+            font-size: 18px;
+            font-weight: 700;
+            margin-bottom: 6px;
+            color: white;
+        }
+
+        .modal-date {
+            font-size: 13px;
+            color: #60a5fa;
+            font-family: 'DM Mono', monospace;
+            margin-bottom: 20px;
+        }
+
+        .form-group { margin-bottom: 14px; }
+
+        .form-label {
+            display: block;
+            font-size: 11px;
+            color: var(--text-muted);
             letter-spacing: 1px;
             text-transform: uppercase;
-            margin-bottom: 8px;
-            font-family: monospace;
+            font-family: 'DM Mono', monospace;
+            margin-bottom: 6px;
         }
-        input {
+
+        .form-input {
             width: 100%;
-            background: #1a1a1a;
-            border: 1px solid #2a2a2a;
-            border-radius: 8px;
-            padding: 14px 16px;
-            color: #fff;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 10px;
+            padding: 12px 14px;
+            color: white;
             font-size: 16px;
-            margin-bottom: 20px;
             outline: none;
-            transition: border-color 0.2s;
+            font-family: 'DM Sans', sans-serif;
+            transition: border-color 0.15s;
         }
-        input:focus { border-color: #22c55e; }
-        button {
-            width: 100%;
-            background: #22c55e;
-            color: #000;
+
+        .form-input:focus { border-color: #2563EB; }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .btn-book {
+            flex: 1;
+            background: var(--gradient);
+            color: white;
             border: none;
-            border-radius: 8px;
+            border-radius: 12px;
             padding: 16px;
             font-size: 16px;
             font-weight: 700;
             cursor: pointer;
-            letter-spacing: 0.5px;
-        }
-        button:active { opacity: 0.9; }
-        .error {
-            background: #1a0a0a;
-            border: 1px solid #ef4444;
-            color: #ef4444;
-            padding: 12px 16px;
-            border-radius: 8px;
-            font-size: 14px;
-            margin-bottom: 20px;
-            font-family: monospace;
-        }
-        .today-summary {
-            background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
-            border: 1px solid #e5e7eb;
-            border-radius: 18px;
-            padding: 18px;
-            margin-bottom: 16px;
-            box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
+            font-family: 'DM Sans', sans-serif;
         }
 
-        .today-summary h2 {
-            color: #111827;
-            font-size: 22px;
-            font-weight: 800;
-            margin-bottom: 6px;
-            letter-spacing: -0.03em;
+        .btn-cancel-modal {
+            background: #334155;
+            border: 1px solid #475569;
+            color: var(--text-muted);
+            border-radius: 12px;
+            padding: 16px 20px;
+            font-size: 14px;
+            cursor: pointer;
+            font-family: 'DM Sans', sans-serif;
         }
 
-        .today-summary .job {
-            color: #64748b;
-            font-size: 14px;
-            font-weight: 500;
+        .crew-logo {
+            display: flex;
+            align-items: center;
         }
             
     </style>
