@@ -3686,10 +3686,10 @@ def dashboard():
             --blue: #2563EB;
             --green: #16a34a;
             --gradient: linear-gradient(135deg, #2563EB, #16a34a);
-            --bg: #f0f4f8;
-            --card: #ffffff;
-            --card-border: #e2e8f0;
-            --text: #0f172a;
+            --bg: #0f172a;
+            --card: #1e293b;
+            --card-border: #334155;
+            --text: #f1f5f9;
             --text-muted: #64748b;
             --text-light: #94a3b8;
             --success: #16a34a;
