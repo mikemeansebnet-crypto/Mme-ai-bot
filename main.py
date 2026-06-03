@@ -6352,6 +6352,101 @@ def dashboard_revenue():
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
+@app.route("/dashboard/action/add-contractor", methods=["POST"])
+@dashboard_auth_required
+def dashboard_add_contractor():
+    """
+    Onboards a new contractor — creates Airtable record,
+    hashes password, sends SMS with login link and Google Calendar setup link.
+    """
+    try:
+        import hashlib
+        import requests as req
+
+        data = request.get_json(silent=True) or {}
+        contractor_name = data.get("contractor_name", "").strip()
+        business_name = data.get("business_name", "").strip()
+        phone = data.get("phone", "").strip()
+        email = data.get("email", "").strip()
+        twilio_number = data.get("twilio_number", "").strip()
+        password = data.get("password", "").strip()
+
+        if not contractor_name or not phone or not twilio_number or not password:
+            return jsonify({"ok": False, "error": "Name, phone, Twilio number and password required"}), 400
+
+        # Hash the password
+        password_hash = hashlib.sha256(password.encode()).hexdigest()
+
+        AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
+        AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
+        CONTRACTORS_TABLE = os.environ.get("AIRTABLE_CONTRACTORS_TABLE")
+        headers = {
+            "Authorization": f"Bearer {AIRTABLE_TOKEN}",
+            "Content-Type": "application/json"
+        }
+        contractors_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{CONTRACTORS_TABLE}"
+
+        # Create contractor record in Airtable
+        resp = req.post(
+            contractors_url,
+            headers=headers,
+            json={"fields": {
+                "Business Name": business_name or contractor_name,
+                "Contractor Name": contractor_name,
+                "Notify SMS": phone,
+                "Notify Email": email,
+                "Twilio Number": twilio_number,
+                "Dashboard Password": password_hash,
+                "Active": True,
+            }}
+        )
+
+        if resp.status_code not in [200, 201]:
+            print(f"ADD CONTRACTOR | Airtable error | {resp.text}")
+            return jsonify({"ok": False, "error": "Failed to create contractor in Airtable"}), 500
+
+        record_id = resp.json().get("id", "")
+        print(f"ADD CONTRACTOR | Created | {record_id} | {business_name}")
+
+        # Send SMS to new contractor with login and onboarding links
+        base_url = os.environ.get("APP_BASE_URL", "https://mme-ai-bot.onrender.com")
+        onboard_link = f"{base_url}/onboard/{record_id}"
+        dashboard_link = f"{base_url}/dashboard/login"
+
+        welcome_msg = (
+            f"Welcome to CrewCachePro, {contractor_name}!\n\n"
+            f"Your dashboard login:\n"
+            f"{dashboard_link}\n"
+            f"Phone: {twilio_number}\n"
+            f"Password: {password}\n\n"
+            f"Connect Google Calendar here:\n"
+            f"{onboard_link}\n\n"
+            f"Questions? Reply to this message."
+        )
+        send_fallback_sms(to_number=phone, body=welcome_msg)
+        print(f"ADD CONTRACTOR | Welcome SMS sent | {phone}")
+
+        # Email welcome if email provided
+        if email:
+            send_email(
+                subject=f"Welcome to CrewCachePro - Your Login Details",
+                body=welcome_msg,
+                to_email=email,
+            )
+            print(f"ADD CONTRACTOR | Welcome email sent | {email}")
+
+        return jsonify({
+            "ok": True,
+            "record_id": record_id,
+            "onboard_link": onboard_link,
+            "message": f"Contractor {contractor_name} added! Login details sent via SMS."
+        })
+
+    except Exception as e:
+        print(f"ADD CONTRACTOR ERROR | {type(e).__name__} | {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
 @app.route("/dashboard/action/send-recurring-invoice", methods=["POST"])
 @dashboard_auth_required
 def dashboard_send_recurring_invoice():
