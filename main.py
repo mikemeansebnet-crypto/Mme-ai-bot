@@ -5117,7 +5117,7 @@ def dashboard():
                 var data = await res.json();
                 if (data.ok) {
                     closeAddContractorModal();
-                    alert("Contractor added! SMS and email sent with login details and Google Calendar setup link.\n\nRecord ID: " + data.record_id);
+                    alert("Contractor added! SMS and email sent. Record ID: " + data.record_id);
                 } else {
                     alert("Error: " + (data.error || "Something went wrong"));
                 }
