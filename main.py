@@ -3699,7 +3699,7 @@ def dashboard():
 
         body {
             font-family: 'DM Sans', sans-serif;
-            background: var(--bg);
+            background: linear-gradient(135deg, #0f172a 0%, #0d2137 50%, #0f2818 100%);
             color: var(--text);
             min-height: 100vh;
             padding-bottom: 80px;
