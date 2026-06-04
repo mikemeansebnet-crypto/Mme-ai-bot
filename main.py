@@ -989,6 +989,13 @@ def static_files(filename):
     root_dir = os.path.dirname(os.path.abspath(__file__))
     return send_from_directory(root_dir, filename)
 
+@app.route('/walkthrough')
+@dashboard_auth_required
+def walkthrough_page():
+    """Serves the video walkthrough page."""
+    root_dir = os.path.dirname(os.path.abspath(__file__))
+    return send_from_directory(root_dir, 'walkthrough.html')
+
 @app.route('/manifest.json')
 def manifest():
     return jsonify({
