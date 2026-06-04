@@ -989,12 +989,6 @@ def static_files(filename):
     root_dir = os.path.dirname(os.path.abspath(__file__))
     return send_from_directory(root_dir, filename)
 
-@app.route('/walkthrough')
-@dashboard_auth_required
-def walkthrough_page():
-    """Serves the video walkthrough page."""
-    root_dir = os.path.dirname(os.path.abspath(__file__))
-    return send_from_directory(root_dir, 'walkthrough.html')
 
 @app.route('/manifest.json')
 def manifest():
@@ -5815,6 +5809,13 @@ def dashboard_data():
     except Exception as e:
         print(f"DASHBOARD DATA ERROR | {type(e).__name__} | {e}")
         return jsonify({"ok": False, "error": str(e)}), 500
+
+@app.route('/walkthrough')
+@dashboard_auth_required
+def walkthrough_page():
+    """Serves the video walkthrough page."""
+    root_dir = os.path.dirname(os.path.abspath(__file__))
+    return send_from_directory(root_dir, 'walkthrough.html')
 
 @app.route("/onesignal/register", methods=["POST"])
 @dashboard_auth_required
