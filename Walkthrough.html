@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+    <title>CrewCachePro - Video Walkthrough</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --gradient: linear-gradient(135deg, #2563EB, #16a34a);
+            --bg: #0f172a;
+            --card: #1e293b;
+            --card-border: #334155;
+            --text: #f1f5f9;
+            --text-muted: #94a3b8;
+            --blue: #2563EB;
+            --green: #22c55e;
+        }
+
+        body {
+            font-family: 'DM Sans', sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #0d2137 50%, #0f2818 100%);
+            color: var(--text);
+            min-height: 100vh;
+        }
+
+        header {
+            background: linear-gradient(135deg, #2563EB, #16a34a);
+            padding: 14px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 20px rgba(37,99,235,0.4);
+        }
+
+        header h1 {
+            font-size: 20px;
+            font-weight: 700;
+            color: white;
+        }
+
+        .back-btn {
+            background: rgba(255,255,255,0.15);
+            border: 1px solid rgba(255,255,255,0.3);
+            color: white;
+            padding: 8px 14px;
+            border-radius: 8px;
+            font-size: 12px;
+            cursor: pointer;
+            text-decoration: none;
+            font-family: 'DM Mono', monospace;
+        }
+
+        .content {
+            padding: 20px 16px;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .page-title {
+            font-size: 24px;
+            font-weight: 700;
+            color: white;
+            margin-bottom: 8px;
+        }
+
+        .page-subtitle {
+            font-size: 14px;
+            color: var(--text-muted);
+            font-family: 'DM Mono', monospace;
+            margin-bottom: 24px;
+        }
+
+        .card {
+            background: var(--card);
+            border: 1px solid var(--card-border);
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 16px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+        }
+
+        .form-group { margin-bottom: 14px; }
+
+        .form-label {
+            display: block;
+            font-size: 11px;
+            color: var(--text-muted);
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            font-family: 'DM Mono', monospace;
+            margin-bottom: 6px;
+        }
+
+        .form-input {
+            width: 100%;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 10px;
+            padding: 12px 14px;
+            color: white;
+            font-size: 16px;
+            outline: none;
+            font-family: 'DM Sans', sans-serif;
+            transition: border-color 0.15s;
+        }
+
+        .form-input:focus { border-color: #2563EB; }
+
+        .record-area {
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 14px;
+            padding: 24px;
+            text-align: center;
+            margin-bottom: 16px;
+        }
+
+        .record-btn {
+            background: var(--gradient);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 88px;
+            height: 88px;
+            font-size: 36px;
+            cursor: pointer;
+            display: block;
+            margin: 0 auto 16px;
+            box-shadow: 0 4px 20px rgba(37,99,235,0.4);
+            transition: transform 0.15s;
+        }
+
+        .record-btn:active { transform: scale(0.95); }
+        .record-btn.recording { background: #dc2626; box-shadow: 0 4px 20px rgba(220,38,38,0.4); }
+
+        .record-status {
+            font-size: 14px;
+            color: var(--text-muted);
+            font-family: 'DM Mono', monospace;
+            margin-bottom: 8px;
+        }
+
+        .record-timer {
+            font-size: 32px;
+            font-weight: 700;
+            color: var(--blue);
+            display: none;
+            font-family: 'DM Mono', monospace;
+        }
+
+        .video-preview {
+            display: none;
+            margin-bottom: 16px;
+        }
+
+        .video-preview video {
+            width: 100%;
+            border-radius: 10px;
+            border: 1px solid #334155;
+            max-height: 240px;
+        }
+
+        .video-ready {
+            display: none;
+            text-align: center;
+            padding: 12px;
+            background: rgba(34,197,94,0.1);
+            border: 1px solid rgba(34,197,94,0.3);
+            border-radius: 10px;
+            color: #22c55e;
+            font-size: 13px;
+            font-family: 'DM Mono', monospace;
+            margin-bottom: 16px;
+        }
+
+        .divider {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin: 16px 0;
+        }
+
+        .divider-line {
+            flex: 1;
+            height: 1px;
+            background: #334155;
+        }
+
+        .divider-text {
+            font-size: 11px;
+            color: var(--text-muted);
+            font-family: 'DM Mono', monospace;
+        }
+
+        .upload-label {
+            display: block;
+            background: #334155;
+            border: 1px solid #475569;
+            border-radius: 10px;
+            padding: 12px;
+            text-align: center;
+            cursor: pointer;
+            font-size: 13px;
+            color: var(--text-muted);
+            font-family: 'DM Mono', monospace;
+            transition: background 0.15s;
+        }
+
+        .upload-label:hover { background: #475569; }
+
+        .submit-btn {
+            width: 100%;
+            background: var(--gradient);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            padding: 18px;
+            font-size: 17px;
+            font-weight: 700;
+            cursor: pointer;
+            font-family: 'DM Sans', sans-serif;
+            box-shadow: 0 4px 20px rgba(37,99,235,0.3);
+            transition: opacity 0.15s;
+        }
+
+        .submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .submit-btn:active:not(:disabled) { opacity: 0.85; }
+
+        .result-card {
+            display: none;
+            background: linear-gradient(135deg, #1e3a5f, #1a3a2a);
+            border: 1px solid rgba(34,197,94,0.3);
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 16px;
+        }
+
+        .result-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: #22c55e;
+            margin-bottom: 16px;
+        }
+
+        .result-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid #334155;
+        }
+
+        .result-row:last-child { border-bottom: none; }
+
+        .result-label {
+            font-size: 12px;
+            color: var(--text-muted);
+            font-family: 'DM Mono', monospace;
+        }
+
+        .result-value {
+            font-size: 14px;
+            font-weight: 600;
+            color: white;
+        }
+
+        .result-amount {
+            font-size: 24px;
+            font-weight: 700;
+            color: #22c55e;
+        }
+
+        .areas-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 12px;
+        }
+
+        .area-tag {
+            background: rgba(37,99,235,0.2);
+            color: #60a5fa;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-family: 'DM Mono', monospace;
+        }
+
+        .loading-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.85);
+            z-index: 999;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+        }
+
+        .loading-overlay.active { display: flex; }
+
+        .loading-spinner {
+            width: 60px;
+            height: 60px;
+            border: 4px solid #334155;
+            border-top-color: #2563EB;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .loading-text {
+            color: white;
+            font-size: 16px;
+            font-family: 'DM Mono', monospace;
+            text-align: center;
+        }
+
+        .loading-sub {
+            color: var(--text-muted);
+            font-size: 13px;
+            font-family: 'DM Mono', monospace;
+            margin-top: 8px;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div>
+            <h1>CrewCachePro</h1>
+            <div style="font-size:11px;color:rgba(255,255,255,0.7);font-family:DM Mono,monospace">Video Walkthrough</div>
+        </div>
+        <a href="/dashboard" class="back-btn">Back to Dashboard</a>
+    </header>
+
+    <div class="content">
+        <div class="page-title">Property Walkthrough</div>
+        <div class="page-subtitle">Record a video walking the property. AI analyzes and generates a detailed estimate.</div>
+
+        <!-- Job Details -->
+        <div class="card">
+            <div class="form-group">
+                <label class="form-label">Customer Name</label>
+                <input type="text" class="form-input" id="wtCustomer" placeholder="John Smith">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Property Address</label>
+                <input type="text" class="form-input" id="wtAddress" placeholder="123 Main St, Bowie MD">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Project Type</label>
+                <select class="form-input" id="wtProjectType">
+                    <option>Lawn and Landscaping</option>
+                    <option>Home Remodel</option>
+                    <option>Exterior Project</option>
+                    <option>HVAC</option>
+                    <option>Electrical</option>
+                    <option>Carpentry</option>
+                    <option>Pressure Washing</option>
+                    <option>Snow and Ice</option>
+                    <option>General Contracting</option>
+                    <option>Other</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Video Recording -->
+        <div class="card">
+            <div class="record-area">
+                <button id="recordBtn" class="record-btn" onclick="toggleRecording()">
+                    REC
+                </button>
+                <div class="record-status" id="recordStatus">Tap to record video walkthrough</div>
+                <div class="record-timer" id="recordTimer">0:00</div>
+            </div>
+
+            <div class="video-preview" id="videoPreview">
+                <video id="videoPlayer" controls playsinline></video>
+            </div>
+
+            <div class="video-ready" id="videoReady">
+                Video ready - tap Generate Estimate below
+            </div>
+
+            <div class="divider">
+                <div class="divider-line"></div>
+                <div class="divider-text">OR UPLOAD EXISTING VIDEO</div>
+                <div class="divider-line"></div>
+            </div>
+
+            <label class="upload-label">
+                Choose video file
+                <input type="file" id="videoFile" accept="video/*" onchange="handleUpload(this)" style="display:none">
+            </label>
+        </div>
+
+        <!-- Submit -->
+        <button class="submit-btn" id="submitBtn" onclick="submitWalkthrough()">
+            Generate Estimate
+        </button>
+
+        <!-- Result -->
+        <div class="result-card" id="resultCard">
+            <div class="result-title">Estimate Generated!</div>
+            <div class="result-row">
+                <span class="result-label">Customer</span>
+                <span class="result-value" id="resCustomer"></span>
+            </div>
+            <div class="result-row">
+                <span class="result-label">Estimate Range</span>
+                <span class="result-amount" id="resRange"></span>
+            </div>
+            <div class="result-row">
+                <span class="result-label">Timeline</span>
+                <span class="result-value" id="resTimeline"></span>
+            </div>
+            <div class="result-row">
+                <span class="result-label">Summary</span>
+                <span class="result-value" id="resSummary" style="font-size:12px;max-width:60%;text-align:right"></span>
+            </div>
+            <div id="resAreas" style="margin-top:12px;display:none">
+                <div class="result-label" style="margin-bottom:8px">Areas Identified</div>
+                <div class="areas-list" id="resAreasList"></div>
+            </div>
+            <div style="margin-top:20px;text-align:center;font-size:13px;color:var(--text-muted);font-family:DM Mono,monospace">
+                PDF emailed to you - review and send to customer
+            </div>
+            <button onclick="resetForm()" style="width:100%;margin-top:16px;background:#334155;border:1px solid #475569;color:white;border-radius:10px;padding:14px;font-size:14px;cursor:pointer;font-family:DM Sans,sans-serif">
+                New Walkthrough
+            </button>
+            <a href="/dashboard" style="display:block;width:100%;margin-top:10px;background:var(--gradient);color:white;border-radius:10px;padding:14px;font-size:14px;font-weight:700;cursor:pointer;font-family:DM Sans,sans-serif;text-align:center;text-decoration:none">
+                Back to Dashboard
+            </a>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">Analyzing video with AI...</div>
+        <div class="loading-sub">This takes 30-60 seconds</div>
+    </div>
+
+    <script>
+        let mediaRecorder = null;
+        let videoChunks = [];
+        let videoBlob = null;
+        let timerInterval = null;
+        let seconds = 0;
+        let stream = null;
+        let isRecording = false;
+
+        function getToken() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const urlToken = urlParams.get("token");
+            if (urlToken) return urlToken;
+            try {
+                const local = localStorage.getItem("dashboard_token");
+                if (local) return local;
+            } catch(e) {}
+            const match = document.cookie.match(/(^| )dashboard_token=([^;]+)/);
+            return match ? match[2] : "";
+        }
+
+        async function toggleRecording() {
+            if (isRecording) {
+                stopRecording();
+            } else {
+                await startRecording();
+            }
+        }
+
+        async function startRecording() {
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: "environment" },
+                    audio: true
+                });
+
+                videoChunks = [];
+                let mimeType = "video/webm";
+                if (MediaRecorder.isTypeSupported("video/mp4")) {
+                    mimeType = "video/mp4";
+                }
+
+                mediaRecorder = new MediaRecorder(stream, { mimeType: mimeType });
+
+                mediaRecorder.ondataavailable = function(e) {
+                    if (e.data.size > 0) videoChunks.push(e.data);
+                };
+
+                mediaRecorder.onstop = function() {
+                    videoBlob = new Blob(videoChunks, { type: mimeType });
+                    const url = URL.createObjectURL(videoBlob);
+                    document.getElementById("videoPlayer").src = url;
+                    document.getElementById("videoPreview").style.display = "block";
+                    document.getElementById("videoReady").style.display = "block";
+                    if (stream) {
+                        stream.getTracks().forEach(function(t) { t.stop(); });
+                        stream = null;
+                    }
+                };
+
+                mediaRecorder.start(1000);
+                isRecording = true;
+
+                const btn = document.getElementById("recordBtn");
+                btn.textContent = "STOP";
+                btn.classList.add("recording");
+                document.getElementById("recordStatus").textContent = "Recording - walk and describe what you see";
+                document.getElementById("recordTimer").style.display = "block";
+
+                seconds = 0;
+                timerInterval = setInterval(function() {
+                    seconds++;
+                    const m = Math.floor(seconds / 60);
+                    const s = seconds % 60;
+                    document.getElementById("recordTimer").textContent = m + ":" + (s < 10 ? "0" : "") + s;
+                }, 1000);
+
+            } catch(e) {
+                if (e.name === "NotAllowedError") {
+                    alert("Camera access denied. Please allow camera access and try again.");
+                } else {
+                    alert("Could not start recording. Please upload a video file instead.");
+                }
+            }
+        }
+
+        function stopRecording() {
+            isRecording = false;
+            if (mediaRecorder && mediaRecorder.state !== "inactive") {
+                mediaRecorder.stop();
+            }
+            if (timerInterval) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+            }
+            const btn = document.getElementById("recordBtn");
+            btn.textContent = "REC";
+            btn.classList.remove("recording");
+            document.getElementById("recordStatus").textContent = "Recording complete";
+            document.getElementById("recordTimer").style.display = "none";
+        }
+
+        function handleUpload(input) {
+            const file = input.files[0];
+            if (!file) return;
+            videoBlob = file;
+            const url = URL.createObjectURL(file);
+            document.getElementById("videoPlayer").src = url;
+            document.getElementById("videoPreview").style.display = "block";
+            document.getElementById("videoReady").style.display = "block";
+            document.getElementById("recordStatus").textContent = "Video selected";
+        }
+
+        async function submitWalkthrough() {
+            if (!videoBlob) {
+                alert("Please record or upload a video first.");
+                return;
+            }
+
+            const customer = document.getElementById("wtCustomer").value.trim();
+            const address = document.getElementById("wtAddress").value.trim();
+            const projectType = document.getElementById("wtProjectType").value;
+            const token = getToken();
+
+            if (!token) {
+                alert("Session expired. Please log in again.");
+                window.location.href = "/dashboard/login";
+                return;
+            }
+
+            document.getElementById("submitBtn").disabled = true;
+            document.getElementById("submitBtn").textContent = "Analyzing...";
+            document.getElementById("loadingOverlay").classList.add("active");
+
+            try {
+                const formData = new FormData();
+                formData.append("video", videoBlob, "walkthrough.mp4");
+                formData.append("customer_name", customer);
+                formData.append("property_address", address);
+                formData.append("project_type", projectType);
+
+                const res = await fetch("/dashboard/walkthrough", {
+                    method: "POST",
+                    headers: { "X-Dashboard-Token": token },
+                    body: formData
+                });
+
+                const data = await res.json();
+
+                document.getElementById("loadingOverlay").classList.remove("active");
+
+                if (data.ok) {
+                    document.getElementById("resCustomer").textContent = customer || "Customer";
+                    document.getElementById("resRange").textContent = data.estimate_range || "TBD";
+                    document.getElementById("resTimeline").textContent = data.timeline || "TBD";
+                    document.getElementById("resSummary").textContent = (data.project_summary || "").substring(0, 100) + "...";
+
+                    if (data.areas_identified && data.areas_identified.length) {
+                        document.getElementById("resAreas").style.display = "block";
+                        document.getElementById("resAreasList").innerHTML = data.areas_identified
+                            .map(function(a) { return "<span class=\"area-tag\">" + a + "</span>"; })
+                            .join("");
+                    }
+
+                    document.getElementById("resultCard").style.display = "block";
+                    document.getElementById("resultCard").scrollIntoView({ behavior: "smooth" });
+                } else {
+                    alert("Error: " + (data.error || "Something went wrong"));
+                }
+
+            } catch(e) {
+                document.getElementById("loadingOverlay").classList.remove("active");
+                alert("Upload failed. Please try again.");
+            } finally {
+                document.getElementById("submitBtn").disabled = false;
+                document.getElementById("submitBtn").textContent = "Generate Estimate";
+            }
+        }
+
+        function resetForm() {
+            videoBlob = null;
+            videoChunks = [];
+            document.getElementById("wtCustomer").value = "";
+            document.getElementById("wtAddress").value = "";
+            document.getElementById("videoPreview").style.display = "none";
+            document.getElementById("videoReady").style.display = "none";
+            document.getElementById("resultCard").style.display = "none";
+            document.getElementById("recordStatus").textContent = "Tap to record video walkthrough";
+            document.getElementById("recordTimer").style.display = "none";
+            document.getElementById("recordBtn").textContent = "REC";
+            document.getElementById("recordBtn").classList.remove("recording");
+            document.getElementById("videoFile").value = "";
+            window.scrollTo({ top: 0, behavior: "smooth" });
+        }
+    </script>
+</body>
+</html>
