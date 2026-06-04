@@ -6154,15 +6154,14 @@ Only return the JSON object, nothing else."""
 @dashboard_auth_required
 def dashboard_walkthrough():
     """
-
-    print("WALKTHROUGH HIT")
-    print("FILES:", list(request.files.keys()))
-    print("FORM:", list(request.form.keys()))
-    print("CONTENT TYPE:", request.content_type)
-    
     Processes a property walkthrough VIDEO recording.
     Video → Gemini Vision → structured estimate → PDF → email to contractor.
     """
+    print("=== WALKTHROUGH HIT ===", flush=True)
+    print("FILES:", list(request.files.keys()), flush=True)
+    print("FORM:", list(request.form.keys()), flush=True)
+    print("CONTENT TYPE:", request.content_type, flush=True)
+    
     try:
         import google.generativeai as genai
         import tempfile
