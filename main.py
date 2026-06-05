@@ -4211,9 +4211,10 @@ def dashboard():
 
         <div style="display:flex;gap:8px;align-items:center">
             <button onclick="startVoiceInput()" id="voiceBtn" style="background:var(--bg);border:1px solid var(--card-border);color:var(--text);border-radius:10px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif">
-                🎤 Voice
+                Voice
+            </button>
 
-            <button onclick="openWalkthroughModal()" style="background:var(--bg);border:1px solid var(--card-border);color:var(--text);border-radius:10px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;font-family:DM Sans,sans-serif">
+            <button onclick="window.location.href='/walkthrough'" style="background:var(--bg);border:1px solid var(--card-border);color:var(--text);border-radius:10px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;font-family:DM Sans,sans-serif">
                 Video
             </button>
             
