@@ -5314,7 +5314,7 @@ def dashboard():
             document.getElementById('wtTimer').style.display = 'none';
         }
 
-        async function submitWalkthrough() {
+        async function submitVoiceWalkthrough() {
             var customer = document.getElementById('wtCustomer').value.trim();
             var address = document.getElementById('wtAddress').value.trim();
             var projectType = document.getElementById('wtProjectType').value;
