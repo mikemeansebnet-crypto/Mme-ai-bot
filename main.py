@@ -6164,7 +6164,8 @@ def dashboard_walkthrough():
     print("CONTENT TYPE:", request.content_type, flush=True)
     
     try:
-        import google.generativeai as genai
+        from google import genai
+        client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
         import tempfile
         import mimetypes
 
