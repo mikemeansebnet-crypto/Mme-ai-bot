@@ -5816,7 +5816,7 @@ def dashboard_data():
 def walkthrough_page():
     """Serves the video walkthrough page."""
     root_dir = os.path.dirname(os.path.abspath(__file__))
-    return send_from_directory(root_dir, 'walkthrough.html')
+    return send_from_directory(root_dir, 'Walkthrough.html')
 
 @app.route("/onesignal/register", methods=["POST"])
 @dashboard_auth_required
