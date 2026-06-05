@@ -5619,7 +5619,7 @@ def dashboard():
             </div>
             <div class="modal-actions">
                 <button class="btn-cancel-modal" onclick="closeWalkthroughModal()">Cancel</button>
-                <button class="btn-book" id="wtSubmitBtn" onclick="submitWalkthrough()">Generate Estimate</button>
+                <button class="btn-book" id="wtSubmitBtn" onclick="submitVoiceWalkthrough()">Generate Estimate</button>
             </div>
         </div>
     </div>
