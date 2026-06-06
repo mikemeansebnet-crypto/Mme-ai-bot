@@ -2712,6 +2712,163 @@ def send_daily_briefing():
         print(f"DAILY BRIEFING ERROR | {type(e).__name__} | {e}")
         return jsonify({"ok": False, "error": str(e)}), 500
 
+@app.route("/send-regular-client-reminders", methods=["POST"])
+def send_regular_client_reminders():
+    """
+    Runs daily at 6 AM — checks Regular Clients due in 2 days
+    and automatically books them, sends confirmation SMS and adds to Google Calendar.
+    """
+    try:
+        secret = request.headers.get("X-Briefing-Secret")
+        if secret != os.environ.get("BRIEFING_SECRET"):
+            return jsonify({"ok": False, "error": "Unauthorized"}), 401
+
+        import requests as req
+        from zoneinfo import ZoneInfo
+        from datetime import datetime, timedelta
+
+        eastern = ZoneInfo("America/New_York")
+        now = datetime.now(eastern)
+        target_date = (now + timedelta(days=2)).strftime("%Y-%m-%d")
+        today_str = now.strftime("%Y-%m-%d")
+
+        AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
+        AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
+        CONTRACTORS_TABLE = os.environ.get("AIRTABLE_CONTRACTORS_TABLE")
+        headers_at = {"Authorization": f"Bearer {AIRTABLE_TOKEN}"}
+
+        # Get all active contractors
+        contractors_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{CONTRACTORS_TABLE}"
+        contractors_resp = req.get(contractors_url, headers=headers_at, params={
+            "filterByFormula": "{Active} = TRUE()"
+        })
+        contractors = contractors_resp.json().get("records", [])
+
+        booked = 0
+        skipped = 0
+
+        for contractor_record in contractors:
+            try:
+                fields = contractor_record.get("fields", {})
+                twilio_number = (fields.get("Twilio Number") or "").strip()
+                notify_sms = (fields.get("Notify SMS") or "").strip()
+                business_name = (fields.get("Business Name") or "your contractor").strip()
+                contractor_id = contractor_record.get("id", "")
+
+                if not twilio_number:
+                    continue
+
+                contractor = fields
+
+                # Get active regular clients for this contractor
+                regular_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tbl3LAJzXa6Vsexry"
+                regular_resp = req.get(regular_url, headers=headers_at, params={
+                    "filterByFormula": f"AND({{Active}} = TRUE(), {{Twilio Number}} = '{twilio_number}')"
+                })
+                regular_records = regular_resp.json().get("records", [])
+
+                for r in regular_records:
+                    f = r.get("fields", {})
+                    record_id = r.get("id", "")
+                    next_appt_raw = f.get("Next Appointment", "")
+                    client_name = f.get("Client Name", "")
+                    client_phone = f.get("Phone", "")
+                    service_address = f.get("Service Address", "")
+                    service_desc = f.get("Service Description", "")
+                    preferred_time = f.get("Preferred Time", "09:00")
+                    frequency_days = int(f.get("Frequency Days", 14) or 14)
+
+                    if not next_appt_raw or not client_phone:
+                        continue
+
+                    try:
+                        dt = datetime.fromisoformat(next_appt_raw.replace("Z", "+00:00"))
+                        dt_eastern = dt.astimezone(eastern)
+                        appt_date_str = dt_eastern.strftime("%Y-%m-%d")
+                    except Exception:
+                        continue
+
+                    # Only book if appointment is exactly 2 days away
+                    if appt_date_str != target_date:
+                        continue
+
+                    print(f"REGULAR CLIENT AUTO-BOOK | {client_name} | {appt_date_str} | {twilio_number}")
+
+                    # Format appointment display
+                    formatted_display = dt_eastern.strftime("%A, %B %-d at %-I:%M %p")
+
+                    # Create lead in Airtable
+                    leads_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tbl6YL7BYY2vawIF1"
+                    at_headers = {
+                        "Authorization": f"Bearer {AIRTABLE_TOKEN}",
+                        "Content-Type": "application/json"
+                    }
+
+                    lead_resp = req.post(
+                        leads_url,
+                        headers=at_headers,
+                        json={"fields": {
+                            "fldBktJv26lpFCZjg": client_name,
+                            "fldfSFcMA4V5SLfjo": client_phone,
+                            "fldo9GtQBLObByZs5": service_address,
+                            "fldxNwWbbMWF4cT47": service_desc,
+                            "fldkTOouWuLx6JHly": formatted_display,
+                            "fldHL2tJs2egGKuI9": "Booked",
+                            "fldbtGSgcOrHHe6pO": "STANDARD",
+                            "fldAgsSlZfOLFCBrJ": twilio_number,
+                            "fldIfaFlPA4AyMntY": dt_eastern.isoformat(),
+                        }}
+                    )
+                    print(f"REGULAR CLIENT LEAD | {lead_resp.status_code} | {client_name}")
+
+                    # Add to Google Calendar
+                    try:
+                        from app.app.cal_service import create_google_calendar_event
+                        dt_end = dt_eastern + timedelta(hours=1)
+                        create_google_calendar_event(
+                            contractor=contractor,
+                            summary=f"{business_name} - {service_desc} ({client_name})",
+                            start_time=dt_eastern.isoformat(),
+                            end_time=dt_end.isoformat(),
+                            description=f"Regular client - every {frequency_days} days\nPhone: {client_phone}",
+                            location=service_address,
+                        )
+                        print(f"REGULAR CLIENT CALENDAR | {client_name}")
+                    except Exception as e:
+                        print(f"REGULAR CLIENT CALENDAR ERROR | {e}")
+
+                    # Send confirmation SMS to customer
+                    first_name = client_name.split()[0] if client_name else "there"
+                    msg = (
+                        f"Hi {first_name}! Your appointment with {business_name} is confirmed for "
+                        f"{formatted_display}. "
+                        f"Reply CANCEL APPOINTMENT to cancel."
+                    )
+                    send_fallback_sms(to_number=client_phone, body=msg)
+                    print(f"REGULAR CLIENT SMS | {client_name} | {client_phone}")
+
+                    # Notify contractor
+                    if notify_sms:
+                        contractor_msg = (
+                            f"Auto-booked: {client_name}\n"
+                            f"{formatted_display}\n"
+                            f"{service_address}\n"
+                            f"{service_desc}"
+                        )
+                        send_fallback_sms(to_number=notify_sms, body=contractor_msg)
+
+                    booked += 1
+
+            except Exception as e:
+                print(f"REGULAR CLIENT AUTO-BOOK ERROR | contractor | {e}")
+                skipped += 1
+
+        return jsonify({"ok": True, "booked": booked, "skipped": skipped})
+
+    except Exception as e:
+        print(f"REGULAR CLIENT REMINDERS ERROR | {type(e).__name__} | {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
 @app.route("/send-payment-reminders", methods=["POST", "GET"])
 def send_payment_reminders():
     """
