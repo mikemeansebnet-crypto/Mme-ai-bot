@@ -6443,7 +6443,10 @@ Return ONLY this JSON format:
 Base pricing on current US contractor rates for the {property_address} region.
 Be thorough — price every single item you observe needs attention."""
 
-        response = model.generate_content([video_gemini, prompt])
+        response = client.models.generate_content(
+            model="gemini-2.0-flash",
+            contents=[video_gemini, prompt]
+        )
         raw = response.text.strip()
         print(f"WALKTHROUGH | Gemini analysis complete | {raw[:200]}")
 
