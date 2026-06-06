@@ -2660,6 +2660,24 @@ def send_daily_briefing():
                         except Exception:
                             pass
 
+                # Get outstanding payments
+                outstanding_total = 0
+                outstanding_count = 0
+                try:
+                    payments_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/Payments"
+                    payments_resp = req.get(payments_url, headers=headers, params={
+                        "filterByFormula": f"AND({{Payment Status}} = 'Unpaid', FIND('{contractor_id}', ARRAYJOIN({{Contractor}})))"
+                    })
+                    payment_records = payments_resp.json().get("records", [])
+                    for p in payment_records:
+                        pf = p.get("fields", {})
+                        amount = float(pf.get("Amount", 0) or 0)
+                        outstanding_total += amount
+                        outstanding_count += 1
+                    print(f"DAILY BRIEFING | Outstanding | {outstanding_count} payments | ${outstanding_total}")
+                except Exception as e:
+                    print(f"DAILY BRIEFING | Outstanding error | {e}")
+
                 # Build briefing message
                 lines = [f"📋 Good morning! {today_display}"]
                 lines.append(f"━━━━━━━━━━━━━━")
@@ -2685,6 +2703,9 @@ def send_daily_briefing():
                         lines.append(f"• {c['name']} — {label}")
 
                 lines.append(f"━━━━━━━━━━━━━━")
+                if outstanding_count > 0:
+                    lines.append(f"━━━━━━━━━━━━━━")
+                    lines.append(f"💵 {outstanding_count} outstanding payment{'s' if outstanding_count != 1 else ''} — ${outstanding_total:,.2f} owed")
                 lines.append("Have a great day! 💪")
 
                 msg = "\n".join(lines)
