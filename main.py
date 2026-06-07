@@ -6393,25 +6393,29 @@ def dashboard_walkthrough():
             print(f"WALKTHROUGH | Cloudinary video upload error | {e}")
 
         # Step 3 — Send video to Gemini for analysis
-        genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
+        from google import genai
+        from google.genai import types
 
-        print(f"WALKTHROUGH | Uploading video to Gemini...")
-        video_gemini = genai.upload_file(
-            path=tmp_path,
-            mime_type="video/mp4" if suffix == ".mp4" else "video/quicktime"
+        client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
+
+        print(f"WALKTHROUGH | Reading video for Gemini...")
+        with open(tmp_path, "rb") as vf:
+            video_bytes = vf.read()
+
+        response = client.models.generate_content(
+            model="gemini-2.0-flash",
+            contents=[
+                types.Part.from_bytes(
+                    data=video_bytes,
+                    mime_type="video/mp4" if suffix == ".mp4" else "video/quicktime"
+                ),
+                prompt
+            ]
         )
+        raw = response.text.strip()
+        print(f"WALKTHROUGH | Gemini analysis complete | {raw[:200]}")
 
-        # Wait for processing
-        import time as time_module
-        while video_gemini.state.name == "PROCESSING":
-            print("WALKTHROUGH | Gemini processing video...")
-            time_module.sleep(3)
-            video_gemini = genai.get_file(video_gemini.name)
-
-        print(f"WALKTHROUGH | Gemini video ready | {video_gemini.name}")
-
-        # Step 4 — Analyze with Gemini
-        model = genai.GenerativeModel("gemini-2.0-flash")
+        
         prompt = f"""You are an expert contractor estimator for {business_name}.
 
 Analyze this property walkthrough video carefully. Watch every frame and listen to all audio.
