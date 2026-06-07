@@ -6428,7 +6428,7 @@ Be thorough - price every single item you observe needs attention."""
             video_bytes = vf.read()
 
         response = client.models.generate_content(
-            model="gemini-2.0-flash",
+            model="gemini-2.5-flash",
             contents=[
                 types.Part.from_bytes(
                     data=video_bytes,
