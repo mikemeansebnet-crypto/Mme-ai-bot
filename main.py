@@ -6393,76 +6393,61 @@ def dashboard_walkthrough():
             print(f"WALKTHROUGH | Cloudinary video upload error | {e}")
 
         # Step 3 — Send video to Gemini for analysis
-        from google import genai
-        from google.genai import types
+                prompt = f"""You are an expert contractor estimator for {business_name}.
+        Analyze this property walkthrough video carefully. Watch every frame and listen to all audio.
+        Customer: {customer_name}
+        Property: {property_address}
+        Project Type: {project_type}
+        Based on what you SEE in the video and HEAR from the contractor narration:
+        1. Identify every area, room, or surface that needs work
+        2. Note the condition, size, and complexity of each area
+        3. Generate a complete professional contractor estimate
+        Return ONLY this JSON format:
+        {{
+          "project_summary": "2-3 sentence overview of what you observed",
+          "scope_of_work": "detailed paragraph of all work needed",
+          "line_items": [
+            {{"description": "Specific task", "detail": "Location and specifics", "labor": 0.00, "materials": 0.00, "total": 0.00}}
+          ],
+          "timeline": "estimated completion time",
+          "notes": "important observations, concerns, or recommendations",
+          "estimate_total": 0.00,
+          "estimate_range": "$X,XXX - $X,XXX",
+          "areas_identified": ["list of areas/rooms identified in video"]
+        }}
+        Base pricing on current US contractor rates for the {property_address} region.
+        Be thorough - price every single item you observe needs attention."""
 
-        client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
+                from google import genai
+                from google.genai import types
 
-        print(f"WALKTHROUGH | Reading video for Gemini...")
-        with open(tmp_path, "rb") as vf:
-            video_bytes = vf.read()
+                client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
+                print(f"WALKTHROUGH | Reading video for Gemini...")
 
-        response = client.models.generate_content(
-            model="gemini-2.0-flash",
-            contents=[
-                types.Part.from_bytes(
-                    data=video_bytes,
-                    mime_type="video/mp4" if suffix == ".mp4" else "video/quicktime"
-                ),
-                prompt
-            ]
-        )
-        raw = response.text.strip()
-        print(f"WALKTHROUGH | Gemini analysis complete | {raw[:200]}")
+                with open(tmp_path, "rb") as vf:
+                    video_bytes = vf.read()
 
-        
-        prompt = f"""You are an expert contractor estimator for {business_name}.
+                response = client.models.generate_content(
+                    model="gemini-2.0-flash",
+                    contents=[
+                        types.Part.from_bytes(
+                            data=video_bytes,
+                            mime_type="video/mp4" if suffix == ".mp4" else "video/quicktime"
+                        ),
+                        prompt
+                    ]
+                )
+                raw = response.text.strip()
+                print(f"WALKTHROUGH | Gemini analysis complete | {raw[:200]}")
 
-Analyze this property walkthrough video carefully. Watch every frame and listen to all audio.
-
-Customer: {customer_name}
-Property: {property_address}
-Project Type: {project_type}
-
-Based on what you SEE in the video and HEAR from the contractor's narration:
-
-1. Identify every area, room, or surface that needs work
-2. Note the condition, size, and complexity of each area
-3. Generate a complete professional contractor estimate
-
-Return ONLY this JSON format:
-{{
-  "project_summary": "2-3 sentence overview of what you observed",
-  "scope_of_work": "detailed paragraph of all work needed",
-  "line_items": [
-    {{"description": "Specific task", "detail": "Location and specifics", "labor": 0.00, "materials": 0.00, "total": 0.00}},
-  ],
-  "timeline": "estimated completion time",
-  "notes": "important observations, concerns, or recommendations",
-  "estimate_total": 0.00,
-  "estimate_range": "$X,XXX - $X,XXX",
-  "areas_identified": ["list of areas/rooms identified in video"]
-}}
-
-Base pricing on current US contractor rates for the {property_address} region.
-Be thorough — price every single item you observe needs attention."""
-
-        response = client.models.generate_content(
-            model="gemini-2.0-flash",
-            contents=[video_gemini, prompt]
-        )
-        raw = response.text.strip()
-        print(f"WALKTHROUGH | Gemini analysis complete | {raw[:200]}")
-
-        # Parse JSON
-        import json as json_lib
-        import re as re_lib
-        json_match = re_lib.search(r'\{.*\}', raw, re_lib.DOTALL)
-        if not json_match:
-            raise ValueError("No JSON in Gemini response")
-        estimate_data = json_lib.loads(json_match.group(0))
-
-        print(f"WALKTHROUGH | Estimate generated | ${estimate_data.get('estimate_total', 0)}")
+                # Parse JSON
+                import json as json_lib
+                import re as re_lib
+                json_match = re_lib.search(r'\{.*\}', raw, re_lib.DOTALL)
+                if not json_match:
+                    raise ValueError("No JSON in Gemini response")
+                estimate_data = json_lib.loads(json_match.group(0))
+                print(f"WALKTHROUGH | Estimate generated | ${estimate_data.get('estimate_total', 0)}")
 
         # Step 5 — Generate PDF
         from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
