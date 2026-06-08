@@ -6419,6 +6419,9 @@ Return ONLY this JSON format:
 Base pricing on current US contractor rates for the {property_address} region.
 Be thorough - price every single item you observe needs attention."""
 
+        if contractor_notes:
+            prompt += f"\n\nCONTRACTOR NOTES (spoken during walkthrough):\n{contractor_notes}\n\nIncorporate these notes into your estimate."
+
         from google import genai
         from google.genai import types
 
