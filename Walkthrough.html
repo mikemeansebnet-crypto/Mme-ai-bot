@@ -641,6 +641,9 @@
                 formData.append("property_address", address);
                 formData.append("project_type", projectType);
 
+                const transcript = document.getElementById("transcriptBox").value.trim();
+                formData.append("contractor_notes", transcript);
+
                 const res = await fetch("/dashboard/walkthrough", {
                     method: "POST",
                     headers: { "X-Dashboard-Token": token },
