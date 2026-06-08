@@ -6355,6 +6355,7 @@ def dashboard_walkthrough():
 
         # Get form data
         customer_name = request.form.get("customer_name", "").strip()
+        contractor_notes = request.form.get("contractor_notes", "").strip()
         property_address = request.form.get("property_address", "").strip()
         project_type = request.form.get("project_type", "General Contracting").strip()
         video_file = request.files.get("video")
