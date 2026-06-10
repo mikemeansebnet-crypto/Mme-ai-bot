@@ -5245,15 +5245,15 @@ def dashboard():
             }
         }
 
-        async function completeRegularClient(recordId, name, frequencyDays) {
-            if (!confirm(`Mark ${name}'s visit as complete?\nNext appointment will be set automatically in ${frequencyDays} days.`)) return;
+        async function completeRegularClient(recordId, name, frequencyDays, phone, jobType) {
+            if (!confirm("Mark " + name + " visit as complete?")) return;
 
             try {
-                const res = await fetch('/dashboard/action/complete-regular-client', {
-                    method: 'POST',
+                const res = await fetch("/dashboard/action/complete-regular-client", {
+                    method: "POST",
                     headers: {
-                        'Content-Type': 'application/json',
-                        'X-Dashboard-Token': getCookie('dashboard_token')
+                        "Content-Type": "application/json",
+                        "X-Dashboard-Token": getCookie("dashboard_token")
                     },
                     body: JSON.stringify({
                         record_id: recordId,
@@ -5263,13 +5263,13 @@ def dashboard():
 
                 const data = await res.json();
                 if (data.ok) {
-                    alert(`✅ Visit marked complete!\nNext appointment auto-scheduled for ${data.next_appointment}.`);
-                    loadRegularClients();
+                    // Open Complete & Pay modal after marking done
+                    openCompletePayModal(recordId, name, phone, jobType);
                 } else {
-                    alert('Error: ' + (data.error || 'Something went wrong'));
+                    alert("Error: " + (data.error || "Something went wrong"));
                 }
             } catch(e) {
-                alert('Request failed. Please try again.');
+                alert("Request failed. Please try again.");
             }
         }
 
