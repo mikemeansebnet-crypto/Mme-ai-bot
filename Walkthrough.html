@@ -574,6 +574,70 @@
             document.getElementById("voiceNotesSection").style.display = "block";
         }
 
+        // Voice Notes - two step flow after video stops
+        let voiceNotesRecognition = null;
+        let voiceNotesActive = false;
+        let voiceTranscript = "";
+
+        function toggleVoiceNotes() {
+            if (voiceNotesActive) {
+                stopVoiceNotes();
+            } else {
+                startVoiceNotes();
+            }
+        }
+
+        function startVoiceNotes() {
+            if (!("webkitSpeechRecognition" in window) && !("SpeechRecognition" in window)) {
+                alert("Voice notes not supported. Please type your notes directly.");
+                return;
+            }
+
+            const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+            voiceNotesRecognition = new SR();
+            voiceNotesRecognition.continuous = true;
+            voiceNotesRecognition.interimResults = true;
+            voiceNotesRecognition.lang = "en-US";
+
+            voiceNotesRecognition.onresult = function(event) {
+                let interim = "";
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    if (event.results[i].isFinal) {
+                        voiceTranscript += event.results[i][0].transcript + " ";
+                    } else {
+                        interim += event.results[i][0].transcript;
+                    }
+                }
+                document.getElementById("transcriptBox").value = voiceTranscript + interim;
+            };
+
+            voiceNotesRecognition.onend = function() {
+                if (voiceNotesActive) voiceNotesRecognition.start();
+            };
+
+            voiceNotesRecognition.onerror = function(e) {
+                console.log("Voice notes error:", e.error);
+            };
+
+            voiceNotesRecognition.start();
+            voiceNotesActive = true;
+
+            document.getElementById("voiceNotesBtn").textContent = "Tap to Stop";
+            document.getElementById("voiceNotesBtn").style.background = "#dc2626";
+            document.getElementById("voiceNotesStatus").style.display = "block";
+        }
+
+        function stopVoiceNotes() {
+            voiceNotesActive = false;
+            if (voiceNotesRecognition) {
+                try { voiceNotesRecognition.abort(); } catch(e) {}
+                voiceNotesRecognition = null;
+            }
+            document.getElementById("voiceNotesBtn").textContent = "Tap to Add More Notes";
+            document.getElementById("voiceNotesBtn").style.background = "#334155";
+            document.getElementById("voiceNotesStatus").style.display = "none";
+        }
+
         function handleUpload(input) {
             const file = input.files[0];
             if (!file) return;
