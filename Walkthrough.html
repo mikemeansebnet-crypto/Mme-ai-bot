@@ -176,28 +176,6 @@
             margin-bottom: 16px;
         }
 
-        <!-- Live Transcript -->
-            <div id="transcriptSection" style="display:none;margin-top:16px">
-                <div style="font-size:11px;color:#94a3b8;font-family:DM Mono,monospace;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">
-                    Voice Notes (auto-transcribed - edit before submitting)
-                </div>
-                <textarea id="transcriptBox" rows="5" style="width:100%;background:#0f172a;border:1px solid #334155;border-radius:10px;padding:12px;color:white;font-size:14px;font-family:DM Sans,sans-serif;resize:vertical;outline:none" placeholder="Your spoken notes will appear here as you record. You can edit or add notes before generating the estimate."></textarea>
-            </div>
-
-        <!-- Voice Notes Section - appears after recording stops -->
-            <div id="voiceNotesSection" style="display:none;margin-top:16px">
-                <div style="font-size:11px;color:#94a3b8;font-family:DM Mono,monospace;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">
-                    Step 2 - Add Voice Notes (Optional)
-                </div>
-                <button id="voiceNotesBtn" onclick="toggleVoiceNotes()" style="width:100%;background:#334155;border:1px solid #475569;color:white;border-radius:10px;padding:12px;font-size:14px;font-weight:600;cursor:pointer;font-family:DM Sans,sans-serif;margin-bottom:10px">
-                    Tap to Add Voice Notes
-                </button>
-                <div id="voiceNotesStatus" style="font-size:12px;color:#94a3b8;font-family:DM Mono,monospace;text-align:center;margin-bottom:8px;display:none">
-                    Listening...
-                </div>
-                <textarea id="transcriptBox" rows="4" style="width:100%;background:#0f172a;border:1px solid #334155;border-radius:10px;padding:12px;color:white;font-size:14px;font-family:DM Sans,sans-serif;resize:vertical;outline:none" placeholder="Tap above to add voice notes, or type notes here. Example: customer wants Trex boards not pressure treated lumber."></textarea>
-            </div>
-
         .divider {
             display: flex;
             align-items: center;
@@ -365,7 +343,6 @@
         <div class="page-title">Property Walkthrough</div>
         <div class="page-subtitle">Record a video walking the property. AI analyzes and generates a detailed estimate.</div>
 
-        <!-- Job Details -->
         <div class="card">
             <div class="form-group">
                 <label class="form-label">Customer Name</label>
@@ -392,7 +369,6 @@
             </div>
         </div>
 
-        <!-- Video Recording -->
         <div class="card">
             <div class="record-area">
                 <button id="recordBtn" class="record-btn" onclick="toggleRecording()">
@@ -410,6 +386,19 @@
                 Video ready - tap Generate Estimate below
             </div>
 
+            <div id="voiceNotesSection" style="display:none; margin-top:16px;">
+                <div style="font-size:11px;color:#94a3b8;font-family:DM Mono,monospace;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">
+                    Step 2 - Add Voice Notes (Optional)
+                </div>
+                <button id="voiceNotesBtn" onclick="toggleVoiceNotes()" style="width:100%;background:#334155;border:1px solid #475569;color:white;border-radius:10px;padding:12px;font-size:14px;font-weight:600;cursor:pointer;font-family:DM Sans,sans-serif;margin-bottom:10px">
+                    Tap to Add Voice Notes
+                </button>
+                <div id="voiceNotesStatus" style="font-size:12px;color:#94a3b8;font-family:DM Mono,monospace;text-align:center;margin-bottom:8px;display:none">
+                    Listening...
+                </div>
+                <textarea id="transcriptBox" rows="4" style="width:100%;background:#0f172a;border:1px solid #334155;border-radius:10px;padding:12px;color:white;font-size:14px;font-family:DM Sans,sans-serif;resize:vertical;outline:none" placeholder="Tap above to add voice notes, or type notes here. Example: customer wants Trex boards not pressure treated lumber."></textarea>
+            </div>
+
             <div class="divider">
                 <div class="divider-line"></div>
                 <div class="divider-text">OR UPLOAD EXISTING VIDEO</div>
@@ -422,12 +411,10 @@
             </label>
         </div>
 
-        <!-- Submit -->
         <button class="submit-btn" id="submitBtn" onclick="submitWalkthrough()">
             Generate Estimate
         </button>
 
-        <!-- Result -->
         <div class="result-card" id="resultCard">
             <div class="result-title">Estimate Generated!</div>
             <div class="result-row">
@@ -462,7 +449,6 @@
         </div>
     </div>
 
-    <!-- Loading Overlay -->
     <div class="loading-overlay" id="loadingOverlay">
         <div class="loading-spinner"></div>
         <div class="loading-text">Analyzing video with AI...</div>
@@ -477,6 +463,7 @@
         let seconds = 0;
         let stream = null;
         let isRecording = false;
+        let finalMimeType = "video/webm"; // Tracks explicit type dynamically
 
         function getToken() {
             const urlParams = new URLSearchParams(window.location.search);
@@ -506,19 +493,26 @@
                 });
 
                 videoChunks = [];
-                let mimeType = "video/webm";
-                if (MediaRecorder.isTypeSupported("video/mp4")) {
-                    mimeType = "video/mp4";
+                
+                // Smart iOS / iPadOS container negotiation
+                if (MediaRecorder.isTypeSupported("video/mp4;codecs=avc1")) {
+                    finalMimeType = "video/mp4;codecs=avc1";
+                } else if (MediaRecorder.isTypeSupported("video/mp4")) {
+                    finalMimeType = "video/mp4";
+                } else if (MediaRecorder.isTypeSupported("video/quicktime")) {
+                    finalMimeType = "video/quicktime";
+                } else {
+                    finalMimeType = "video/webm";
                 }
 
-                mediaRecorder = new MediaRecorder(stream, { mimeType: mimeType });
+                mediaRecorder = new MediaRecorder(stream, { mimeType: finalMimeType });
 
                 mediaRecorder.ondataavailable = function(e) {
                     if (e.data.size > 0) videoChunks.push(e.data);
                 };
 
                 mediaRecorder.onstop = function() {
-                    videoBlob = new Blob(videoChunks, { type: mimeType });
+                    videoBlob = new Blob(videoChunks, { type: finalMimeType });
                     const url = URL.createObjectURL(videoBlob);
                     document.getElementById("videoPlayer").src = url;
                     document.getElementById("videoPreview").style.display = "block";
@@ -546,9 +540,8 @@
                     document.getElementById("recordTimer").textContent = m + ":" + (s < 10 ? "0" : "") + s;
                 }, 1000);
 
-            
-
             } catch(e) {
+                console.error("Recording error:", e);
                 if (e.name === "NotAllowedError") {
                     alert("Camera access denied. Please allow camera access and try again.");
                 } else {
@@ -574,7 +567,6 @@
             document.getElementById("voiceNotesSection").style.display = "block";
         }
 
-        // Voice Notes - two step flow after video stops
         let voiceNotesRecognition = null;
         let voiceNotesActive = false;
         let voiceTranscript = "";
@@ -642,6 +634,7 @@
             const file = input.files[0];
             if (!file) return;
             videoBlob = file;
+            finalMimeType = file.type; // Matches whatever type the file is
             const url = URL.createObjectURL(file);
             document.getElementById("videoPlayer").src = url;
             document.getElementById("videoPreview").style.display = "block";
@@ -672,7 +665,11 @@
 
             try {
                 const formData = new FormData();
-                formData.append("video", videoBlob, "walkthrough.mp4");
+                
+                // Matches file extension matching back-end expectations cleanly
+                const fileExt = finalMimeType.includes("webm") ? "webm" : finalMimeType.includes("quicktime") ? "mov" : "mp4";
+                formData.append("video", videoBlob, "walkthrough." + fileExt);
+                
                 formData.append("customer_name", customer);
                 formData.append("property_address", address);
                 formData.append("project_type", projectType);
@@ -687,7 +684,6 @@
                 });
 
                 const data = await res.json();
-
                 document.getElementById("loadingOverlay").classList.remove("active");
 
                 if (data.ok) {
@@ -710,6 +706,7 @@
                 }
 
             } catch(e) {
+                console.error("Submission failed:", e);
                 document.getElementById("loadingOverlay").classList.remove("active");
                 alert("Upload failed. Please try again.");
             } finally {
@@ -733,15 +730,12 @@
             document.getElementById("videoFile").value = "";
             window.scrollTo({ top: 0, behavior: "smooth" });
 
-            // Reset voice notes
             voiceTranscript = "";
             voiceNotesActive = false;
             document.getElementById("voiceNotesSection").style.display = "none";
             document.getElementById("voiceNotesBtn").textContent = "Tap to Add Voice Notes";
             document.getElementById("voiceNotesBtn").style.background = "#334155";
             document.getElementById("transcriptBox").value = "";
-
-            
         }
     </script>
 </body>
