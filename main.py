@@ -5166,8 +5166,8 @@ def dashboard():
                     <div class="job-actions" style="margin-top:10px">
                         <button onclick="openRegularBookModal('${c.record_id}', '${c.name}', '${c.phone}', '${c.address}', '${c.service}', ${c.frequency_days}, '${c.preferred_time}')"
                             class="action-btn btn-sms">📅 Book</button>
-                        <button onclick="completeRegularClient('${c.record_id}', '${c.name}', ${c.frequency_days})"
-                            class="action-btn" style="background:#22c55e;color:#000">✓ Done</button>
+                        <button onclick="completeRegularClient('${c.record_id}', '${c.name}', ${c.frequency_days}, '${c.phone}', '${c.service}')"
+                            class="action-btn" style="background:#22c55e;color:#000">Done</button>
                     </div>
                     ${c.phone ? `
                     <div class="job-actions" style="margin-top:8px">
