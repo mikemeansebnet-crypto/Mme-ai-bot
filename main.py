@@ -6438,7 +6438,7 @@ Be thorough - price every single item you observe needs attention."""
             contents=[
                 types.Part.from_bytes(
                     data=video_bytes,
-                    mime_type="video/mp4" if suffix == ".mp4" else "video/quicktime"
+                    mime_type="video/mp4" if suffix == ".mp4" else "video/webm" if suffix == ".webm" else "video/quicktime"
                 ),
                 prompt
             ]
