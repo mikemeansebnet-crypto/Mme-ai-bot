@@ -6369,6 +6369,8 @@ def dashboard_walkthrough():
         suffix = ".mp4"
         if video_file.filename.endswith(".mov"):
             suffix = ".mov"
+        elif video_file.filename.endswith(".webm"):
+            suffix = ".webm"
 
         with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
             video_file.save(tmp.name)
