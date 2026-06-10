@@ -184,6 +184,20 @@
                 <textarea id="transcriptBox" rows="5" style="width:100%;background:#0f172a;border:1px solid #334155;border-radius:10px;padding:12px;color:white;font-size:14px;font-family:DM Sans,sans-serif;resize:vertical;outline:none" placeholder="Your spoken notes will appear here as you record. You can edit or add notes before generating the estimate."></textarea>
             </div>
 
+        <!-- Voice Notes Section - appears after recording stops -->
+            <div id="voiceNotesSection" style="display:none;margin-top:16px">
+                <div style="font-size:11px;color:#94a3b8;font-family:DM Mono,monospace;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">
+                    Step 2 - Add Voice Notes (Optional)
+                </div>
+                <button id="voiceNotesBtn" onclick="toggleVoiceNotes()" style="width:100%;background:#334155;border:1px solid #475569;color:white;border-radius:10px;padding:12px;font-size:14px;font-weight:600;cursor:pointer;font-family:DM Sans,sans-serif;margin-bottom:10px">
+                    Tap to Add Voice Notes
+                </button>
+                <div id="voiceNotesStatus" style="font-size:12px;color:#94a3b8;font-family:DM Mono,monospace;text-align:center;margin-bottom:8px;display:none">
+                    Listening...
+                </div>
+                <textarea id="transcriptBox" rows="4" style="width:100%;background:#0f172a;border:1px solid #334155;border-radius:10px;padding:12px;color:white;font-size:14px;font-family:DM Sans,sans-serif;resize:vertical;outline:none" placeholder="Tap above to add voice notes, or type notes here. Example: customer wants Trex boards not pressure treated lumber."></textarea>
+            </div>
+
         .divider {
             display: flex;
             align-items: center;
