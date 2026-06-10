@@ -562,16 +562,6 @@
             if (mediaRecorder && mediaRecorder.state !== "inactive") {
                 mediaRecorder.stop();
             }
-            // Stop speech recognition
-                if (window._speechRecognition) {
-                    try {
-                        window._speechRecognition.abort();
-                        window._speechRecognition = null;
-                    } catch(e) {}
-                }
-
-                // Show transcript section
-                document.getElementById("transcriptSection").style.display = "block";
             if (timerInterval) {
                 clearInterval(timerInterval);
                 timerInterval = null;
@@ -579,8 +569,9 @@
             const btn = document.getElementById("recordBtn");
             btn.textContent = "REC";
             btn.classList.remove("recording");
-            document.getElementById("recordStatus").textContent = "Recording complete";
+            document.getElementById("recordStatus").textContent = "Recording complete - add voice notes below";
             document.getElementById("recordTimer").style.display = "none";
+            document.getElementById("voiceNotesSection").style.display = "block";
         }
 
         function handleUpload(input) {
