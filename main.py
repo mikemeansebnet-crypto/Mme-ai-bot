@@ -2787,7 +2787,7 @@ def send_regular_client_reminders():
                     "filterByFormula": f"AND({{Active}} = TRUE(), {{Twilio Number}} = '{twilio_number}')"
                 })
                 regular_records = regular_resp.json().get("records", [])
-                print(f"REGULAR CLIENT QUERY | twilio: {twilio_number} | found: {len(records)} records")
+                print(f"REGULAR CLIENT QUERY | twilio: {twilio_number} | found: {len(regular_records)} records")
 
                 for r in regular_records:
                     f = r.get("fields", {})
