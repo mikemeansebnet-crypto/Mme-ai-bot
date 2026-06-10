@@ -546,40 +546,7 @@
                     document.getElementById("recordTimer").textContent = m + ":" + (s < 10 ? "0" : "") + s;
                 }, 1000);
 
-                // Start speech recognition alongside video
-                let speechTranscript = "";
-                let speechRecognition = null;
-
-                if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
-                    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-                    speechRecognition = new SR();
-                    speechRecognition.continuous = true;
-                    speechRecognition.interimResults = true;
-                    speechRecognition.lang = "en-US";
-
-                    speechRecognition.onresult = function(event) {
-                        let interim = "";
-                        for (let i = event.resultIndex; i < event.results.length; i++) {
-                            if (event.results[i].isFinal) {
-                                speechTranscript += event.results[i][0].transcript + " ";
-                            } else {
-                                interim += event.results[i][0].transcript;
-                            }
-                        }
-                        document.getElementById("transcriptBox").value = speechTranscript + interim;
-                    };
-
-                    speechRecognition.onend = function() {
-                        if (isRecording) speechRecognition.start();
-                    };
-
-                    speechRecognition.start();
-                    console.log("Speech recognition started alongside video");
-                }
-
-                // Store reference to stop it later
-                window._speechRecognition = speechRecognition;
-                window._speechTranscript = function() { return speechTranscript; };
+            
 
             } catch(e) {
                 if (e.name === "NotAllowedError") {
