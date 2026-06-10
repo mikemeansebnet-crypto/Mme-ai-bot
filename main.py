@@ -2801,6 +2801,8 @@ def send_regular_client_reminders():
                     frequency_days = int(f.get("Frequency Days", 14) or 14)
 
                     if not next_appt_raw or not client_phone:
+                        print(f"SKIP REGULAR CLIENT | {client_name} | missing next appointment or phone | next={next_appt_raw} phone={client_phone}")
+                        skipped += 1
                         continue
 
                     try:
@@ -2812,6 +2814,8 @@ def send_regular_client_reminders():
 
                     # Only book if appointment is exactly 2 days away
                     if appt_date_str != target_date:
+                        print(f"SKIP REGULAR CLIENT | {client_name} | not due | appt={appt_date_str} target={target_date}")
+                        skipped += 1
                         continue
 
                     print(f"REGULAR CLIENT AUTO-BOOK | {client_name} | {appt_date_str} | {twilio_number}")
