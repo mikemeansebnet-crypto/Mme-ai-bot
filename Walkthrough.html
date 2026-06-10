@@ -732,6 +732,16 @@
             document.getElementById("recordBtn").classList.remove("recording");
             document.getElementById("videoFile").value = "";
             window.scrollTo({ top: 0, behavior: "smooth" });
+
+            // Reset voice notes
+            voiceTranscript = "";
+            voiceNotesActive = false;
+            document.getElementById("voiceNotesSection").style.display = "none";
+            document.getElementById("voiceNotesBtn").textContent = "Tap to Add Voice Notes";
+            document.getElementById("voiceNotesBtn").style.background = "#334155";
+            document.getElementById("transcriptBox").value = "";
+
+            
         }
     </script>
 </body>
