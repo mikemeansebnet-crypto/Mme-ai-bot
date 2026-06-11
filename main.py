@@ -6539,7 +6539,7 @@ Be thorough - price every single item you observe needs attention."""
             li_data = [["Description", "Labor", "Materials", "Total"]]
             for item in line_items:
                 li_data.append([
-                    f"{item.get('description', '')}\n{item.get('detail', '')}",
+                    Paragraph(f"<b>{item.get('description', '')}</b><br/>{item.get('detail', '')}", normal_style),
                     f"${float(item.get('labor', 0)):,.2f}",
                     f"${float(item.get('materials', 0)):,.2f}",
                     f"${float(item.get('total', 0)):,.2f}",
