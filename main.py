@@ -6539,7 +6539,7 @@ Be thorough - price every single item you observe needs attention."""
             li_data = [["Description", "Labor", "Materials", "Total"]]
             for item in line_items:
                 li_data.append([
-                    f"{item.get('description', '')[:35]}\n{item.get('detail', '')[:45]}",
+                    f"{item.get('description', '')}\n{item.get('detail', '')}",
                     f"${float(item.get('labor', 0)):,.2f}",
                     f"${float(item.get('materials', 0)):,.2f}",
                     f"${float(item.get('total', 0)):,.2f}",
@@ -6547,7 +6547,7 @@ Be thorough - price every single item you observe needs attention."""
             total = float(estimate_data.get("estimate_total", 0))
             li_data.append(["TOTAL ESTIMATE", "", "", f"${total:,.2f}"])
 
-            li_table = Table(li_data, colWidths=[3.2*inch, 1.0*inch, 1.1*inch, 1.0*inch])
+            li_table = Table(li_data, colWidths=[3.8*inch, 1.0*inch, 1.0*inch, 0.9*inch])
             li_table.setStyle(TableStyle([
                 ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#1A4D2E")),
                 ("TEXTCOLOR", (0,0), (-1,0), colors.white),
