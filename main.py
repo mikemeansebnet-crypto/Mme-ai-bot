@@ -6495,7 +6495,7 @@ Be thorough - price every single item you observe needs attention."""
         story = []
 
         story.append(Paragraph(business_name, title_style))
-        story.append(Paragraph("Powered by CrewCachePro", brand_style))
+        story.append(Paragraph("Professional Estimate", brand_style))
         story.append(Paragraph("Video Walkthrough Estimate", heading_style))
 
         # Info table
@@ -6574,9 +6574,6 @@ Be thorough - price every single item you observe needs attention."""
             story.append(Paragraph("Important Notes", heading_style))
             story.append(Paragraph(estimate_data.get("notes"), normal_style))
 
-        if video_url:
-            story.append(Paragraph("Video Walkthrough", heading_style))
-            story.append(Paragraph(f"Recording: {video_url}", small_style))
 
         story.append(Spacer(1, 16))
         story.append(Paragraph(
