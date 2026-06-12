@@ -2615,6 +2615,28 @@ def send_daily_briefing():
                             })
                     except Exception:
                         pass
+                        
+                # Merge regular clients due TODAY into todays_jobs
+                for r in regular_records:
+                    f = r.get("fields", {})
+                    next_appt = f.get("Next Appointment", "")
+                    if next_appt:
+                        try:
+                            dt = datetime.fromisoformat(next_appt.replace("Z", "+00:00"))
+                            dt_eastern = dt.astimezone(eastern)
+                            days_until = (dt_eastern.date() - now.date()).days
+                            if days_until == 0:
+                                todays_jobs.append({
+                                    "record_id": r.get("id", ""),
+                                    "name": f.get("Client Name", ""),
+                                    "address": f.get("Service Address", ""),
+                                    "time": f.get("Preferred Time", "9:00 AM"),
+                                    "job": f.get("Service Description", "Lawn Service"),
+                                    "phone": f.get("Phone", ""),
+                                    "is_regular": True
+                                })
+                        except Exception:
+                            pass
 
                 # Sort by time
                 todays_jobs.sort(key=lambda x: x["time"])
