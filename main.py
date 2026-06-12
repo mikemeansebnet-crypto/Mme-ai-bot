@@ -1517,10 +1517,10 @@ def handle_sms_job_complete(incoming_msg: str, from_number: str, to_number: str)
     customer_phone = job.get("phone", "")
     job_description = job.get("job", "")
     record_id = job.get("record_id", "")
-
+    is_regular = job.get("is_regular", False)
     # Try to get amount from Regular Clients table
     amount = custom_amount
-    if not amount:
+    if not amount and is_regular:
         try:
             import requests as req
             AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
@@ -1533,6 +1533,16 @@ def handle_sms_job_complete(incoming_msg: str, from_number: str, to_number: str)
             records = resp.json().get("records", [])
             if records:
                 amount = records[0].get("fields", {}).get("Monthly Amount", 0)
+                # Also advance Next Appointment for regular client
+                freq = records[0].get("fields", {}).get("Frequency Days", 7)
+                from datetime import timedelta
+                next_date = (datetime.now(eastern) + timedelta(days=int(freq))).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+                req.patch(
+                    f"{regular_url}/{records[0].get('id')}",
+                    headers={**headers, "Content-Type": "application/json"},
+                    json={"fields": {"Next Appointment": next_date, "Last Completed": datetime.now(eastern).strftime("%Y-%m-%dT%H:%M:%S.000Z")}}
+                )
+                print(f"REGULAR CLIENT ADVANCED | {customer_name} | Next: {next_date}")
         except Exception as e:
             print(f"REGULAR CLIENT LOOKUP ERROR | {e}")
 
