@@ -6727,7 +6727,7 @@ def dashboard_recurring():
 @app.route("/dashboard/regular-clients")
 @dashboard_auth_required
 def dashboard_regular_clients():
-    """Returns active regular clients with upcoming appointments."""
+    """Returns active regular clients with upcoming appointments for this contractor."""
     try:
         import requests as req
         from zoneinfo import ZoneInfo
@@ -6735,7 +6735,8 @@ def dashboard_regular_clients():
 
         eastern = ZoneInfo("America/New_York")
         now = datetime.now(eastern)
-        today_str = now.strftime("%Y-%m-%d")
+
+        twilio_number = request.twilio_number
 
         AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
         AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
@@ -6743,7 +6744,7 @@ def dashboard_regular_clients():
         url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tbl3LAJzXa6Vsexry"
 
         resp = req.get(url, headers=headers, params={
-            "filterByFormula": "{Active} = TRUE()"
+            "filterByFormula": f"AND({{Active}} = TRUE(), {{Contractor}} = '{twilio_number}')"
         })
         records = resp.json().get("records", [])
 
@@ -6777,7 +6778,6 @@ def dashboard_regular_clients():
                 "notes": f.get("Notes", ""),
             })
 
-        # Sort by next appointment
         clients.sort(key=lambda x: x.get("next_appointment_raw") or "9999")
 
         return jsonify({"ok": True, "clients": clients})
