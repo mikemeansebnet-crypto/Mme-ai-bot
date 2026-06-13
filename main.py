@@ -6697,13 +6697,14 @@ def dashboard_recurring():
         AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
         AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
         headers = {"Authorization": f"Bearer {AIRTABLE_TOKEN}"}
-        url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tblxGfrifBiGRk80M"
 
+        twilio_number = request.twilio_number
+
+        url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tblxGfrifBiGRk80M"
         resp = req.get(url, headers=headers, params={
-            "filterByFormula": "{Active} = TRUE()"
+            "filterByFormula": f"AND({{Active}} = TRUE(), {{Twilio Number}} = '{twilio_number}')"
         })
         records = resp.json().get("records", [])
-
         customers = []
         for r in records:
             f = r.get("fields", {})
@@ -6717,9 +6718,7 @@ def dashboard_recurring():
                 "payment_method": f.get("Payment Method", ""),
                 "notes": f.get("Notes", ""),
             })
-
         return jsonify({"ok": True, "customers": customers})
-
     except Exception as e:
         print(f"RECURRING CUSTOMERS ERROR | {e}")
         return jsonify({"ok": False, "error": str(e)}), 500
