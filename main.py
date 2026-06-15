@@ -6069,6 +6069,42 @@ def onesignal_register():
         print(f"ONESIGNAL REGISTER ERROR | {e}")
         return jsonify({"ok": False}), 500
 
+@app.route("/dashboard/seasonal-campaigns", methods=["GET"])
+@dashboard_auth_required
+def dashboard_seasonal_campaigns():
+    """Returns active seasonal campaigns for the logged-in contractor."""
+    try:
+        import requests as req
+        twilio_number = request.twilio_number
+
+        AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
+        AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
+        headers = {"Authorization": f"Bearer {AIRTABLE_TOKEN}"}
+
+        campaigns_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tblSrBFioDKG0uKIU"
+        resp = req.get(campaigns_url, headers=headers, params={
+            "filterByFormula": f"AND({{Twilio Number}} = '{twilio_number}', {{Active}} = TRUE())"
+        })
+        records = resp.json().get("records", [])
+
+        campaigns = []
+        for r in records:
+            f = r.get("fields", {})
+            campaigns.append({
+                "name": f.get("Campaign Name", ""),
+                "message_type": f.get("Message Type", ""),
+                "season": f.get("Season", ""),
+                "message_body": f.get("Message Body", ""),
+                "send_count": f.get("Send Count", 0),
+            })
+
+        return jsonify({"ok": True, "campaigns": campaigns})
+
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+
 
 
 @app.route("/dashboard/logout")
