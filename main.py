@@ -5696,6 +5696,7 @@ def dashboard():
                 loadRecurringCustomers();
                 loadRevenue();
                 loadRegularClients();
+                loadSeasonalCampaigns();
                 setTimeout(registerOneSignal, 3000);  // ← delay 3 seconds, never blocks
             } catch(e) {
                 console.error('Dashboard load error:', e);
