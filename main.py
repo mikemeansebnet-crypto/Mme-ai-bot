@@ -5310,6 +5310,65 @@ def dashboard():
             }
         }
 
+        // ── SEASONAL CAMPAIGNS ──────────────────────────
+        async function loadSeasonalCampaigns() {
+            try {
+                const res = await fetch('/dashboard/seasonal-campaigns', {
+                    headers: { 'X-Dashboard-Token': getCookie('dashboard_token') }
+                });
+                const data = await res.json();
+                if (data.ok) renderSeasonalCampaigns(data.campaigns);
+            } catch(e) {
+                console.error('Seasonal campaigns load error:', e);
+            }
+        }
+
+        function renderSeasonalCampaigns(campaigns) {
+            const el = document.getElementById('seasonalCampaigns');
+            if (!campaigns.length) {
+                el.innerHTML = '<div class="empty-state">No active campaigns — add one in Airtable</div>';
+                return;
+            }
+            el.innerHTML = campaigns.map(c => `
+                <div class="job-card">
+                    <div class="job-name">${c.name}</div>
+                    <div class="job-type">${c.message_type} · ${c.season || 'All seasons'}</div>
+                    <div style="font-size:12px;color:#888;margin-top:6px">${c.message_body.substring(0, 80)}...</div>
+                    <div style="font-size:11px;color:#22c55e;margin-top:6px">Sent ${c.send_count || 0} times</div>
+                    <div class="job-actions" style="margin-top:10px">
+                        <button onclick="sendSeasonalBlast('${c.name}')" class="action-btn" style="background:#22c55e;color:#000">📤 Send Blast</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function sendSeasonalBlast(campaignName) {
+            if (!confirm(`Send "${campaignName}" to all active regular clients?`)) return;
+
+            try {
+                const res = await fetch('/send-seasonal-blast', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Dashboard-Token': getCookie('dashboard_token')
+                    },
+                    body: JSON.stringify({
+                        twilio_number: dashboardData.twilio_number,
+                        campaign_name: campaignName
+                    })
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    alert(`✅ Sent to ${data.sent} clients (${data.failed} failed)`);
+                    loadSeasonalCampaigns();
+                } else {
+                    alert('Error: ' + (data.error || 'Something went wrong'));
+                }
+            } catch(e) {
+                alert('Request failed. Please try again.');
+            }
+        }
+
         
 
         // ── VOICE INPUT ──────────────────────────
