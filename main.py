@@ -4548,6 +4548,14 @@ def dashboard():
             <div id="regularClients"><div class="loading">Loading...</div></div>
         </div>
 
+        <!-- Seasonal Campaigns -->
+        <div class="section">
+            <div class="section-header">
+                <div class="section-title">📣 Seasonal Campaigns</div>
+            </div>
+            <div id="seasonalCampaigns"><div class="loading">Loading...</div></div>
+        </div>
+
         <!-- Recurring Invoices -->
         <div class="section">
             <div class="section-header">
