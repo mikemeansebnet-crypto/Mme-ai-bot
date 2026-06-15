@@ -8279,6 +8279,163 @@ def google_callback():
     session.permanent = True
     return redirect("/dashboard")
 
+@app.route("/send-seasonal-blast", methods=["POST"])
+def send_seasonal_blast():
+    """
+    Sends a seasonal campaign SMS blast to all active Regular Clients
+    for the given contractor. Logs every send to Message Log.
+    """
+    try:
+        import requests as req
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+
+        data = request.get_json(force=True)
+        twilio_number = (data.get("twilio_number") or "").strip()
+        campaign_name = (data.get("campaign_name") or "").strip()
+
+        if not twilio_number or not campaign_name:
+            return jsonify({"ok": False, "error": "twilio_number and campaign_name required"}), 400
+
+        AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
+        AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
+        headers = {"Authorization": f"Bearer {AIRTABLE_TOKEN}", "Content-Type": "application/json"}
+
+        # Step 1 — Find the campaign
+        campaigns_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tblSrBFioDKG0uKIU"
+        camp_resp = req.get(campaigns_url, headers=headers, params={
+            "filterByFormula": (
+                f"AND({{Campaign Name}} = '{campaign_name}', "
+                f"{{Twilio Number}} = '{twilio_number}', "
+                f"{{Active}} = TRUE())"
+            )
+        })
+        camp_records = camp_resp.json().get("records", [])
+        if not camp_records:
+            return jsonify({"ok": False, "error": "Active campaign not found"}), 404
+
+        campaign = camp_records[0].get("fields", {})
+        message_template = campaign.get("Message Body", "")
+        message_type = campaign.get("Message Type", "Promo")
+
+        if not message_template:
+            return jsonify({"ok": False, "error": "Campaign has no Message Body"}), 400
+
+        # Step 2 — Get active Regular Clients for this contractor
+        regular_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tbl3LAJzXa6Vsexry"
+        clients_resp = req.get(regular_url, headers=headers, params={
+            "filterByFormula": (
+                f"AND({{Active}} = TRUE(), {{Twilio Number}} = '{twilio_number}')"
+            )
+        })
+        clients = clients_resp.json().get("records", [])
+
+        eastern = ZoneInfo("America/New_York")
+        sent_count = 0
+        failed_count = 0
+        log_table_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tblnX5APzYjgXtO6t"
+
+        for c in clients:
+            f = c.get("fields", {})
+            client_name = f.get("Client Name", "")
+            client_phone = f.get("Phone", "")
+
+            if not client_phone:
+                continue
+
+            first_name = client_name.split()[0] if client_name else "there"
+            personalized_msg = message_template.replace("{name}", first_name)
+
+            status = "Sent"
+            error_msg = ""
+            twilio_sid = ""
+
+            try:
+                from twilio.rest import Client
+                twilio_client = Client(
+                    os.environ.get("TWILIO_ACCOUNT_SID"),
+                    os.environ.get("TWILIO_AUTH_TOKEN")
+                )
+                msg = twilio_client.messages.create(
+                    body=personalized_msg,
+                    from_=twilio_number,
+                    to=client_phone
+                )
+                twilio_sid = msg.sid
+                sent_count += 1
+            except Exception as e:
+                status = "Failed"
+                error_msg = str(e)
+                failed_count += 1
+
+            # Log every send
+            try:
+                req.post(log_table_url, headers=headers, json={"fields": {
+                    "Sent At": datetime.now(eastern).strftime("%Y-%m-%dT%H:%M:%S.000Z"),
+                    "Twilio Number": twilio_number,
+                    "Client Name": client_name,
+                    "Client Phone": client_phone,
+                    "Message Type": message_type,
+                    "Campaign Name": campaign_name,
+                    "Message Body": personalized_msg,
+                    "Status": status,
+                    "Error": error_msg,
+                    "Twilio SID": twilio_sid,
+                }})
+            except Exception as e:
+                print(f"MESSAGE LOG ERROR | {e}")
+
+        # Step 3 — Update Send Count on campaign
+        try:
+            current_send_count = int(campaign.get("Send Count", 0) or 0)
+            req.patch(
+                f"{campaigns_url}/{camp_records[0].get('id')}",
+                headers=headers,
+                json={"fields": {"Send Count": current_send_count + sent_count}}
+            )
+        except Exception as e:
+            print(f"SEND COUNT UPDATE ERROR | {e}")
+
+        return jsonify({
+            "ok": True,
+            "campaign": campaign_name,
+            "sent": sent_count,
+            "failed": failed_count,
+            "total_clients": len(clients)
+        })
+
+    except Exception as e:
+        print(f"SEASONAL BLAST ERROR | {type(e).__name__} | {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route("/message-log", methods=["GET"])
+def get_message_log():
+    """Returns recent message log entries for a contractor."""
+    try:
+        import requests as req
+        twilio_number = request.args.get("twilio_number", "").strip()
+
+        AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
+        AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
+        headers = {"Authorization": f"Bearer {AIRTABLE_TOKEN}"}
+
+        log_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tblnX5APzYjgXtO6t"
+        params = {"sort[0][field]": "Sent At", "sort[0][direction]": "desc"}
+        if twilio_number:
+            params["filterByFormula"] = f"{{Twilio Number}} = '{twilio_number}'"
+
+        resp = req.get(log_url, headers=headers, params=params)
+        records = resp.json().get("records", [])
+
+        results = [r.get("fields", {}) for r in records]
+        return jsonify({"ok": True, "messages": results})
+
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
 
 # ─────────────────────────────────────────────
 # Run
