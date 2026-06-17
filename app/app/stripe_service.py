@@ -265,4 +265,97 @@ def handle_stripe_webhook(payload: bytes, sig_header: str) -> dict:
     """DEPRECATED: Use handle_stripe_event(event) instead."""
     print("WARNING | handle_stripe_webhook called directly — this is deprecated.")
     return {"ok": False, "error": "Use handle_stripe_event with a pre-verified event."}
-        
+
+def create_connect_account(contractor_record_id: str, email: str, business_name: str) -> dict:
+    """
+    Creates a Stripe Express connected account for a contractor.
+    Returns the account id to be saved on their Contractors record.
+    """
+    try:
+        account = stripe.Account.create(
+            type="express",
+            country="US",
+            email=email,
+            business_type="individual",
+            business_profile={"name": business_name},
+            metadata={"airtable_contractor_id": contractor_record_id},
+        )
+        print(f"STRIPE CONNECT | Account created | {account.id} | {business_name}")
+        return {"ok": True, "account_id": account.id}
+    except Exception as e:
+        print(f"STRIPE CONNECT ACCOUNT ERROR | {e}")
+        return {"ok": False, "error": str(e)}
+
+
+def create_account_onboarding_link(account_id: str) -> dict:
+    """
+    Generates the hosted Stripe onboarding URL a contractor completes
+    (bank account + identity). Valid for a short time, single use.
+    """
+    try:
+        base_url = os.environ.get("APP_BASE_URL", "https://mme-ai-bot.onrender.com")
+        link = stripe.AccountLink.create(
+            account=account_id,
+            refresh_url=f"{base_url}/stripe-connect-refresh?account_id={account_id}",
+            return_url=f"{base_url}/stripe-connect-return?account_id={account_id}",
+            type="account_onboarding",
+        )
+        return {"ok": True, "url": link.url}
+    except Exception as e:
+        print(f"STRIPE CONNECT LINK ERROR | {e}")
+        return {"ok": False, "error": str(e)}
+
+
+def check_account_status(account_id: str) -> bool:
+    """Returns True if the connected account can actually accept charges."""
+    try:
+        account = stripe.Account.retrieve(account_id)
+        return bool(account.charges_enabled)
+    except Exception as e:
+        print(f"STRIPE CONNECT STATUS ERROR | {e}")
+        return False
+
+
+def create_connect_payment_link(
+    amount: float,
+    customer_name: str,
+    job_description: str,
+    record_id: str,
+    business_name: str,
+    contractor_stripe_account_id: str,
+    application_fee_percent: float = 1.0,
+) -> dict:
+    """
+    Same as create_payment_link, but routes the payment to the contractor's
+    connected Stripe account and takes a small platform fee off the top.
+    Uses the existing webhook/metadata pattern - no webhook changes needed.
+    """
+    try:
+        amount_cents = int(float(amount) * 100)
+        fee_cents = int(amount_cents * (application_fee_percent / 100))
+
+        price = stripe.Price.create(
+            currency="usd",
+            unit_amount=amount_cents,
+            product_data={"name": f"{business_name} - {job_description or 'Service Payment'}"},
+        )
+
+        payment_link = stripe.PaymentLink.create(
+            line_items=[{"price": price.id, "quantity": 1}],
+            metadata={"airtable_record_id": record_id, "customer_name": customer_name},
+            payment_intent_data={
+                "application_fee_amount": fee_cents,
+                "transfer_data": {"destination": contractor_stripe_account_id},
+            },
+            after_completion={
+                "type": "redirect",
+                "redirect": {"url": os.environ.get("APP_BASE_URL", "https://mme-ai-bot.onrender.com") + "/payment-success"},
+            },
+        )
+
+        print(f"STRIPE CONNECT PAYMENT LINK | {business_name} | {customer_name} | ${amount} | fee: ${fee_cents/100} | {payment_link.url}")
+        return {"ok": True, "url": payment_link.url, "link_id": payment_link.id}
+
+    except Exception as e:
+        print(f"STRIPE CONNECT PAYMENT LINK ERROR | {e}")
+        return {"ok": False, "error": str(e)}
