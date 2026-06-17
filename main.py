@@ -4622,6 +4622,16 @@ def dashboard():
             </div>
         </div>
 
+        <!-- Booking Link -->
+        <div style="background:var(--card);border:1px solid var(--card-border);border-radius:14px;padding:14px 16px;margin-bottom:16px;box-shadow:0 1px 4px rgba(0,0,0,0.04)">
+            <div style="font-size:11px;color:var(--text-muted);letter-spacing:1px;text-transform:uppercase;font-family:'DM Mono',monospace;margin-bottom:8px">Your Booking Link</div>
+            <div style="display:flex;gap:8px;align-items:center">
+                <input type="text" id="bookingLinkInput" readonly style="flex:1;background:var(--bg);border:1px solid var(--card-border);border-radius:8px;padding:10px 12px;font-size:12px;color:var(--text);font-family:'DM Mono',monospace">
+                <button onclick="copyBookingLink()" id="copyBookingBtn" style="background:var(--gradient);color:white;border:none;border-radius:8px;padding:10px 16px;font-size:13px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;white-space:nowrap">Copy</button>
+            </div>
+            <div style="font-size:11px;color:var(--text-light);margin-top:8px">Share this on Google Business Profile, Facebook, or your website so customers can book themselves.</div>
+        </div>
+
         <!-- Today's Summary -->
         <div class="today-summary">
             <h2>Today</h2>
