@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+    <title>Book an Appointment</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --gradient: linear-gradient(135deg, #2563EB, #16a34a);
+            --bg: #0f172a;
+            --card: #1e293b;
+            --card-border: #334155;
+            --text: #f1f5f9;
+            --text-muted: #94a3b8;
+            --blue: #2563EB;
+            --green: #22c55e;
+        }
+
+        body {
+            font-family: 'DM Sans', sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #0d2137 50%, #0f2818 100%);
+            color: var(--text);
+            min-height: 100vh;
+        }
+
+        .content {
+            padding: 24px 16px 60px;
+            max-width: 560px;
+            margin: 0 auto;
+        }
+
+        .business-name {
+            font-size: 22px;
+            font-weight: 700;
+            color: white;
+            margin-bottom: 4px;
+        }
+
+        .page-subtitle {
+            font-size: 13px;
+            color: var(--text-muted);
+            font-family: 'DM Mono', monospace;
+            margin-bottom: 24px;
+        }
+
+        .card {
+            background: var(--card);
+            border: 1px solid var(--card-border);
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 16px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+        }
+
+        .step-label {
+            font-size: 11px;
+            color: var(--text-muted);
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            font-family: 'DM Mono', monospace;
+            margin-bottom: 12px;
+        }
+
+        .service-option {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 10px;
+            padding: 14px 16px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            transition: border-color 0.15s;
+        }
+
+        .service-option:hover { border-color: #2563EB; }
+        .service-option.selected { border-color: #22c55e; background: rgba(34,197,94,0.08); }
+
+        .service-name { font-size: 15px; font-weight: 600; color: white; }
+        .service-meta { font-size: 12px; color: var(--text-muted); font-family: 'DM Mono', monospace; margin-top: 2px; }
+        .service-price { font-size: 13px; color: #22c55e; font-family: 'DM Mono', monospace; }
+
+        .date-picker {
+            display: flex;
+            gap: 8px;
+            overflow-x: auto;
+            padding-bottom: 4px;
+        }
+
+        .date-chip {
+            flex: 0 0 auto;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 10px;
+            padding: 10px 14px;
+            text-align: center;
+            cursor: pointer;
+            min-width: 64px;
+        }
+
+        .date-chip.selected { border-color: #2563EB; background: rgba(37,99,235,0.15); }
+        .date-chip-day { font-size: 11px; color: var(--text-muted); font-family: 'DM Mono', monospace; }
+        .date-chip-num { font-size: 16px; font-weight: 700; color: white; margin-top: 2px; }
+
+        .slots-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .slot-btn {
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            padding: 10px;
+            text-align: center;
+            font-size: 13px;
+            color: var(--text);
+            cursor: pointer;
+            font-family: 'DM Mono', monospace;
+        }
+
+        .slot-btn:hover { border-color: #2563EB; }
+        .slot-btn.selected { border-color: #22c55e; background: rgba(34,197,94,0.15); color: #22c55e; }
+
+        .empty-slots {
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 13px;
+            font-family: 'DM Mono', monospace;
+            padding: 20px;
+        }
+
+        .form-group { margin-bottom: 14px; }
+
+        .form-label {
+            display: block;
+            font-size: 11px;
+            color: var(--text-muted);
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            font-family: 'DM Mono', monospace;
+            margin-bottom: 6px;
+        }
+
+        .form-input {
+            width: 100%;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 10px;
+            padding: 12px 14px;
+            color: white;
+            font-size: 16px;
+            outline: none;
+            font-family: 'DM Sans', sans-serif;
+        }
+
+        .form-input:focus { border-color: #2563EB; }
+
+        .submit-btn {
+            width: 100%;
+            background: var(--gradient);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            padding: 18px;
+            font-size: 17px;
+            font-weight: 700;
+            cursor: pointer;
+            font-family: 'DM Sans', sans-serif;
+            box-shadow: 0 4px 20px rgba(37,99,235,0.3);
+        }
+
+        .submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .confirm-card {
+            display: none;
+            background: linear-gradient(135deg, #1e3a5f, #1a3a2a);
+            border: 1px solid rgba(34,197,94,0.3);
+            border-radius: 16px;
+            padding: 28px 20px;
+            text-align: center;
+        }
+
+        .confirm-title { font-size: 20px; font-weight: 700; color: #22c55e; margin-bottom: 10px; }
+        .confirm-detail { font-size: 15px; color: white; margin-bottom: 4px; }
+        .confirm-sub { font-size: 13px; color: var(--text-muted); font-family: 'DM Mono', monospace; margin-top: 12px; }
+
+        .loading-text {
+            text-align: center;
+            color: var(--text-muted);
+            font-family: 'DM Mono', monospace;
+            font-size: 13px;
+            padding: 16px;
+        }
+
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+
+    <div class="content">
+        <div class="business-name" id="businessName">Loading...</div>
+        <div class="page-subtitle">Book your appointment online</div>
+
+        <div class="card" id="serviceCard">
+            <div class="step-label">Step 1 - Choose a Service</div>
+            <div id="serviceList"><div class="loading-text">Loading services...</div></div>
+        </div>
+
+        <div class="card hidden" id="dateCard">
+            <div class="step-label">Step 2 - Choose a Date</div>
+            <div class="date-picker" id="datePicker"></div>
+        </div>
+
+        <div class="card hidden" id="slotsCard">
+            <div class="step-label">Step 3 - Choose a Time</div>
+            <div id="slotsList"><div class="loading-text">Loading available times...</div></div>
+        </div>
+
+        <div class="card hidden" id="detailsCard">
+            <div class="step-label">Step 4 - Your Details</div>
+            <div class="form-group">
+                <label class="form-label">Full Name</label>
+                <input type="text" class="form-input" id="custName" placeholder="John Smith">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Phone Number</label>
+                <input type="tel" class="form-input" id="custPhone" placeholder="(555) 123-4567">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Service Address</label>
+                <input type="text" class="form-input" id="custAddress" placeholder="123 Main St">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Notes (optional)</label>
+                <input type="text" class="form-input" id="custNotes" placeholder="Anything we should know?">
+            </div>
+            <button class="submit-btn" id="submitBtn" onclick="submitBooking()">Confirm Booking</button>
+        </div>
+
+        <div class="confirm-card" id="confirmCard">
+            <div class="confirm-title">You're Booked!</div>
+            <div class="confirm-detail" id="confirmService"></div>
+            <div class="confirm-detail" id="confirmTime"></div>
+            <div class="confirm-sub">A confirmation text has been sent to your phone.</div>
+        </div>
+    </div>
+
+    <script>
+        const params = new URLSearchParams(window.location.search);
+        const contractorKey = params.get("c") || "";
+        const prefillName = params.get("name") || "";
+        const prefillPhone = params.get("attendeePhoneNumber") || "";
+        const prefillAddress = params.get("service_address") || "";
+        const prefillJob = params.get("job_description") || "";
+
+        let selectedService = null;
+        let selectedDate = null;
+        let selectedSlot = null;
+
+        async function init() {
+            if (!contractorKey) {
+                document.getElementById("businessName").textContent = "Booking link invalid";
+                return;
+            }
+            try {
+                const res = await fetch("/book-services?c=" + encodeURIComponent(contractorKey));
+                const data = await res.json();
+                if (!data.ok) {
+                    document.getElementById("businessName").textContent = "Unable to load booking page";
+                    return;
+                }
+                document.getElementById("businessName").textContent = data.business_name;
+                renderServices(data.services);
+
+                if (prefillName) document.getElementById("custName").value = prefillName;
+                if (prefillPhone) document.getElementById("custPhone").value = prefillPhone;
+                if (prefillAddress) document.getElementById("custAddress").value = prefillAddress;
+                if (prefillJob) document.getElementById("custNotes").value = prefillJob;
+            } catch(e) {
+                document.getElementById("businessName").textContent = "Unable to load booking page";
+            }
+        }
+
+        function renderServices(services) {
+            const el = document.getElementById("serviceList");
+            if (!services.length) {
+                el.innerHTML = "<div class='loading-text'>No services configured yet.</div>";
+                return;
+            }
+            el.innerHTML = services.map(function(s) {
+                return "<div class='service-option' data-id='" + s.id + "' onclick='selectService(\"" + s.id + "\", \"" + s.name.replace(/'/g, "") + "\", " + s.duration + ")'>" +
+                    "<div><div class='service-name'>" + s.name + "</div>" +
+                    "<div class='service-meta'>" + s.duration + " min</div></div>" +
+                    (s.price_range ? "<div class='service-price'>" + s.price_range + "</div>" : "") +
+                    "</div>";
+            }).join("");
+        }
+
+        function selectService(id, name, duration) {
+            selectedService = { id: id, name: name, duration: duration };
+            document.querySelectorAll(".service-option").forEach(function(el) {
+                el.classList.toggle("selected", el.dataset.id === id);
+            });
+            renderDatePicker();
+            document.getElementById("dateCard").classList.remove("hidden");
+            document.getElementById("slotsCard").classList.add("hidden");
+            document.getElementById("detailsCard").classList.add("hidden");
+        }
+
+        function renderDatePicker() {
+            const el = document.getElementById("datePicker");
+            const days = [];
+            const today = new Date();
+            for (let i = 0; i < 14; i++) {
+                const d = new Date(today);
+                d.setDate(today.getDate() + i);
+                days.push(d);
+            }
+            el.innerHTML = days.map(function(d) {
+                const dateStr = d.toISOString().split("T")[0];
+                const dayName = d.toLocaleDateString("en-US", { weekday: "short" });
+                const dayNum = d.getDate();
+                return "<div class='date-chip' data-date='" + dateStr + "' onclick='selectDate(\"" + dateStr + "\")'>" +
+                    "<div class='date-chip-day'>" + dayName + "</div>" +
+                    "<div class='date-chip-num'>" + dayNum + "</div></div>";
+            }).join("");
+        }
+
+        async function selectDate(dateStr) {
+            selectedDate = dateStr;
+            document.querySelectorAll(".date-chip").forEach(function(el) {
+                el.classList.toggle("selected", el.dataset.date === dateStr);
+            });
+            document.getElementById("slotsCard").classList.remove("hidden");
+            document.getElementById("detailsCard").classList.add("hidden");
+            document.getElementById("slotsList").innerHTML = "<div class='loading-text'>Loading available times...</div>";
+
+            try {
+                const res = await fetch("/book-availability?c=" + encodeURIComponent(contractorKey) +
+                    "&service_id=" + encodeURIComponent(selectedService.id) +
+                    "&date=" + encodeURIComponent(dateStr));
+                const data = await res.json();
+                renderSlots(data.slots || []);
+            } catch(e) {
+                document.getElementById("slotsList").innerHTML = "<div class='empty-slots'>Could not load times. Try another date.</div>";
+            }
+        }
+
+        function renderSlots(slots) {
+            const el = document.getElementById("slotsList");
+            if (!slots.length) {
+                el.innerHTML = "<div class='empty-slots'>No openings this day. Try another date.</div>";
+                return;
+            }
+            el.innerHTML = "<div class='slots-grid'>" + slots.map(function(s) {
+                return "<div class='slot-btn' data-start='" + s.start_iso + "' data-end='" + s.end_iso + "' onclick='selectSlot(this)'>" + s.label + "</div>";
+            }).join("") + "</div>";
+        }
+
+        function selectSlot(el) {
+            document.querySelectorAll(".slot-btn").forEach(function(s) { s.classList.remove("selected"); });
+            el.classList.add("selected");
+            selectedSlot = { start: el.dataset.start, end: el.dataset.end, label: el.textContent };
+            document.getElementById("detailsCard").classList.remove("hidden");
+            document.getElementById("detailsCard").scrollIntoView({ behavior: "smooth" });
+        }
+
+        async function submitBooking() {
+            const name = document.getElementById("custName").value.trim();
+            const phone = document.getElementById("custPhone").value.trim();
+            const address = document.getElementById("custAddress").value.trim();
+            const notes = document.getElementById("custNotes").value.trim();
+
+            if (!name || !phone || !selectedSlot || !selectedService) {
+                alert("Please fill in your name and phone, and choose a service and time.");
+                return;
+            }
+
+            const btn = document.getElementById("submitBtn");
+            btn.disabled = true;
+            btn.textContent = "Booking...";
+
+            try {
+                const res = await fetch("/book-submit", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        c: contractorKey,
+                        service_id: selectedService.id,
+                        customer_name: name,
+                        customer_phone: phone,
+                        service_address: address,
+                        job_description: notes,
+                        start_iso: selectedSlot.start,
+                        end_iso: selectedSlot.end
+                    })
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    document.getElementById("serviceCard").classList.add("hidden");
+                    document.getElementById("dateCard").classList.add("hidden");
+                    document.getElementById("slotsCard").classList.add("hidden");
+                    document.getElementById("detailsCard").classList.add("hidden");
+                    document.getElementById("confirmCard").style.display = "block";
+                    document.getElementById("confirmService").textContent = data.service_name;
+                    document.getElementById("confirmTime").textContent = data.confirmation;
+                } else {
+                    alert("Error: " + (data.error || "Something went wrong"));
+                    btn.disabled = false;
+                    btn.textContent = "Confirm Booking";
+                }
+            } catch(e) {
+                alert("Booking failed. Please try again.");
+                btn.disabled = false;
+                btn.textContent = "Confirm Booking";
+            }
+        }
+
+        init();
+    </script>
+</body>
+</html>
