@@ -4990,6 +4990,26 @@ def dashboard():
             renderOpenLeads();
             renderUnpaidInvoices();
             renderRecentBookings();
+            renderBookingLink();
+        }
+
+        function renderBookingLink() {
+            const twilio = dashboardData.twilio_number || "";
+            if (!twilio) return;
+            const link = "https://mme-ai-bot.onrender.com/book?c=" + encodeURIComponent(twilio);
+            document.getElementById("bookingLinkInput").value = link;
+        }
+
+        function copyBookingLink() {
+            const input = document.getElementById("bookingLinkInput");
+            navigator.clipboard.writeText(input.value).then(function() {
+                const btn = document.getElementById("copyBookingBtn");
+                btn.textContent = "Copied!";
+                setTimeout(function() { btn.textContent = "Copy"; }, 2000);
+            }).catch(function() {
+                input.select();
+                document.execCommand("copy");
+            });
         }
 
         function renderTodayJobs() {
