@@ -1836,8 +1836,8 @@ def sms():
             miles = check.get("distance_miles")
             reply = (
                 f"Thanks for reaching out! Unfortunately that address is outside our "
-                f"service area ({miles} miles away). We currently serve within "
-                f"{int(hard_max)} miles of Bowie, Maryland."
+                f"service area ({miles} miles away — we currently serve within "
+                f"{int(hard_max)} miles)."
             )
             return Response(
                 f"<Response><Message>{reply}</Message></Response>",
