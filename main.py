@@ -2130,21 +2130,19 @@ def create_payment_link_route():
         job_description = data.get("job_description")
         customer_phone = data.get("customer_phone")
         twilio_number = data.get("twilio_number", "")
-
-        # FIXED: Always look up business name from contractor record
-        # Don't trust the Airtable lookup field — look it up directly
         business_name = data.get("business_name", "")
 
-        # If business name is empty or Your Contractor — look it up properly
-        if not business_name or business_name.strip() == "" or business_name == "Your Contractor":
-            if twilio_number:
-                try:
-                    contractor = get_contractor_by_twilio_number(twilio_number) or {}
-                    business_name = contractor.get("Business Name", "").strip()
-                except Exception as e:
-                    print(f"CONTRACTOR LOOKUP ERROR | {e}")
+        # Look up contractor once - used for business name fallback AND Stripe Connect routing
+        contractor = {}
+        if twilio_number:
+            try:
+                contractor = get_contractor_by_twilio_number(twilio_number) or {}
+            except Exception as e:
+                print(f"CONTRACTOR LOOKUP ERROR | {e}")
 
-        # If still empty after lookup — try from Payments record directly
+        if not business_name or business_name.strip() == "" or business_name == "Your Contractor":
+            business_name = contractor.get("Business Name", "").strip()
+
         if not business_name:
             try:
                 AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
@@ -2163,15 +2161,27 @@ def create_payment_link_route():
             except Exception as e:
                 print(f"PAYMENT RECORD LOOKUP ERROR | {e}")
 
-        # Last resort — use a generic name, never "Your Contractor"
         if not business_name:
             business_name = "MME Lawn Care And More"
             print(f"WARNING | business_name fell through all lookups for record {record_id}")
 
         print(f"CREATE PAYMENT LINK | business_name: {business_name} | customer: {customer_name}")
 
-        from app.app.stripe_service import create_payment_link
-        result = create_payment_link(amount, customer_name, job_description, record_id, business_name)
+        stripe_account_id = (contractor.get("Stripe Account ID") or "").strip()
+        stripe_charges_enabled = bool(contractor.get("Stripe Charges Enabled"))
+
+        if stripe_account_id and stripe_charges_enabled:
+            from app.app.stripe_service import create_connect_payment_link
+            result = create_connect_payment_link(
+                amount, customer_name, job_description, record_id, business_name,
+                contractor_stripe_account_id=stripe_account_id,
+                application_fee_percent=1.0,
+            )
+            print(f"CREATE PAYMENT LINK | Routed via Connect | account: {stripe_account_id}")
+        else:
+            from app.app.stripe_service import create_payment_link
+            result = create_payment_link(amount, customer_name, job_description, record_id, business_name)
+            print(f"CREATE PAYMENT LINK | Routed via platform account (no Connect) | twilio: {twilio_number}")
 
         if result.get("ok"):
             msg = (
@@ -2180,9 +2190,7 @@ def create_payment_link_route():
                 f"Thank you for choosing {business_name}!"
             )
             send_fallback_sms(to_number=customer_phone, body=msg)
-
         return result
-
     except Exception as e:
         print(f"CREATE PAYMENT LINK ERROR | {e}")
         return {"ok": False, "error": str(e)}
