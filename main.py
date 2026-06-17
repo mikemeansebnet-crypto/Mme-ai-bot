@@ -7186,19 +7186,17 @@ def dashboard_book_regular_client():
 def dashboard_complete_regular_client():
     """
     Marks regular client visit complete.
-    Updates Last Completed and calculates Next Appointment.
+    Updates Last Completed and calculates Next Appointment using the
+    client's Preferred Time, not the time the Done button was tapped.
     """
     try:
         from zoneinfo import ZoneInfo
         from datetime import datetime, timedelta
-
         data = request.get_json(silent=True) or {}
         record_id = data.get("record_id", "")
         frequency_days = int(data.get("frequency_days", 14))
-
         eastern = ZoneInfo("America/New_York")
         now = datetime.now(eastern)
-        next_appt = now + timedelta(days=frequency_days)
 
         AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
         AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
@@ -7208,21 +7206,38 @@ def dashboard_complete_regular_client():
         }
         regular_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tbl3LAJzXa6Vsexry"
 
+        # Look up the client's actual Preferred Time before calculating next appointment
+        record_resp = requests.get(f"{regular_url}/{record_id}", headers=headers)
+        preferred_time_str = (record_resp.json().get("fields", {}).get("Preferred Time") or "9:00 AM").strip()
+
+        hour, minute = 9, 0
+        for fmt in ("%I:%M %p", "%I:%M%p", "%H:%M"):
+            try:
+                parsed_time = datetime.strptime(preferred_time_str, fmt)
+                hour, minute = parsed_time.hour, parsed_time.minute
+                break
+            except Exception:
+                continue
+
+        next_appt_date = (now + timedelta(days=frequency_days)).date()
+        next_appt = datetime(
+            next_appt_date.year, next_appt_date.month, next_appt_date.day,
+            hour, minute, tzinfo=eastern
+        )
+
         requests.patch(
             f"{regular_url}/{record_id}",
             headers=headers,
             json={"fields": {
-                "fldad0GDluY6VLeAX": now.isoformat(),        # Last Completed
-                "fldrQYykMd28OcYUI": next_appt.isoformat(),  # Next Appointment
+                "fldad0GDluY6VLeAX": now.isoformat(),
+                "fldrQYykMd28OcYUI": next_appt.isoformat(),
             }}
         )
-
-        print(f"REGULAR CLIENT COMPLETE | {record_id} | Next: {next_appt.strftime('%Y-%m-%d')}")
+        print(f"REGULAR CLIENT COMPLETE | {record_id} | Next: {next_appt.isoformat()}")
         return jsonify({
             "ok": True,
-            "next_appointment": next_appt.strftime("%B %-d")
+            "next_appointment": next_appt.strftime("%B %-d at %-I:%M %p")
         })
-
     except Exception as e:
         print(f"COMPLETE REGULAR CLIENT ERROR | {e}")
         return jsonify({"ok": False, "error": str(e)}), 500
