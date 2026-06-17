@@ -149,3 +149,123 @@ def create_google_calendar_event(
 
     except Exception as e:
         return {"ok": False, "error": str(e)}
+
+from zoneinfo import ZoneInfo
+from datetime import datetime, timedelta, time as dtime
+
+
+def _build_calendar_service(contractor: dict):
+    """Shared helper - builds an authenticated Google Calendar client for a contractor."""
+    encrypted_refresh_token = (contractor.get("Google Refresh Token") or "").strip()
+
+    if not encrypted_refresh_token:
+        refresh_token = ""
+    elif looks_encrypted(encrypted_refresh_token):
+        refresh_token = decrypt_text(encrypted_refresh_token)
+    else:
+        refresh_token = encrypted_refresh_token
+
+    if not refresh_token:
+        return None, None, None
+
+    calendar_id = (contractor.get("Google Calendar ID") or "primary").strip() or "primary"
+
+    raw_timezone = contractor.get("Timezone")
+    if isinstance(raw_timezone, dict):
+        timezone = (raw_timezone.get("name") or "").strip()
+    else:
+        timezone = str(raw_timezone or "").strip()
+    if not timezone:
+        timezone = "America/New_York"
+
+    try:
+        creds = Credentials(
+            token=None,
+            refresh_token=refresh_token,
+            token_uri="https://oauth2.googleapis.com/token",
+            client_id=os.getenv("GOOGLE_CLIENT_ID"),
+            client_secret=os.getenv("GOOGLE_CLIENT_SECRET"),
+            scopes=[
+                "openid",
+                "https://www.googleapis.com/auth/calendar.events",
+                "https://www.googleapis.com/auth/calendar.readonly",
+                "https://www.googleapis.com/auth/userinfo.email",
+            ],
+        )
+        service = build("calendar", "v3", credentials=creds)
+        return service, calendar_id, timezone
+    except Exception as e:
+        print("CALENDAR SERVICE BUILD ERROR |", e)
+        return None, None, None
+
+
+def get_available_slots(contractor: dict, date_str: str, duration_minutes: int) -> list:
+    """
+    Open slots for a contractor on a given date (YYYY-MM-DD, contractor local time)
+    long enough to fit duration_minutes without overlapping existing events.
+    Working hours hardcoded for now: Mon-Sat 8AM-5PM local, closed Sunday.
+    """
+    service, calendar_id, timezone = _build_calendar_service(contractor)
+    if not service:
+        return []
+
+    tz = ZoneInfo(timezone)
+
+    try:
+        day = datetime.strptime(date_str, "%Y-%m-%d").date()
+    except Exception:
+        return []
+
+    if day.weekday() == 6:  # Sunday
+        return []
+
+    work_start = datetime.combine(day, dtime(8, 0), tzinfo=tz)
+    work_end = datetime.combine(day, dtime(17, 0), tzinfo=tz)
+    earliest_allowed = datetime.now(tz) + timedelta(hours=1)
+
+    try:
+        fb = service.freebusy().query(body={
+            "timeMin": work_start.astimezone(ZoneInfo("UTC")).isoformat(),
+            "timeMax": work_end.astimezone(ZoneInfo("UTC")).isoformat(),
+            "timeZone": "UTC",
+            "items": [{"id": calendar_id}],
+        }).execute()
+        busy_raw = fb.get("calendars", {}).get(calendar_id, {}).get("busy", [])
+    except Exception as e:
+        print("FREEBUSY ERROR |", e)
+        busy_raw = []
+
+    busy_intervals = []
+    for b in busy_raw:
+        try:
+            busy_intervals.append((
+                datetime.fromisoformat(b["start"].replace("Z", "+00:00")),
+                datetime.fromisoformat(b["end"].replace("Z", "+00:00")),
+            ))
+        except Exception:
+            continue
+
+    slots = []
+    slot_step = timedelta(minutes=30)
+    slot_length = timedelta(minutes=duration_minutes)
+    cursor = work_start
+
+    while cursor + slot_length <= work_end:
+        slot_end = cursor + slot_length
+        if cursor < earliest_allowed:
+            cursor += slot_step
+            continue
+
+        cursor_utc = cursor.astimezone(ZoneInfo("UTC"))
+        slot_end_utc = slot_end.astimezone(ZoneInfo("UTC"))
+        overlaps = any(cursor_utc < be and slot_end_utc > bs for bs, be in busy_intervals)
+
+        if not overlaps:
+            slots.append({
+                "start_iso": cursor.isoformat(),
+                "end_iso": slot_end.isoformat(),
+                "label": cursor.strftime("%-I:%M %p"),
+            })
+        cursor += slot_step
+
+    return slots
