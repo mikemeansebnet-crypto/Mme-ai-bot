@@ -98,8 +98,8 @@ def create_google_calendar_event(
     print("RAW TIMEZONE:", raw_timezone)
     print("NORMALIZED TIMEZONE:", timezone)
 
-    if timezone != "America/New_York":
-        timezone = "America/New_York"
+    if not timezone:
+        timezone = "America/New_York"  # fallback only if contractor has no timezone set on file
 
     if not refresh_token:
         return {"ok": False, "error": "missing_google_refresh_token"}
