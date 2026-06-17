@@ -1135,6 +1135,12 @@ def book_availability():
     if not contractor:
         return jsonify({"ok": False, "error": "Contractor not found"}), 404
 
+    from app.app.cal_service import get_available_slots, _build_calendar_service
+
+    service, _, _ = _build_calendar_service(contractor)
+    if not service:
+        return jsonify({"ok": True, "slots": [], "calendar_connected": False})
+
     AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
     AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
     svc_resp = requests.get(
@@ -1142,11 +1148,8 @@ def book_availability():
         headers={"Authorization": f"Bearer {AIRTABLE_TOKEN}"}
     )
     duration = svc_resp.json().get("fields", {}).get("Duration Minutes", 30)
-
-    from app.app.cal_service import get_available_slots
     slots = get_available_slots(contractor, date_str, duration)
-
-    return jsonify({"ok": True, "slots": slots})
+    return jsonify({"ok": True, "slots": slots, "calendar_connected": True})
 
 
 @app.route("/book-submit", methods=["POST"])
