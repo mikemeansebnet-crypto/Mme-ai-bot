@@ -347,6 +347,10 @@
                     "&service_id=" + encodeURIComponent(selectedService.id) +
                     "&date=" + encodeURIComponent(dateStr));
                 const data = await res.json();
+                if (data.calendar_connected === false) {
+                    document.getElementById("slotsList").innerHTML = "<div class='empty-slots'>Online booking isn't set up yet for this business. Please call or text them directly.</div>";
+                    return;
+                }
                 renderSlots(data.slots || []);
             } catch(e) {
                 document.getElementById("slotsList").innerHTML = "<div class='empty-slots'>Could not load times. Try another date.</div>";
