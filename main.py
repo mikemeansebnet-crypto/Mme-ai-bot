@@ -1094,6 +1094,143 @@ def book_redirect():
     final_url = f"{base_url}{separator}{query_string}" if query_string else base_url
     return redirect(final_url, code=302)
 
+@app.route("/book-services")
+def book_services():
+    contractor_key = (request.args.get("c") or "").strip()
+    contractor = get_contractor_by_twilio_number(contractor_key) if contractor_key else {}
+    if not contractor:
+        return jsonify({"ok": False, "error": "Contractor not found"}), 404
+
+    AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
+    AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
+    services_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tblX8znMQVi443I4U"
+    resp = requests.get(
+        services_url,
+        headers={"Authorization": f"Bearer {AIRTABLE_TOKEN}"},
+        params={"filterByFormula": f"AND({{Twilio Number}} = '{contractor_key}', {{Active}} = TRUE())"}
+    )
+    records = resp.json().get("records", [])
+    records.sort(key=lambda r: r.get("fields", {}).get("Sort Order", 999))
+
+    services = [{
+        "id": r["id"],
+        "name": r.get("fields", {}).get("Service Name", ""),
+        "duration": r.get("fields", {}).get("Duration Minutes", 30),
+        "price_range": r.get("fields", {}).get("Price Range", ""),
+    } for r in records]
+
+    return jsonify({
+        "ok": True,
+        "business_name": contractor.get("Business Name", "Your Service Provider"),
+        "services": services
+    })
+
+
+@app.route("/book-availability")
+def book_availability():
+    contractor_key = (request.args.get("c") or "").strip()
+    service_id = (request.args.get("service_id") or "").strip()
+    date_str = (request.args.get("date") or "").strip()
+    contractor = get_contractor_by_twilio_number(contractor_key) if contractor_key else {}
+    if not contractor:
+        return jsonify({"ok": False, "error": "Contractor not found"}), 404
+
+    AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
+    AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
+    svc_resp = requests.get(
+        f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tblX8znMQVi443I4U/{service_id}",
+        headers={"Authorization": f"Bearer {AIRTABLE_TOKEN}"}
+    )
+    duration = svc_resp.json().get("fields", {}).get("Duration Minutes", 30)
+
+    from app.app.cal_service import get_available_slots
+    slots = get_available_slots(contractor, date_str, duration)
+
+    return jsonify({"ok": True, "slots": slots})
+
+
+@app.route("/book-submit", methods=["POST"])
+def book_submit():
+    data = request.get_json(silent=True) or {}
+    contractor_key = (data.get("c") or "").strip()
+    contractor = get_contractor_by_twilio_number(contractor_key) if contractor_key else {}
+    if not contractor:
+        return jsonify({"ok": False, "error": "Contractor not found"}), 404
+
+    service_id = data.get("service_id", "")
+    customer_name = (data.get("customer_name") or "").strip()
+    customer_phone = (data.get("customer_phone") or "").strip()
+    service_address = (data.get("service_address") or "").strip()
+    job_description = (data.get("job_description") or "").strip()
+    start_iso = data.get("start_iso", "")
+    end_iso = data.get("end_iso", "")
+
+    if not (customer_name and customer_phone and start_iso and end_iso):
+        return jsonify({"ok": False, "error": "Missing required fields"}), 400
+
+    AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
+    AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
+    business_name = contractor.get("Business Name", "Your Service Provider")
+
+    svc_resp = requests.get(
+        f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tblX8znMQVi443I4U/{service_id}",
+        headers={"Authorization": f"Bearer {AIRTABLE_TOKEN}"}
+    )
+    service_name = svc_resp.json().get("fields", {}).get("Service Name", job_description or "Service")
+
+    from app.app.cal_service import create_google_calendar_event
+    cal_result = create_google_calendar_event(
+        contractor=contractor,
+        summary=f"{business_name} - {service_name} ({customer_name})",
+        start_time=start_iso,
+        end_time=end_iso,
+        description=f"Booked via CrewCachePro\nPhone: {customer_phone}\nService: {service_name}",
+        location=service_address,
+    )
+    print("BOOK SUBMIT | calendar result |", cal_result)
+
+    try:
+        from zoneinfo import ZoneInfo
+        dt = datetime.fromisoformat(start_iso)
+        formatted_display = dt.strftime("%A, %B %-d at %-I:%M %p")
+    except Exception:
+        formatted_display = start_iso
+
+    at_headers = {
+        "Authorization": f"Bearer {AIRTABLE_TOKEN}",
+        "Content-Type": "application/json"
+    }
+    lead_resp = requests.post(
+        f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tbl6YL7BYY2vawIF1",
+        headers=at_headers,
+        json={"fields": {
+            "fldBktJv26lpFCZjg": customer_name,
+            "fldfSFcMA4V5SLfjo": customer_phone,
+            "fldo9GtQBLObByZs5": service_address,
+            "fldxNwWbbMWF4cT47": service_name,
+            "fldkTOouWuLx6JHly": formatted_display,
+            "fldHL2tJs2egGKuI9": "Booked",
+            "fldbtGSgcOrHHe6pO": "STANDARD",
+            "fldAgsSlZfOLFCBrJ": contractor_key,
+            "fldIfaFlPA4AyMntY": start_iso,
+        }}
+    )
+    print("BOOK SUBMIT | lead created |", lead_resp.status_code)
+
+    send_fallback_sms(
+        to_number=customer_phone,
+        body=f"Hi {customer_name.split()[0]}! Your {service_name} appointment with {business_name} is confirmed for {formatted_display}. Reply CANCEL APPOINTMENT to cancel."
+    )
+
+    notify_sms = (contractor.get("Notify SMS") or "").strip()
+    if notify_sms:
+        send_fallback_sms(
+            to_number=notify_sms,
+            body=f"New booking: {customer_name} - {service_name} - {formatted_display}"
+        )
+
+    return jsonify({"ok": True, "confirmation": formatted_display, "service_name": service_name})
+
 # ─────────────────────────────────────────────
 # Contractor on-site photo estimate flow
 # ─────────────────────────────────────────────
