@@ -7617,121 +7617,79 @@ def dashboard_connect_stripe():
 @app.route("/dashboard/action/send-recurring-invoice", methods=["POST"])
 @dashboard_auth_required
 def dashboard_send_recurring_invoice():
-    """Sends invoice to a recurring customer."""
+    """
+    Sends a Stripe invoice to a recurring commercial client.
+    Replaces QuickBooks invoicing entirely.
+    """
     try:
         data = request.get_json(silent=True) or {}
-        customer_name = data.get("customer_name", "")
-        customer_email = data.get("customer_email", "")
-        customer_phone = data.get("customer_phone", "")
-        amount = float(data.get("amount", 0))
-        service = data.get("service", "")
-        payment_method = data.get("payment_method", "")
+        customer_name = (data.get("customer_name") or "").strip()
+        customer_email = (data.get("customer_email") or "").strip()
+        customer_phone = (data.get("customer_phone") or "").strip()
+        amount = float(data.get("amount") or 0)
+        service = (data.get("service") or "Lawn Service").strip()
+        payment_method = (data.get("payment_method") or "Stripe").strip()
         twilio_number = request.twilio_number
-        contractor_record_id = request.contractor_id
-
         contractor = get_contractor_by_twilio_number(twilio_number) or {}
-        business_name = contractor.get("Business Name", "your contractor")
+        business_name = contractor.get("Business Name", "Your Contractor")
 
+        if not customer_email:
+            return jsonify({"ok": False, "error": "Customer email required for invoice"}), 400
+        if not amount or amount <= 0:
+            return jsonify({"ok": False, "error": "Valid amount required"}), 400
+
+        from app.app.stripe_service import create_stripe_invoice
+        stripe_account_id = (contractor.get("Stripe Account ID") or "").strip()
+        stripe_charges_enabled = bool(contractor.get("Stripe Charges Enabled"))
+
+        result = create_stripe_invoice(
+            customer_email=customer_email,
+            customer_name=customer_name,
+            amount=amount,
+            service_description=service,
+            business_name=business_name,
+            due_days=30,
+            contractor_stripe_account_id=stripe_account_id if stripe_charges_enabled else "",
+            application_fee_percent=1.0,
+        )
+
+        if not result.get("ok"):
+            return jsonify({"ok": False, "error": result.get("error")}), 500
+
+        # Create payment record in Airtable
         AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
         AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
-        headers = {
+        at_headers = {
             "Authorization": f"Bearer {AIRTABLE_TOKEN}",
             "Content-Type": "application/json"
         }
-        payments_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/Payments"
         today = datetime.now().strftime("%Y-%m-%d")
-
-        # Build payment record
-        payment_fields = {
-            "fldAZ5Qr0NCU11J0A": customer_name,      # Customer Name
-            "fld8bUzdzFeeXLrlD": customer_phone,       # Phone Number
-            "fld596bZM5ZCI7ga8": amount,               # Amount
-            "fldeROEzoyhWKJ36y": service,              # Notes
-            "fldWg6gGv6dKFb853": "Unpaid",             # Payment Status
-            "fldYNu0gpLuiCsF6Z": today,                # Payment Date
-            "fldxdSy7mICyTo50P": [contractor_record_id],  # Contractor
-        }
-
-        if customer_email:
-            payment_fields["fld1J5DuxJVcreFKk"] = customer_email
-
-        # QuickBooks — create and email invoice directly
-        if payment_method in ["QuickBooks", "EFT", "Check"]:
-            if not customer_email:
-                return jsonify({"ok": False, "error": "Email required for QuickBooks invoice"}), 400
-
-            state = {
-                "name": customer_name,
-                "service_address": "",
-                "job_description": service,
-                "callback": customer_phone,
-                "timing": "",
-                "client_email": customer_email,
-                "estimate_amount": amount,
-            }
-            qb_result = create_qb_invoice(state)
-            if qb_result.get("ok"):
-                invoice_id = qb_result.get("invoice_id")
-                invoice_num = qb_result.get("invoice_num")
-                access_token, realm_id = get_valid_access_token()
-                if access_token and invoice_id and customer_email:
-                    email_url = f"{QB_API_BASE}/{realm_id}/invoice/{invoice_id}/send"
-                    qb_headers = {
-                        "Authorization": f"Bearer {access_token}",
-                        "Content-Type": "application/octet-stream",
-                    }
-                    requests.post(
-                        email_url,
-                        headers=qb_headers,
-                        params={"sendTo": customer_email, "minorversion": "65"},
-                        timeout=15
-                    )
-                    print(f"RECURRING | QB invoice emailed | {customer_name} | {customer_email}")
-                payment_fields["fldWg6gGv6dKFb853"] = "Invoiced"
-                payment_fields["fldmTaAGMRf5aafaE"] = True  # Send Invoice checked
-            else:
-                return jsonify({"ok": False, "error": qb_result.get("error")}), 500
-
-        # Stripe — check Send Payment to trigger automation
-        elif payment_method == "Stripe":
-            payment_fields["fldEifNosHbfRIzwu"] = True  # Send Payment Request
-            payment_fields["fldUFO1PfTeiLA3UR"] = "Stripe"
-
-        # Zelle — check Send Payment to trigger automation
-        elif payment_method == "Zelle":
-            payment_fields["fldEifNosHbfRIzwu"] = True  # Send Payment Request
-            payment_fields["fldUFO1PfTeiLA3UR"] = "Zelle "
-
-        # Create payment record
-        payment_resp = requests.post(
-            payments_url,
-            headers=headers,
-            json={"fields": payment_fields}
+        requests.post(
+            f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/Payments",
+            headers=at_headers,
+            json={"fields": {
+                "fldAZ5Qr0NCU11J0A": customer_name,
+                "fld8bUzdzFeeXLrlD": customer_phone,
+                "fld596bZM5ZCI7ga8": amount,
+                "fldeROEzoyhWKJ36y": service,
+                "fldWg6gGv6dKFb853": "Unpaid",
+                "fldUFO1PfTeiLA3UR": "Stripe",
+                "fldYNu0gpLuiCsF6Z": today,
+                "fldxdSy7mICyTo50P": [request.contractor_id],
+                "fldngufZKDk8G0bZ2": result.get("invoice_number", ""),
+            }}
         )
 
-        if payment_resp.status_code not in [200, 201]:
-            print(f"RECURRING | Payment record error | {payment_resp.text}")
-            return jsonify({"ok": False, "error": "Failed to create payment record"}), 500
-
-        payment_record_id = payment_resp.json().get("id", "")
-        print(f"RECURRING | Invoice sent | {customer_name} | {payment_method} | ${amount}")
-
-        messages = {
-            "QuickBooks": f"QB invoice emailed to {customer_email}",
-            "EFT": f"QB invoice emailed to {customer_email} — mark paid when EFT arrives",
-            "Check": f"QB invoice emailed to {customer_email} — mark paid when check arrives",
-            "Stripe": f"Stripe payment link sent to {customer_name}",
-            "Zelle": f"Zelle request sent to {customer_name}",
-        }
-
+        print(f"RECURRING INVOICE | {customer_name} | ${amount} | {result.get('invoice_number')}")
         return jsonify({
             "ok": True,
-            "message": messages.get(payment_method, "Invoice sent!"),
-            "payment_record_id": payment_record_id
+            "message": f"Invoice sent to {customer_email} for ${amount:,.2f}. PDF delivered automatically.",
+            "invoice_number": result.get("invoice_number", ""),
+            "invoice_url": result.get("invoice_url", ""),
         })
 
     except Exception as e:
-        print(f"RECURRING INVOICE ERROR | {type(e).__name__} | {e}")
+        print(f"SEND RECURRING INVOICE ERROR | {type(e).__name__} | {e}")
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
