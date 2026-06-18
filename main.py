@@ -2780,6 +2780,28 @@ def send_job_reminders():
                 print(f"JOB REMINDER SMS ERROR | {client_name} | {e}")
                 failed += 1
 
+        # Send summary to each contractor whose clients got reminders
+        try:
+            from collections import defaultdict
+            contractor_reminders = defaultdict(list)
+            for job in reminders:
+                contractor_reminders[job["twilio_number"]].append(job["name"].split()[0])
+
+            for twilio_num, names in contractor_reminders.items():
+                contractor = get_contractor_by_twilio_number(twilio_num) or {}
+                notify_sms = (contractor.get("Notify SMS") or "").strip()
+                if not notify_sms:
+                    continue
+                summary = (
+                    f"7PM Reminder Summary - {tomorrow_date}\n"
+                    f"Sent reminders to {len(names)} client{'s' if len(names) != 1 else ''}:\n"
+                    f"{', '.join(names)}"
+                )
+                send_fallback_sms(to_number=notify_sms, body=summary)
+                print(f"JOB REMINDER SUMMARY | {twilio_num} | {len(names)} clients")
+        except Exception as e:
+            print(f"JOB REMINDER SUMMARY ERROR | {e}")
+
         return jsonify({
             "ok": True,
             "date": tomorrow_date,
