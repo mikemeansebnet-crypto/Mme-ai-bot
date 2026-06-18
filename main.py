@@ -4959,7 +4959,7 @@ def dashboard():
                 invoiceService = svcInput.trim();
             }
 
-            if (!confirm("Send Stripe invoice to " + name + " at " + email + " for $" + invoiceAmount + "?\n\nThey will receive a PDF invoice by email with a 30-day payment link.")) return;
+            if (!confirm("Send Stripe invoice to " + name + " at " + email + " for $" + invoiceAmount + "? They will receive a PDF invoice by email with a 30-day payment link.")) return;
 
             try {
                 const res = await fetch("/dashboard/action/send-recurring-invoice", {
