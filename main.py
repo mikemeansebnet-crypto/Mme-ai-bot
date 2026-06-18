@@ -2649,7 +2649,8 @@ def update_lead_status_by_phone(phone: str, status: str) -> None:
 def send_job_reminders():
     """
     Runs nightly at 7 PM Eastern via Render cron job.
-    Finds all leads with appointments tomorrow and sends SMS reminders.
+    Finds all leads AND regular clients with appointments tomorrow
+    and sends SMS reminders to customers.
     """
     try:
         from zoneinfo import ZoneInfo
@@ -2665,47 +2666,31 @@ def send_job_reminders():
 
         AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
         AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
-        leads_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tbl6YL7BYY2vawIF1"
         headers = {
             "Authorization": f"Bearer {AIRTABLE_TOKEN}",
             "Content-Type": "application/json"
         }
 
-        # Query for booked leads with appointment tomorrow
+        sent = 0
+        failed = 0
+        reminders = []  # unified list of jobs to remind
+
+        # ── Pull from Leads table ──────────────────────────────
+        leads_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tbl6YL7BYY2vawIF1"
         filter_formula = (
             f"AND("
             f"{{Lead Status}} = 'Booked', "
+            f"{{Archived}} != TRUE(), "
             f"IS_SAME({{Appointment Date and Time}}, '{tomorrow_date}', 'day')"
             f")"
         )
-        params = {"filterByFormula": filter_formula}
-        response = req.get(leads_url, headers=headers, params=params)
-        records = response.json().get("records", [])
+        response = req.get(leads_url, headers=headers, params={"filterByFormula": filter_formula})
+        lead_records = response.json().get("records", [])
+        print(f"JOB REMINDER | Leads table: {len(lead_records)} appointments for tomorrow")
 
-        print(f"JOB REMINDER | Found {len(records)} appointments for tomorrow")
-
-        sent = 0
-        failed = 0
-
-        for record in records:
+        for record in lead_records:
             fields = record.get("fields", {})
-            client_name = fields.get("Client Name", "there")
-            first_name = client_name.split()[0] if client_name else "there"
-            customer_phone = fields.get("Call Back Number", "")
-            twilio_number = fields.get("Twilio Number", "")
             appointment_dt = fields.get("Appointment Date and Time", "")
-
-            if not customer_phone or not twilio_number:
-                print(f"JOB REMINDER | Skipping {client_name} — missing phone or Twilio number")
-                failed += 1
-                continue
-
-            # Look up contractor for business name and reschedule number
-            contractor = get_contractor_by_twilio_number(twilio_number) or {}
-            business_name = contractor.get("Business Name", "Your contractor")
-            notify_sms = contractor.get("Notify SMS", twilio_number)
-
-            # Format appointment time
             try:
                 dt = datetime.fromisoformat(appointment_dt.replace("Z", "+00:00"))
                 dt_eastern = dt.astimezone(eastern)
@@ -2713,15 +2698,71 @@ def send_job_reminders():
             except Exception:
                 formatted_time = "your scheduled time"
 
-            # Build reminder message
+            reminders.append({
+                "name": fields.get("Client Name", "there"),
+                "phone": fields.get("Call Back Number", ""),
+                "twilio_number": (fields.get("Twilio Number") or [""])[0] if isinstance(fields.get("Twilio Number"), list) else fields.get("Twilio Number", ""),
+                "formatted_time": formatted_time,
+            })
+
+        # ── Pull from Regular Clients table ───────────────────
+        regular_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tbl3LAJzXa6Vsexry"
+        regular_resp = req.get(regular_url, headers=headers, params={
+            "filterByFormula": f"AND({{Active}} = TRUE(), {{Next Appointment}} != '')"
+        })
+        regular_records = regular_resp.json().get("records", [])
+        print(f"JOB REMINDER | Regular clients table: checking {len(regular_records)} records")
+
+        for record in regular_records:
+            fields = record.get("fields", {})
+            next_appt = fields.get("Next Appointment", "")
+            if not next_appt:
+                continue
+            try:
+                dt = datetime.fromisoformat(next_appt.replace("Z", "+00:00"))
+                dt_eastern = dt.astimezone(eastern)
+                if dt_eastern.strftime("%Y-%m-%d") != tomorrow_date:
+                    continue
+                formatted_time = dt_eastern.strftime("%-I:%M %p")
+            except Exception:
+                continue
+
+            twilio_number = (fields.get("Twilio Number") or "").strip()
+            customer_phone = (fields.get("Phone") or "").strip()
+            if not customer_phone or not twilio_number:
+                continue
+
+            reminders.append({
+                "name": fields.get("Client Name", "there"),
+                "phone": customer_phone,
+                "twilio_number": twilio_number,
+                "formatted_time": formatted_time,
+            })
+
+        print(f"JOB REMINDER | Total reminders to send: {len(reminders)}")
+
+        # ── Send all reminders ─────────────────────────────────
+        for job in reminders:
+            client_name = job["name"]
+            first_name = client_name.split()[0] if client_name else "there"
+            customer_phone = job["phone"]
+            twilio_number = job["twilio_number"]
+
+            if not customer_phone or not twilio_number:
+                failed += 1
+                continue
+
+            contractor = get_contractor_by_twilio_number(twilio_number) or {}
+            business_name = contractor.get("Business Name", "Your contractor")
+            notify_sms = contractor.get("Notify SMS", twilio_number)
+
             msg = (
                 f"Hi {first_name}! Just a reminder that {business_name} "
-                f"is scheduled for tomorrow at {formatted_time}. "
+                f"is scheduled for tomorrow at {job['formatted_time']}. "
                 f"We look forward to seeing you! "
                 f"To reschedule please call or text {notify_sms}."
             )
 
-            # Send SMS from contractor's Twilio number
             try:
                 from twilio.rest import Client as TwilioClient
                 tc = TwilioClient(
@@ -2733,7 +2774,7 @@ def send_job_reminders():
                     from_=twilio_number,
                     to=customer_phone
                 )
-                print(f"JOB REMINDER SENT | {client_name} | {customer_phone} | {formatted_time}")
+                print(f"JOB REMINDER SENT | {client_name} | {customer_phone} | {job['formatted_time']}")
                 sent += 1
             except Exception as e:
                 print(f"JOB REMINDER SMS ERROR | {client_name} | {e}")
@@ -2744,7 +2785,7 @@ def send_job_reminders():
             "date": tomorrow_date,
             "sent": sent,
             "failed": failed,
-            "total": len(records)
+            "total": len(reminders)
         }), 200
 
     except Exception as e:
@@ -2799,10 +2840,12 @@ def send_daily_briefing():
 
                 # Get today's booked jobs
                 leads_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tbl6YL7BYY2vawIF1"
+                # REPLACE WITH
                 jobs_resp = req.get(leads_url, headers=headers, params={
                     "filterByFormula": (
                         f"AND("
                         f"{{Lead Status}} = 'Booked', "
+                        f"{{Archived}} != TRUE(), "
                         f"{{Twilio Number}} = '{twilio_number}', "
                         f"{{Appointment Date and Time}} != ''"
                         f")"
@@ -2883,22 +2926,28 @@ def send_daily_briefing():
                 todays_jobs.sort(key=lambda x: x["time"])
 
                 # Find regular clients due within 3 days
+                # Exclude anyone already merged into todays_jobs to avoid duplicates
+                already_in_jobs = {j["name"].strip().lower() for j in todays_jobs}
                 due_soon = []
                 for r in regular_records:
                     f = r.get("fields", {})
                     next_appt = f.get("Next Appointment", "")
-                    if next_appt:
-                        try:
-                            dt = datetime.fromisoformat(next_appt.replace("Z", "+00:00"))
-                            dt_eastern = dt.astimezone(eastern)
-                            days_until = (dt_eastern.date() - now.date()).days
-                            if 0 <= days_until <= 3:
-                                due_soon.append({
-                                    "name": f.get("Client Name", ""),
-                                    "days": days_until
-                                })
-                        except Exception:
-                            pass
+                    client_name = (f.get("Client Name", "") or "").strip()
+                    if not next_appt:
+                        continue
+                    if client_name.lower() in already_in_jobs:
+                        continue
+                    try:
+                        dt = datetime.fromisoformat(next_appt.replace("Z", "+00:00"))
+                        dt_eastern = dt.astimezone(eastern)
+                        days_until = (dt_eastern.date() - now.date()).days
+                        if 0 <= days_until <= 3:
+                            due_soon.append({
+                                "name": client_name,
+                                "days": days_until
+                            })
+                    except Exception:
+                        pass
 
                 # Get outstanding payments
                 outstanding_total = 0
