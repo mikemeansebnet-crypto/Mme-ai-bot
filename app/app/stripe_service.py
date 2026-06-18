@@ -359,3 +359,76 @@ def create_connect_payment_link(
     except Exception as e:
         print(f"STRIPE CONNECT PAYMENT LINK ERROR | {e}")
         return {"ok": False, "error": str(e)}
+
+def create_stripe_invoice(
+    customer_email: str,
+    customer_name: str,
+    amount: float,
+    service_description: str,
+    business_name: str,
+    due_days: int = 30,
+    contractor_stripe_account_id: str = "",
+    application_fee_percent: float = 1.0,
+) -> dict:
+    """
+    Creates and sends a real Stripe invoice with PDF to a commercial client.
+    Supports both platform account (MME) and Connect (contractors).
+    """
+    try:
+        amount_cents = int(float(amount) * 100)
+
+        stripe_kwargs = {}
+        if contractor_stripe_account_id:
+            fee_cents = int(amount_cents * (application_fee_percent / 100))
+            stripe_kwargs["stripe_account"] = contractor_stripe_account_id
+
+        # Find or create customer in Stripe
+        existing = stripe.Customer.list(email=customer_email, limit=1, **stripe_kwargs)
+        if existing.data:
+            customer = existing.data[0]
+        else:
+            customer = stripe.Customer.create(
+                email=customer_email,
+                name=customer_name,
+                **stripe_kwargs
+            )
+
+        # Create invoice item
+        stripe.InvoiceItem.create(
+            customer=customer.id,
+            amount=amount_cents,
+            currency="usd",
+            description=f"{business_name} - {service_description}",
+            **stripe_kwargs
+        )
+
+        # Create invoice
+        invoice_create_params = {
+            "customer": customer.id,
+            "collection_method": "send_invoice",
+            "days_until_due": due_days,
+            "auto_advance": True,
+        }
+
+        if contractor_stripe_account_id:
+            invoice_create_params["application_fee_amount"] = int(amount_cents * (application_fee_percent / 100))
+            invoice_create_params["transfer_data"] = {"destination": contractor_stripe_account_id}
+
+        invoice = stripe.Invoice.create(**invoice_create_params, **stripe_kwargs)
+
+        # Finalize and send
+        invoice.finalize_invoice(**stripe_kwargs)
+        invoice.send_invoice(**stripe_kwargs)
+
+        print(f"STRIPE INVOICE SENT | {customer_name} | {customer_email} | ${amount} | {invoice.id}")
+        return {
+            "ok": True,
+            "invoice_id": invoice.id,
+            "invoice_url": invoice.hosted_invoice_url or "",
+            "invoice_number": invoice.number or "",
+            "amount": amount,
+        }
+
+    except Exception as e:
+        print(f"STRIPE INVOICE ERROR | {e}")
+        return {"ok": False, "error": str(e)}
