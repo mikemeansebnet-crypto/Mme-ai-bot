@@ -2195,43 +2195,6 @@ def create_payment_link_route():
         print(f"CREATE PAYMENT LINK ERROR | {e}")
         return {"ok": False, "error": str(e)}
 
-@app.route("/dashboard/action/connect-stripe", methods=["POST"])
-@dashboard_auth_required
-def dashboard_connect_stripe():
-    try:
-        from app.app.stripe_service import create_connect_account, create_account_onboarding_link
-        twilio_number = request.twilio_number
-        contractor = get_contractor_by_twilio_number(twilio_number) or {}
-        existing_account_id = (contractor.get("Stripe Account ID") or "").strip()
-
-        if not existing_account_id:
-            result = create_connect_account(
-                contractor_record_id=request.contractor_id,
-                email=contractor.get("Notify Email", ""),
-                business_name=contractor.get("Business Name", "Contractor"),
-            )
-            if not result.get("ok"):
-                return jsonify({"ok": False, "error": result.get("error")}), 500
-
-            account_id = result["account_id"]
-            AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
-            AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
-            requests.patch(
-                f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{os.environ.get('AIRTABLE_CONTRACTORS_TABLE')}/{request.contractor_id}",
-                headers={"Authorization": f"Bearer {AIRTABLE_TOKEN}", "Content-Type": "application/json"},
-                json={"fields": {"Stripe Account ID": account_id}}
-            )
-        else:
-            account_id = existing_account_id
-
-        link_result = create_account_onboarding_link(account_id)
-        if not link_result.get("ok"):
-            return jsonify({"ok": False, "error": link_result.get("error")}), 500
-
-        return jsonify({"ok": True, "url": link_result["url"]})
-    except Exception as e:
-        print(f"CONNECT STRIPE ERROR | {e}")
-        return jsonify({"ok": False, "error": str(e)}), 500
 
 
 @app.route("/stripe-connect-return")
@@ -7539,6 +7502,44 @@ def dashboard_add_contractor():
 
     except Exception as e:
         print(f"ADD CONTRACTOR ERROR | {type(e).__name__} | {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+@app.route("/dashboard/action/connect-stripe", methods=["POST"])
+@dashboard_auth_required
+def dashboard_connect_stripe():
+    try:
+        from app.app.stripe_service import create_connect_account, create_account_onboarding_link
+        twilio_number = request.twilio_number
+        contractor = get_contractor_by_twilio_number(twilio_number) or {}
+        existing_account_id = (contractor.get("Stripe Account ID") or "").strip()
+
+        if not existing_account_id:
+            result = create_connect_account(
+                contractor_record_id=request.contractor_id,
+                email=contractor.get("Notify Email", ""),
+                business_name=contractor.get("Business Name", "Contractor"),
+            )
+            if not result.get("ok"):
+                return jsonify({"ok": False, "error": result.get("error")}), 500
+
+            account_id = result["account_id"]
+            AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
+            AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
+            requests.patch(
+                f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{os.environ.get('AIRTABLE_CONTRACTORS_TABLE')}/{request.contractor_id}",
+                headers={"Authorization": f"Bearer {AIRTABLE_TOKEN}", "Content-Type": "application/json"},
+                json={"fields": {"Stripe Account ID": account_id}}
+            )
+        else:
+            account_id = existing_account_id
+
+        link_result = create_account_onboarding_link(account_id)
+        if not link_result.get("ok"):
+            return jsonify({"ok": False, "error": link_result.get("error")}), 500
+
+        return jsonify({"ok": True, "url": link_result["url"]})
+    except Exception as e:
+        print(f"CONNECT STRIPE ERROR | {e}")
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
