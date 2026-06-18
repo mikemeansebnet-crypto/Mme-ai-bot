@@ -6041,6 +6041,23 @@ def dashboard():
             }
         }
 
+        async function connectStripe() {
+            try {
+                const res = await fetch("/dashboard/action/connect-stripe", {
+                    method: "POST",
+                    headers: { "X-Dashboard-Token": getCookie("dashboard_token") }
+                });
+                const data = await res.json();
+                if (data.ok && data.url) {
+                    window.location.href = data.url;
+                } else {
+                    alert("Error: " + (data.error || "Could not start Stripe setup"));
+                }
+            } catch(e) {
+                alert("Request failed. Please try again.");
+            }
+        }
+
         // Load on startup
         loadDashboard();
         // Auto-refresh every 5 minutes
