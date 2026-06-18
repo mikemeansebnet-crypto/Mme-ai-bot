@@ -5415,41 +5415,50 @@ def dashboard():
 
         async function sendRecurringInvoice(recordId, name, email, phone, amount, service, paymentMethod) {
             let invoiceAmount = amount;
+            let invoiceService = service;
+
             if (!invoiceAmount || invoiceAmount <= 0) {
-                const input = prompt(`Enter amount for ${name}:`);
+                const input = prompt("Enter invoice amount for " + name + ":");
                 if (!input) return;
                 invoiceAmount = parseFloat(input);
                 if (isNaN(invoiceAmount) || invoiceAmount <= 0) {
-                    alert('Invalid amount.');
+                    alert("Invalid amount.");
                     return;
                 }
             }
-            if (!confirm(`Send ${paymentMethod} invoice to ${name} for $${amount}?`)) return;
+
+            if (!invoiceService || invoiceService.trim() === "") {
+                const svcInput = prompt("Enter service description for " + name + ":");
+                if (!svcInput) return;
+                invoiceService = svcInput.trim();
+            }
+
+            if (!confirm("Send Stripe invoice to " + name + " at " + email + " for $" + invoiceAmount + "?\n\nThey will receive a PDF invoice by email with a 30-day payment link.")) return;
 
             try {
-                const res = await fetch('/dashboard/action/send-recurring-invoice', {
-                    method: 'POST',
+                const res = await fetch("/dashboard/action/send-recurring-invoice", {
+                    method: "POST",
                     headers: {
-                        'Content-Type': 'application/json',
-                        'X-Dashboard-Token': getCookie('dashboard_token')
+                        "Content-Type": "application/json",
+                        "X-Dashboard-Token": getCookie("dashboard_token")
                     },
                     body: JSON.stringify({
                         customer_name: name,
                         customer_email: email,
                         customer_phone: phone,
                         amount: invoiceAmount,
-                        service: service,
+                        service: invoiceService,
                         payment_method: paymentMethod
                     })
                 });
                 const data = await res.json();
                 if (data.ok) {
-                    alert('✅ ' + data.message);
+                    alert("Invoice sent to " + email + "!\nInvoice #: " + data.invoice_number + "\nAmount: $" + invoiceAmount);
                 } else {
-                    alert('Error: ' + (data.error || 'Something went wrong'));
+                    alert("Error: " + (data.error || "Something went wrong"));
                 }
             } catch(e) {
-                alert('Request failed. Please try again.');
+                alert("Request failed. Please try again.");
             }
         }
 
