@@ -4465,7 +4465,7 @@ def dashboard():
                     <div class="job-card ${lead.priority !== 'STANDARD' ? 'urgent' : ''}">
                         <div class="job-name">${lead.name || 'Unknown'}${badge}</div>
                         <div class="job-address">${lead.address || ''}</div>
-                        <div class="job-type">${lead.job_type || ''} · ${lead.timing || ''}</div>
+                        <div class="job-type">${lead.job_type || ''} - ${lead.timing || ''}</div>
 
                         ${phone ? `
                         <div class="job-actions" style="margin-top:8px">
@@ -4690,7 +4690,7 @@ def dashboard():
                 day.onclick = () => openBookingModal(dateStr);
                 day.style.cursor = 'pointer';
                 if (hasJob) {
-                    day.title = 'Jobs scheduled — tap to add another';
+                    day.title = 'Jobs scheduled - tap to add another';
                 } else {
                     day.title = 'Tap to add a job';
                 }
@@ -4784,7 +4784,7 @@ def dashboard():
         function openCompletePayModal(recordId, customerName, customerPhone, jobType) {
             completePayData = { recordId, customerName, customerPhone, jobType };
             selectedPayMethod = '';
-            document.getElementById('completePayCustomer').textContent = customerName + ' — ' + jobType;
+            document.getElementById('completePayCustomer').textContent = customerName + ' - ' + jobType;
             document.getElementById('payAmount').value = '';
             document.getElementById('payEmail').value = '';
             document.getElementById('emailField').classList.remove('visible');
