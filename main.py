@@ -4772,7 +4772,7 @@ def dashboard():
             } catch(e) {
                 alert('Request failed. Please try again.');
             } finally {
-                btn.textContent = 'Add Job →';
+                btn.textContent = 'Add Job';
                 btn.disabled = false;
             }
         }
@@ -4860,7 +4860,7 @@ def dashboard():
             } catch(e) {
                 alert('Request failed. Please try again.');
             } finally {
-                btn.textContent = 'Send Payment →';
+                btn.textContent = 'Send Payment';
                 btn.disabled = false;
             }
         }
@@ -4882,7 +4882,7 @@ def dashboard():
             document.getElementById('recurringCount').textContent = customers.length;
             const el = document.getElementById('recurringCustomers');
             if (!customers.length) {
-                el.innerHTML = '<div class="empty-state">No recurring customers — add them in Airtable</div>';
+                el.innerHTML = '<div class="empty-state">No recurring customers - add them in Airtable</div>';
                 return;
             }
             el.innerHTML = customers.map(c => {
@@ -5004,7 +5004,7 @@ def dashboard():
             document.getElementById('regularCount').textContent = clients.length;
             const el = document.getElementById('regularClients');
             if (!clients.length) {
-                el.innerHTML = '<div class="empty-state">No regular clients — add them in Airtable</div>';
+                el.innerHTML = '<div class="empty-state">No regular clients - add them in Airtable</div>';
                 return;
             }
             el.innerHTML = clients.map(c => {
@@ -5025,7 +5025,7 @@ def dashboard():
                 <div class="job-card" style="${urgency}">
                     <div class="job-name">${c.name || 'Unknown'}</div>
                     <div class="job-address">${c.address || ''}</div>
-                    <div class="job-type">${c.service || ''} · Every ${c.frequency_days} days</div>
+                    <div class="job-type">${c.service || ''} - Every ${c.frequency_days} days</div>
                     ${c.next_appointment ? `
                     <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px">
                         <div style="color:#22c55e;font-size:13px;font-family:monospace">${c.next_appointment}</div>
@@ -5048,7 +5048,7 @@ def dashboard():
 
         function openRegularBookModal(recordId, name, phone, address, service, frequencyDays, preferredTime) {
             regularBookData = { recordId, name, phone, address, service, frequencyDays };
-            document.getElementById('regularBookCustomer').textContent = name + ' — Every ' + frequencyDays + ' days';
+            document.getElementById('regularBookCustomer').textContent = name + ' - Every ' + frequencyDays + ' days';
             document.getElementById('regularBookTime').value = preferredTime || '09:00';
 
             // Pre-fill date with today
@@ -5108,7 +5108,7 @@ def dashboard():
             } catch(e) {
                 alert('Request failed. Please try again.');
             } finally {
-                btn.textContent = 'Book & Confirm →';
+                btn.textContent = 'Book & Confirm';
                 btn.disabled = false;
             }
         }
@@ -5157,13 +5157,13 @@ def dashboard():
         function renderSeasonalCampaigns(campaigns) {
             const el = document.getElementById('seasonalCampaigns');
             if (!campaigns.length) {
-                el.innerHTML = '<div class="empty-state">No active campaigns — add one in Airtable</div>';
+                el.innerHTML = '<div class="empty-state">No active campaigns - add one in Airtable</div>';
                 return;
             }
             el.innerHTML = campaigns.map(c => `
                 <div class="job-card">
                     <div class="job-name">${c.name}</div>
-                    <div class="job-type">${c.message_type} · ${c.season || 'All seasons'}</div>
+                    <div class="job-type">${c.message_type} - ${c.season || 'All seasons'}</div>
                     <div style="font-size:12px;color:#888;margin-top:6px">${c.message_body.substring(0, 80)}...</div>
                     <div style="font-size:11px;color:#22c55e;margin-top:6px">Sent ${c.send_count || 0} times</div>
                     <div class="job-actions" style="margin-top:10px">
@@ -7922,7 +7922,7 @@ def photo_upload_page(lead_id):
                 const info = document.getElementById('selected-info');
                 if (input.files && input.files.length > 0) {
                     const count = Math.min(input.files.length, 5);
-                    info.textContent = count + ' photo' + (count !== 1 ? 's' : '') + ' selected — tap Send Photos to upload';
+                    info.textContent = count + ' photo' + (count !== 1 ? 's' : '') + ' selected - tap Send Photos to upload';
                     info.style.display = 'block';
                 }
             }
