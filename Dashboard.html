@@ -1,0 +1,2110 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <link rel="apple-touch-icon" href="https://res.cloudinary.com/dkfshn604/image/upload/IMG_1664_jukqma.jpg">
+    <link rel="icon" type="image/png" href="https://res.cloudinary.com/dkfshn604/image/upload/IMG_1664_jukqma.jpg">
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#2563EB">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+    <script>
+        window.OneSignalDeferred = window.OneSignalDeferred || [];
+        OneSignalDeferred.push(async function(OneSignal) {
+            await OneSignal.init({
+                appId: "8c26bbef-107f-430b-9aef-f3b5137467fa",
+                notifyButton: { enable: false },
+                allowLocalhostAsSecureOrigin: true,
+            });
+        });
+    </script>
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+    <title>CrewCachePro Dashboard</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+        :root {
+            --blue: #2563EB;
+            --green: #16a34a;
+            --gradient: linear-gradient(135deg, #2563EB, #16a34a);
+            --bg: #0f172a;
+            --card: #1e293b;
+            --card-border: #334155;
+            --text: #f1f5f9;
+            --text-muted: #94a3b8;
+            --text-light: #64748b;
+            --success: #22c55e;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+        }
+
+        body {
+            font-family: 'DM Sans', sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #0d2137 50%, #0f2818 100%);
+            color: var(--text);
+            min-height: 100vh;
+            padding-bottom: 80px;
+        }
+
+        header {
+            background: linear-gradient(135deg, #2563EB, #16a34a);
+            padding: 14px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 2px 20px rgba(37,99,235,0.4);
+        }
+
+        header h1 {
+            font-size: 20px;
+            font-weight: 700;
+            color: white;
+        }
+
+        .business-name {
+            font-size: 11px;
+            color: rgba(255,255,255,0.7);
+            font-family: 'DM Mono', monospace;
+            margin-top: 2px;
+        }
+
+        .logout-btn {
+            background: rgba(255,255,255,0.15);
+            border: 1px solid rgba(255,255,255,0.3);
+            color: white;
+            padding: 8px 14px;
+            border-radius: 8px;
+            font-size: 12px;
+            cursor: pointer;
+            text-decoration: none;
+            font-family: 'DM Mono', monospace;
+        }
+
+        .content { padding: 16px; }
+
+        .revenue-bar {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+
+        .revenue-card {
+            background: linear-gradient(135deg, #1e3a5f, #1a3a2a);
+            border: 1px solid #334155;
+            border-radius: 14px;
+            padding: 14px 16px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+        }
+
+        .revenue-label {
+            font-size: 10px;
+            color: var(--text-muted);
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            font-family: 'DM Mono', monospace;
+            margin-bottom: 6px;
+        }
+
+        .revenue-amount {
+            font-size: 22px;
+            font-weight: 700;
+            color: #22c55e;
+        }
+
+        .revenue-amount.red { color: var(--danger); }
+        .revenue-amount.white { color: white; }
+
+        .revenue-sub {
+            font-size: 11px;
+            color: var(--text-light);
+            font-family: 'DM Mono', monospace;
+            margin-top: 2px;
+        }
+
+        .calendar-card {
+            background: var(--card);
+            border: 1px solid var(--card-border);
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 16px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+        }
+
+        .calendar-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .calendar-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: white;
+        }
+
+        .calendar-nav { display: flex; gap: 8px; }
+
+        .cal-btn {
+            background: #334155;
+            border: 1px solid #475569;
+            color: white;
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .cal-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 4px;
+        }
+
+        .cal-day-header {
+            text-align: center;
+            font-size: 10px;
+            color: var(--text-muted);
+            font-family: 'DM Mono', monospace;
+            padding: 4px 0;
+            letter-spacing: 1px;
+        }
+
+        .cal-day {
+            aspect-ratio: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            font-size: 13px;
+            cursor: pointer;
+            color: var(--text-muted);
+            transition: background 0.15s;
+        }
+
+        .cal-day:hover { background: #334155; }
+
+        .cal-day.has-job {
+            background: rgba(37,99,235,0.3);
+            color: #22c55e;
+            font-weight: 700;
+            border: 1px solid #22c55e;
+        }
+
+        .cal-day.today {
+            background: var(--gradient);
+            color: white;
+            font-weight: 700;
+        }
+
+        .cal-day.today.has-job {
+            background: var(--gradient);
+            color: white;
+        }
+
+        .cal-day.other-month { color: #334155; }
+
+        .section { margin-bottom: 16px; }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .section-title {
+            font-size: 11px;
+            color: var(--text-muted);
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            font-family: 'DM Mono', monospace;
+            font-weight: 500;
+        }
+
+        .section-count {
+            background: rgba(37,99,235,0.2);
+            color: #60a5fa;
+            font-size: 11px;
+            padding: 3px 8px;
+            border-radius: 20px;
+            font-family: 'DM Mono', monospace;
+        }
+
+        .job-card {
+            background: var(--card);
+            border: 1px solid var(--card-border);
+            border-radius: 14px;
+            padding: 16px;
+            margin-bottom: 10px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+            transition: box-shadow 0.2s;
+        }
+
+        .job-card:active { box-shadow: 0 8px 24px rgba(37,99,235,0.2); }
+        .job-card.urgent { border-left: 3px solid var(--danger); }
+        .job-card.today-job { border-left: 3px solid #22c55e; }
+
+        .job-time {
+            font-size: 12px;
+            color: #60a5fa;
+            font-family: 'DM Mono', monospace;
+            margin-bottom: 4px;
+            font-weight: 500;
+        }
+
+        .job-name {
+            font-size: 16px;
+            font-weight: 700;
+            margin-bottom: 3px;
+            color: white;
+        }
+
+        .job-address {
+            font-size: 13px;
+            color: var(--text-muted);
+            margin-bottom: 3px;
+        }
+
+        .job-type {
+            font-size: 12px;
+            color: var(--text-light);
+            font-family: 'DM Mono', monospace;
+        }
+
+        .job-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .action-btn {
+            flex: 1;
+            padding: 10px;
+            border-radius: 10px;
+            border: none;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            text-align: center;
+            text-decoration: none;
+            display: block;
+            font-family: 'DM Sans', sans-serif;
+            transition: opacity 0.15s;
+        }
+
+        .action-btn:active { opacity: 0.85; }
+        .btn-call { background: var(--gradient); color: white; }
+        .btn-sms { background: #334155; border: 1px solid #475569; color: var(--text); }
+
+        .invoice-card {
+            background: var(--card);
+            border: 1px solid var(--card-border);
+            border-radius: 14px;
+            padding: 16px;
+            margin-bottom: 10px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+        }
+
+        .invoice-amount { font-size: 20px; font-weight: 700; color: var(--danger); }
+        .invoice-days { font-size: 11px; color: var(--text-light); font-family: 'DM Mono', monospace; margin-top: 2px; }
+
+        .empty-state {
+            text-align: center;
+            color: var(--text-light);
+            font-size: 14px;
+            padding: 24px;
+            font-family: 'DM Mono', monospace;
+            background: var(--card);
+            border-radius: 14px;
+            border: 1px dashed var(--card-border);
+        }
+
+        .loading {
+            text-align: center;
+            color: var(--text-light);
+            font-size: 13px;
+            padding: 20px;
+            font-family: 'DM Mono', monospace;
+        }
+
+        .refresh-btn {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: var(--gradient);
+            color: white;
+            border: none;
+            width: 52px;
+            height: 52px;
+            border-radius: 50%;
+            font-size: 20px;
+            cursor: pointer;
+            box-shadow: 0 4px 20px rgba(37,99,235,0.4);
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 20px;
+            font-size: 10px;
+            font-family: 'DM Mono', monospace;
+            letter-spacing: 1px;
+            margin-left: 8px;
+        }
+
+        .badge-new { background: rgba(34,197,94,0.2); color: #22c55e; }
+        .badge-urgent { background: rgba(239,68,68,0.2); color: var(--danger); }
+        .badge-overdue { background: rgba(239,68,68,0.2); color: var(--danger); }
+
+        .payment-method-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+
+        .payment-method-btn {
+            padding: 12px;
+            border-radius: 10px;
+            border: 2px solid var(--card-border);
+            background: var(--card);
+            color: var(--text-muted);
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.15s;
+            font-family: 'DM Sans', sans-serif;
+        }
+
+        .payment-method-btn.selected {
+            border-color: #2563EB;
+            background: rgba(37,99,235,0.2);
+            color: #60a5fa;
+        }
+
+        .email-field { display: none; }
+        .email-field.visible { display: block; }
+
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.8);
+            z-index: 200;
+            align-items: flex-end;
+            justify-content: center;
+            backdrop-filter: blur(4px);
+        }
+
+        .modal-overlay.active { display: flex; }
+
+        .booking-modal {
+            background: #1e293b;
+            border-radius: 24px 24px 0 0;
+            padding: 24px 20px 40px;
+            width: 100%;
+            max-width: 500px;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 -8px 40px rgba(37,99,235,0.3);
+            border-top: 1px solid #334155;
+        }
+
+        .modal-title { font-size: 18px; font-weight: 700; margin-bottom: 6px; color: white; }
+        .modal-date { font-size: 13px; color: #60a5fa; font-family: 'DM Mono', monospace; margin-bottom: 20px; }
+        .form-group { margin-bottom: 14px; }
+
+        .form-label {
+            display: block;
+            font-size: 11px;
+            color: var(--text-muted);
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            font-family: 'DM Mono', monospace;
+            margin-bottom: 6px;
+        }
+
+        .form-input {
+            width: 100%;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 10px;
+            padding: 12px 14px;
+            color: white;
+            font-size: 16px;
+            outline: none;
+            font-family: 'DM Sans', sans-serif;
+            transition: border-color 0.15s;
+        }
+
+        .form-input:focus { border-color: #2563EB; }
+
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+        .modal-actions { display: flex; gap: 10px; margin-top: 20px; }
+
+        .btn-book {
+            flex: 1;
+            background: var(--gradient);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            padding: 16px;
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+            font-family: 'DM Sans', sans-serif;
+        }
+
+        .btn-cancel-modal {
+            background: #334155;
+            border: 1px solid #475569;
+            color: var(--text-muted);
+            border-radius: 12px;
+            padding: 16px 20px;
+            font-size: 14px;
+            cursor: pointer;
+            font-family: 'DM Sans', sans-serif;
+        }
+
+        .crew-logo { display: flex; align-items: center; }
+    </style>
+</head>
+<body>
+
+    <!-- Splash Screen -->
+    <div id="splashScreen" style="
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: linear-gradient(135deg, #2563EB, #16a34a);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+        animation: splashFade 0.5s ease 2s forwards;
+    ">
+        <style>
+            @keyframes splashFade {
+                0% { opacity: 1; pointer-events: all; }
+                100% { opacity: 0; pointer-events: none; display: none; }
+            }
+        </style>
+        <img src="https://res.cloudinary.com/dkfshn604/image/upload/IMG_1664_jukqma.jpg" 
+             style="width: 140px; height: 140px; border-radius: 32px; margin-bottom: 24px; box-shadow: 0 8px 32px rgba(0,0,0,0.3);">
+        <div style="color: white; font-family: 'DM Sans', sans-serif; font-size: 28px; font-weight: 700;">
+            Crew<span style="color: #bbf7d0">Cache</span>Pro
+        </div>
+    </div>
+    
+    <header>
+        <div>
+            <div style="display:flex; align-items:center; gap:10px;">
+
+  <div class="crew-logo">
+    <svg viewBox="0 0 500 500" width="70" height="70">
+      <defs>
+        <linearGradient id="crewGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#005B9A"/>
+          <stop offset="100%" stop-color="#39B54A"/>
+        </linearGradient>
+      </defs>
+
+      <path d="M120 180 A150 150 0 0 1 385 140"
+        fill="none"
+        stroke="url(#crewGradient)"
+        stroke-width="25"
+        stroke-linecap="round"
+      />
+      <polygon points="390,120 430,175 365,180"
+        fill="url(#crewGradient)"
+      />
+
+      <path d="M380 320 A150 150 0 0 1 115 360"
+        fill="none"
+        stroke="url(#crewGradient)"
+        stroke-width="25"
+        stroke-linecap="round"
+      />
+      <polygon points="110,380 70,325 135,320"
+        fill="url(#crewGradient)"
+      />
+    </svg>
+  </div>
+
+  <div>
+    <h1 style="margin:0;">
+      <span style="color:#005B9A;">Crew</span><span style="color:#39B54A;">CachePro</span>
+    </h1>
+    <div class="business-name" id="businessName">Loading...</div>
+  </div>
+
+</div>
+
+        <div style="display:flex;gap:8px;align-items:center">
+            <button onclick="startVoiceInput()" id="voiceBtn" style="background:var(--bg);border:1px solid var(--card-border);color:var(--text);border-radius:10px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif">
+                Voice
+            </button>
+
+            <button onclick="window.location.href='/walkthrough'" style="background:var(--bg);border:1px solid var(--card-border);color:var(--text);border-radius:10px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;font-family:DM Sans,sans-serif">
+                Video
+            </button>
+            
+
+            <button onclick="openAddContractorModal()" style="background:var(--bg);border:1px solid var(--card-border);color:var(--text);border-radius:10px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;font-family:DM Sans,sans-serif">
+                + Contractor
+            </button>
+
+            <button onclick="connectStripe()" style="background:var(--bg);border:1px solid var(--card-border);color:var(--text);border-radius:10px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;font-family:DM Sans,sans-serif">
+                Connect Stripe
+            </button>
+            
+            <button onclick="openBookingModal('')" style="background:var(--gradient);color:white;border:none;border-radius:10px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif">+ Add Job</button>
+            <a href="/dashboard/logout" class="logout-btn">Sign out</a>
+        </div>
+           
+
+        
+    </header>
+
+    <div class="content">
+        <!-- Revenue Summary -->
+        <div class="revenue-bar" id="revenueBar">
+            <div class="revenue-card">
+                <div class="revenue-label">This Week</div>
+                <div class="revenue-amount" id="revWeek">--</div>
+            </div>
+            <div class="revenue-card">
+                <div class="revenue-label" id="revMonthLabel">This Month</div>
+                <div class="revenue-amount" id="revMonth">--</div>
+                <div class="revenue-sub" id="revJobs"></div>
+            </div>
+            <div class="revenue-card">
+                <div class="revenue-label">This Year</div>
+                <div class="revenue-amount white" id="revYear">--</div>
+            </div>
+            <div class="revenue-card">
+                <div class="revenue-label">Outstanding</div>
+                <div class="revenue-amount red" id="revOutstanding">--</div>
+            </div>
+        </div>
+
+        <!-- Booking Link -->
+        <div style="background:var(--card);border:1px solid var(--card-border);border-radius:14px;padding:14px 16px;margin-bottom:16px;box-shadow:0 1px 4px rgba(0,0,0,0.04)">
+            <div style="font-size:11px;color:var(--text-muted);letter-spacing:1px;text-transform:uppercase;font-family:'DM Mono',monospace;margin-bottom:8px">Your Booking Link</div>
+            <div style="display:flex;gap:8px;align-items:center">
+                <input type="text" id="bookingLinkInput" readonly style="flex:1;background:var(--bg);border:1px solid var(--card-border);border-radius:8px;padding:10px 12px;font-size:12px;color:var(--text);font-family:'DM Mono',monospace">
+                <button onclick="copyBookingLink()" id="copyBookingBtn" style="background:var(--gradient);color:white;border:none;border-radius:8px;padding:10px 16px;font-size:13px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;white-space:nowrap">Copy</button>
+            </div>
+            <div style="font-size:11px;color:var(--text-light);margin-top:8px">Share this on Google Business Profile, Facebook, or your website so customers can book themselves.</div>
+        </div>
+
+        <!-- Today's Summary -->
+        <div class="today-summary">
+            <h2>Today</h2>
+            <div class="job">No jobs scheduled today.</div>
+        </div>
+        
+        <!-- Calendar -->
+        <div class="calendar-card">
+            <div class="calendar-header">
+                <div class="calendar-title" id="calTitle">May 2026</div>
+                <div class="calendar-nav">
+                    <button class="cal-btn" onclick="changeMonth(-1)">‹</button>
+                    <button class="cal-btn" onclick="changeMonth(1)">›</button>
+                </div>
+            </div>
+            <div class="cal-grid" id="calGrid">
+                <div class="cal-day-header">SUN</div>
+                <div class="cal-day-header">MON</div>
+                <div class="cal-day-header">TUE</div>
+                <div class="cal-day-header">WED</div>
+                <div class="cal-day-header">THU</div>
+                <div class="cal-day-header">FRI</div>
+                <div class="cal-day-header">SAT</div>
+            </div>
+        </div>
+
+        <!-- Today's Jobs -->
+        <div class="section">
+            <div class="section-header">
+                <div class="section-title">Today's Jobs</div>
+                <div class="section-count" id="todayCount">0</div>
+            </div>
+            <div id="todayJobs"><div class="loading">Loading...</div></div>
+        </div>
+
+        <!-- Tomorrow's Jobs -->
+        <div class="section">
+            <div class="section-header">
+                <div class="section-title">Tomorrow</div>
+                <div class="section-count" id="tomorrowCount">0</div>
+            </div>
+            <div id="tomorrowJobs"><div class="loading">Loading...</div></div>
+        </div>
+
+        <!-- Open Leads -->
+        <div class="section">
+            <div class="section-header">
+                <div class="section-title">Open Leads</div>
+                <div class="section-count" id="leadsCount">0</div>
+            </div>
+            <div id="openLeads"><div class="loading">Loading...</div></div>
+        </div>
+
+        <!-- Unpaid Invoices -->
+        <div class="section">
+            <div class="section-header">
+                <div class="section-title">Unpaid Invoices</div>
+                <div class="section-count" id="invoicesCount">0</div>
+            </div>
+            <div id="unpaidInvoices"><div class="loading">Loading...</div></div>
+        </div>
+
+        <!-- Recent Bookings -->
+        <div class="section">
+            <div class="section-header">
+                <div class="section-title">Recent Bookings</div>
+            </div>
+            <div id="recentBookings"><div class="loading">Loading...</div></div>
+        </div>
+    </div>
+
+        <!-- Regular Clients -->
+        <div class="section">
+            <div class="section-header">
+                <div class="section-title">Regular Clients</div>
+                <div class="section-count" id="regularCount">0</div>
+            </div>
+            <div id="regularClients"><div class="loading">Loading...</div></div>
+        </div>
+
+        <!-- Seasonal Campaigns -->
+        <div class="section">
+            <div class="section-header">
+                <div class="section-title">📣 Seasonal Campaigns</div>
+            </div>
+            <div id="seasonalCampaigns"><div class="loading">Loading...</div></div>
+        </div>
+
+        <!-- Recurring Invoices -->
+        <div class="section">
+            <div class="section-header">
+                <div class="section-title">Recurring Invoices</div>
+                <div class="section-count" id="recurringCount">0</div>
+            </div>
+            <div id="recurringCustomers"><div class="loading">Loading...</div></div>
+        </div>
+        
+    </div>
+    
+    <button class="refresh-btn" onclick="loadDashboard()" title="Refresh">↻</button>
+
+    <script>
+        let dashboardData = {};
+        let currentMonth = new Date().getMonth();
+        let currentYear = new Date().getFullYear();
+
+        async function dashboardAction(endpoint, payload, successMsg) {
+            try {
+                const res = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Dashboard-Token': getCookie('dashboard_token')
+                    },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    alert(successMsg || 'Done!');
+                    loadDashboard(); // Refresh dashboard
+                } else {
+                    alert('Error: ' + (data.error || 'Something went wrong'));
+                }
+            } catch(e) {
+                alert('Request failed. Please try again.');
+            }
+        }
+
+        function jobCard(job, isToday) {
+            const phone = job.phone ? job.phone.replace(/\D/g,'') : '';
+            const recordId = job.record_id || '';
+            const appointmentTime = job.time || 'your scheduled time';
+            const customerPhone = job.phone || '';
+            const customerName = job.name || '';
+
+            return `
+            <div class="job-card ${isToday ? 'today-job' : ''}">
+                <div class="job-time">${job.time || 'Time TBD'}</div>
+                <div class="job-name">${job.name || 'Unknown'}</div>
+                <div class="job-address">${job.address || ''}</div>
+                <div class="job-type">${job.job_type || ''}</div>
+                ${phone ? `
+                <div class="job-actions">
+                    <a href="tel:+1${phone}" class="action-btn btn-call">📞 Call</a>
+                    <a href="sms:+1${phone}" class="action-btn btn-sms">💬 Text</a>
+                </div>
+                <div class="job-actions" style="margin-top:8px">
+                    <button onclick="dashboardAction('/dashboard/action/send-confirmation', {customer_name:'${customerName}', customer_phone:'${customerPhone}', appointment_time:'${appointmentTime}'}, 'Confirmation sent!')" class="action-btn btn-sms">✅ Send Confirmation</button>
+                    <button onclick="dashboardAction('/dashboard/action/on-my-way', {customer_name:'${customerName}', customer_phone:'${customerPhone}'}, 'On my way message sent!')" class="action-btn btn-sms">🚗 On My Way</button>
+                </div>
+                <div class="job-actions" style="margin-top:8px">
+                    <button onclick="openCompletePayModal('${recordId}', '${customerName}', '${customerPhone}', '${job.job_type||''}')" class="action-btn" style="background:#22c55e;color:#000;flex:1">✓ Complete & Pay</button>
+                </div>` : ''}
+            </div>`;
+        }
+
+        function renderOpenLeads() {
+            const leads = dashboardData.open_leads || [];
+            document.getElementById('leadsCount').textContent = leads.length;
+            const el = document.getElementById('openLeads');
+
+            if (!leads.length) {
+                el.innerHTML = '<div class="empty-state">No open leads</div>';
+                return;
+            }
+
+            el.innerHTML = leads.map(lead => {
+                const phone = lead.phone ? lead.phone.replace(/\D/g,'') : '';
+                const recordId = lead.record_id || '';
+                const customerName = lead.name || '';
+                const badge = lead.priority === 'URGENT' || lead.priority === 'HIGH_PRIORITY'
+                    ? '<span class="badge badge-urgent">URGENT</span>'
+                    : '<span class="badge badge-new">NEW</span>';
+
+                return `
+                    <div class="job-card ${lead.priority !== 'STANDARD' ? 'urgent' : ''}">
+                        <div class="job-name">${lead.name || 'Unknown'}${badge}</div>
+                        <div class="job-address">${lead.address || ''}</div>
+                        <div class="job-type">${lead.job_type || ''} - ${lead.timing || ''}</div>
+
+                        ${phone ? `
+                        <div class="job-actions" style="margin-top:8px">
+                            <button 
+                                data-record-id="${recordId}"
+                                data-address="${lead.address || ''}"
+                                data-job-type="${lead.job_type || ''}"
+                                data-customer="${customerName}"
+                                data-twilio="${dashboardData.twilio_number || ''}"
+                                onclick="runAerialQuote(this.dataset.recordId, this.dataset.address, this.dataset.jobType, this.dataset.customer, this.dataset.twilio)"
+                                class="action-btn btn-sms" 
+                                style="width:100%">
+                                🛰️ Aerial Quote
+                            </button>
+                        </div>
+                        ` : ''}
+                    </div>
+                 `;
+            }).join('');
+        }
+        
+
+
+        async function runAerialQuote(recordId, address, jobType, customerName, twilioNumber) {
+            if (!address) {
+                alert('No address on file for this lead.');
+                return;
+            }
+            const btn = event.target;
+            btn.textContent = '🛰️ Analyzing...';
+            btn.disabled = true;
+
+            try {
+                const res = await fetch('/aerial-quote', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Dashboard-Token': getCookie('dashboard_token')
+                    },
+                    body: JSON.stringify({
+                        lead_id: recordId,
+                        address: address,
+                        job_description: jobType,
+                        customer_name: customerName,
+                        twilio_number: twilioNumber
+                    })
+                });
+
+                const data = await res.json();
+                if (data.ok) {
+                    alert(
+                        `🛰️ Aerial Quote Complete!\n\n` +
+                        `📐 ~${data.square_footage?.toLocaleString()} sq ft\n` +
+                        `💰 Estimate: ${data.quote_range}\n\n` +
+                        `Satellite image and full analysis saved to lead record.\n` +
+                        `SMS sent to your notify number.`
+                    );
+                    loadDashboard();
+                } else {
+                    alert('Error: ' + (data.error || 'Something went wrong'));
+                }
+            } catch(e) {
+                alert('Request failed. Please try again.');
+            } finally {
+                btn.textContent = '🛰️ Aerial Quote';
+                btn.disabled = false;
+            }
+        }
+
+        function renderUnpaidInvoices() {
+            const invoices = dashboardData.unpaid_invoices || [];
+            document.getElementById('invoicesCount').textContent = invoices.length;
+            const el = document.getElementById('unpaidInvoices');
+            if (!invoices.length) { el.innerHTML = '<div class="empty-state">All paid up ✓</div>'; return; }
+            el.innerHTML = invoices.map(inv => {
+                const recordId = inv.record_id || '';
+                const customerPhone = inv.phone || '';
+                const customerName = inv.name || '';
+                return `
+                <div class="invoice-card" style="flex-direction:column;align-items:stretch">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+                        <div>
+                            <div class="job-name">${inv.name || 'Unknown'}</div>
+                            <div class="job-type">${inv.job_type || ''}</div>
+                            ${inv.days_outstanding > 0 ? `<div class="invoice-days">${inv.days_outstanding} days outstanding</div>` : ''}
+                        </div>
+                        <div style="text-align:right">
+                            <div class="invoice-amount">$${inv.amount}</div>
+                            ${inv.days_outstanding >= 14 ? '<span class="badge badge-overdue">OVERDUE</span>' : ''}
+                        </div>
+                    </div>
+                    <div class="job-actions">
+                        <button onclick="if(confirm('Mark $${inv.amount} from ${customerName} as paid?')) dashboardAction('/dashboard/action/mark-paid', {record_id:'${recordId}'}, 'Invoice marked paid!')" class="action-btn" style="background:#22c55e;color:#000;flex:1">✓ Mark Paid</button>
+                        <button onclick="dashboardAction('/dashboard/action/send-reminder', {customer_name:'${customerName}', customer_phone:'${customerPhone}', amount:'${inv.amount}', job_type:'${inv.job_type||''}'}, 'Reminder sent!')" class="action-btn btn-sms">💬 Send Reminder</button>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        
+        function renderRecentBookings() {
+            const bookings = dashboardData.recent_bookings || [];
+            const el = document.getElementById('recentBookings');
+            if (!bookings.length) { el.innerHTML = '<div class="empty-state">No recent bookings</div>'; return; }
+            el.innerHTML = bookings.map(b => {
+                const recordId = b.record_id || '';
+                const customerName = b.name || '';
+                const customerPhone = b.phone || '';
+                const jobType = b.job_type || '';
+                return `
+                <div class="job-card">
+                    <div class="job-time">${b.date || ''}</div>
+                    <div class="job-name">${b.name || 'Unknown'}</div>
+                    <div class="job-address">${b.address || ''}</div>
+                    <div class="job-type">${b.job_type || ''}</div>
+                    ${recordId ? `
+                    <div class="job-actions" style="margin-top:8px">
+                        <button onclick="openCompletePayModal('${recordId}', '${customerName}', '${customerPhone}', '${jobType}')" class="action-btn" style="background:#22c55e;color:#000;flex:1">✓ Complete & Pay</button>
+                    </div>` : ''}
+               </div>`;
+            }).join('');
+        }
+
+            
+
+        function getCookie(name) {
+            // Check URL param first (PWA login redirect)
+            try {
+                const urlParams = new URLSearchParams(window.location.search);
+                const urlToken = urlParams.get('token');
+                if (urlToken) {
+                    try { localStorage.setItem('dashboard_token', urlToken); } catch(e) {}
+                    window.history.replaceState({}, '', '/dashboard');
+                    return urlToken;
+                }
+                // Check localStorage
+                try {
+                    const localToken = localStorage.getItem('dashboard_token');
+                    if (localToken) return localToken;
+                } catch(e) {}
+            } catch(e) {}
+            // Fall back to cookie
+            const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
+            return match ? match[2] : '';
+        }
+
+        function renderAll() {
+            document.getElementById('businessName').textContent = dashboardData.business_name || '';
+            renderCalendar();
+            renderTodayJobs();
+            renderTomorrowJobs();
+            renderOpenLeads();
+            renderUnpaidInvoices();
+            renderRecentBookings();
+            renderBookingLink();
+        }
+
+        function renderBookingLink() {
+            const twilio = dashboardData.twilio_number || "";
+            if (!twilio) return;
+            const link = "https://mme-ai-bot.onrender.com/book?c=" + encodeURIComponent(twilio);
+            document.getElementById("bookingLinkInput").value = link;
+        }
+
+        function copyBookingLink() {
+            const input = document.getElementById("bookingLinkInput");
+            navigator.clipboard.writeText(input.value).then(function() {
+                const btn = document.getElementById("copyBookingBtn");
+                btn.textContent = "Copied!";
+                setTimeout(function() { btn.textContent = "Copy"; }, 2000);
+            }).catch(function() {
+                input.select();
+                document.execCommand("copy");
+            });
+        }
+
+        function renderTodayJobs() {
+            const jobs = dashboardData.today_jobs || [];
+            document.getElementById('todayCount').textContent = jobs.length;
+            const el = document.getElementById('todayJobs');
+            if (!jobs.length) { el.innerHTML = '<div class="empty-state">No jobs today</div>'; return; }
+            el.innerHTML = jobs.map(job => jobCard(job, true)).join('');
+        }
+
+        function renderTomorrowJobs() {
+            const jobs = dashboardData.tomorrow_jobs || [];
+            document.getElementById('tomorrowCount').textContent = jobs.length;
+            const el = document.getElementById('tomorrowJobs');
+            if (!jobs.length) { el.innerHTML = '<div class="empty-state">No jobs tomorrow</div>'; return; }
+            el.innerHTML = jobs.map(job => jobCard(job, false)).join('');
+        }
+
+        function renderCalendar() {
+            const jobDates = new Set((dashboardData.all_jobs || []).map(j => j.date));
+            const today = new Date();
+            const firstDay = new Date(currentYear, currentMonth, 1);
+            const lastDay = new Date(currentYear, currentMonth + 1, 0);
+            const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+            document.getElementById('calTitle').textContent = `${monthNames[currentMonth]} ${currentYear}`;
+
+            const grid = document.getElementById('calGrid');
+            const headers = Array.from(grid.querySelectorAll('.cal-day-header'));
+            grid.innerHTML = '';
+            headers.forEach(h => grid.appendChild(h));
+
+            for (let i = 0; i < firstDay.getDay(); i++) {
+                const empty = document.createElement('div');
+                empty.className = 'cal-day other-month';
+                grid.appendChild(empty);
+            }
+
+            for (let d = 1; d <= lastDay.getDate(); d++) {
+                const dateStr = `${currentYear}-${String(currentMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+                const isToday = today.getDate() === d && today.getMonth() === currentMonth && today.getFullYear() === currentYear;
+                const hasJob = jobDates.has(dateStr);
+
+                const day = document.createElement('div');
+                day.className = `cal-day${hasJob ? ' has-job' : ''}${isToday ? ' today' : ''}`;
+                day.textContent = d;
+                // ADDED: Click to open booking modal
+                day.onclick = () => openBookingModal(dateStr);
+                day.style.cursor = 'pointer';
+                if (hasJob) {
+                    day.title = 'Jobs scheduled - tap to add another';
+                } else {
+                    day.title = 'Tap to add a job';
+                }
+                grid.appendChild(day);
+            }
+        }    
+
+        function changeMonth(dir) {
+            currentMonth += dir;
+            if (currentMonth > 11) { currentMonth = 0; currentYear++; }
+            if (currentMonth < 0) { currentMonth = 11; currentYear--; }
+            renderCalendar();
+        }
+
+        // ── BOOKING MODAL ──────────────────────────
+        function openBookingModal(dateStr) {
+            document.getElementById('bookDate').value = dateStr || '';
+            document.getElementById('bookName').value = '';
+            document.getElementById('bookPhone').value = '';
+            document.getElementById('bookAddress').value = '';
+            document.getElementById('bookJob').value = '';
+            document.getElementById('bookTime').value = '09:00';
+
+            if (dateStr) {
+                const d = new Date(dateStr + 'T12:00:00');
+                const options = { weekday: 'long', month: 'long', day: 'numeric' };
+                document.getElementById('modalDate').textContent = d.toLocaleDateString('en-US', options);
+            }
+
+            document.getElementById('bookingModal').classList.add('active');
+        }
+
+        function closeBookingModal() {
+            document.getElementById('bookingModal').classList.remove('active');
+        }
+
+        async function submitBooking() {
+            const name = document.getElementById('bookName').value.trim();
+            const phone = document.getElementById('bookPhone').value.trim();
+            const address = document.getElementById('bookAddress').value.trim();
+            const job = document.getElementById('bookJob').value.trim();
+            const date = document.getElementById('bookDate').value;
+            const time = document.getElementById('bookTime').value;
+
+            if (!name || !phone || !date) {
+                alert('Please fill in Name, Phone and Date.');
+                return;
+            }
+
+            const btn = document.querySelector('.btn-book');
+            btn.textContent = 'Booking...';
+            btn.disabled = true;
+
+            try {
+                const res = await fetch('/dashboard/add-job', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Dashboard-Token': getCookie('dashboard_token')
+                    },
+                    body: JSON.stringify({
+                        customer_name: name,
+                        customer_phone: phone,
+                        service_address: address,
+                        job_description: job,
+                        appointment_date: date,
+                        appointment_time: time
+                    })
+                });
+
+                const data = await res.json();
+                if (data.ok) {
+                    alert(`✅ Job booked for ${data.appointment}!\nConfirmation SMS sent to customer.`);
+                    closeBookingModal();
+                    loadDashboard();
+                } else {
+                    alert('Error: ' + (data.error || 'Something went wrong'));
+                }
+            } catch(e) {
+                alert('Request failed. Please try again.');
+            } finally {
+                btn.textContent = 'Add Job';
+                btn.disabled = false;
+            }
+        }
+
+        // ── COMPLETE & PAY MODAL ────────────────────────
+        let completePayData = {};
+        let selectedPayMethod = '';
+
+        function openCompletePayModal(recordId, customerName, customerPhone, jobType) {
+            completePayData = { recordId, customerName, customerPhone, jobType };
+            selectedPayMethod = '';
+            document.getElementById('completePayCustomer').textContent = customerName + ' - ' + jobType;
+            document.getElementById('payAmount').value = '';
+            document.getElementById('payEmail').value = '';
+            document.getElementById('emailField').classList.remove('visible');
+            // Reset method buttons
+            document.querySelectorAll('.payment-method-btn').forEach(b => b.classList.remove('selected'));
+            document.getElementById('completePayModal').classList.add('active');
+        }
+
+        function closeCompletePayModal() {
+            document.getElementById('completePayModal').classList.remove('active');
+        }
+
+        function selectPayMethod(method, btn) {
+            selectedPayMethod = method;
+            document.querySelectorAll('.payment-method-btn').forEach(b => b.classList.remove('selected'));
+            btn.classList.add('selected');
+            // Show email field for QuickBooks
+            const emailField = document.getElementById('emailField');
+            if (method === 'QuickBooks') {
+                emailField.classList.add('visible');
+            } else {
+                emailField.classList.remove('visible');
+            }
+        }
+
+        async function submitCompleteAndPay() {
+            const amount = parseFloat(document.getElementById('payAmount').value);
+            const email = document.getElementById('payEmail').value.trim();
+
+            if (!amount || amount <= 0) {
+                alert('Please enter a valid amount.');
+                return;
+            }
+            if (!selectedPayMethod) {
+                alert('Please select a payment method.');
+                return;
+            }
+            if (selectedPayMethod === 'QuickBooks' && !email) {
+                alert('Please enter the customer email for QuickBooks invoice.');
+                return;
+            }
+
+            const btn = document.getElementById('completePayBtn');
+            btn.textContent = 'Processing...';
+            btn.disabled = true;
+
+            try {
+                const res = await fetch('/dashboard/action/complete-and-pay', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Dashboard-Token': getCookie('dashboard_token')
+                    },
+                    body: JSON.stringify({
+                        record_id: completePayData.recordId,
+                        customer_name: completePayData.customerName,
+                        customer_phone: completePayData.customerPhone,
+                        job_description: completePayData.jobType,
+                        amount: amount,
+                        payment_method: selectedPayMethod,
+                        customer_email: email
+                    })
+                });
+
+                const data = await res.json();
+                if (data.ok) {
+                    alert('✅ ' + data.message);
+                    closeCompletePayModal();
+                    loadDashboard();
+                } else {
+                    alert('Error: ' + (data.error || 'Something went wrong'));
+                }
+            } catch(e) {
+                alert('Request failed. Please try again.');
+            } finally {
+                btn.textContent = 'Send Payment';
+                btn.disabled = false;
+            }
+        }
+
+        // ── RECURRING INVOICES ──────────────────────────
+        async function loadRecurringCustomers() {
+            try {
+                const res = await fetch('/dashboard/recurring', {
+                    headers: { 'X-Dashboard-Token': getCookie('dashboard_token') }
+                });
+                const data = await res.json();
+                if (data.ok) renderRecurringCustomers(data.customers);
+            } catch(e) {
+                console.error('Recurring load error:', e);
+            }
+        }
+
+        function renderRecurringCustomers(customers) {
+            document.getElementById('recurringCount').textContent = customers.length;
+            const el = document.getElementById('recurringCustomers');
+            if (!customers.length) {
+                el.innerHTML = '<div class="empty-state">No recurring customers - add them in Airtable</div>';
+                return;
+            }
+            el.innerHTML = customers.map(c => {
+                const methodIcon = {
+                    'QuickBooks': '📚',
+                    'EFT': '🏦',
+                    'Check': '📝',
+                    'Stripe': '💳',
+                    'Zelle': '🏦'
+                }[c.payment_method] || '💰';
+
+                return `
+                <div class="job-card">
+                    <div class="job-name">${c.name || 'Unknown'}</div>
+                    <div class="job-address">${c.email || c.phone || ''}</div>
+                    <div class="job-type">${c.service || ''}</div>
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px">
+                        <div style="color:#22c55e;font-size:18px;font-weight:700">$${c.amount}</div>
+                        <div style="color:#555;font-size:12px;font-family:monospace">${methodIcon} ${c.payment_method}</div>
+                    </div>
+                    <div class="job-actions" style="margin-top:8px">
+                        <button onclick="sendRecurringInvoice('${c.record_id}', '${c.name}', '${c.email}', '${c.phone}', ${c.amount}, '${c.service}', '${c.payment_method}')"
+                            class="action-btn" style="background:#22c55e;color:#000;flex:1">
+                            📤 Send Invoice
+                        </button>
+                    </div>
+                    ${c.notes ? `<div class="job-type" style="margin-top:6px;color:#444">${c.notes}</div>` : ''}
+                </div>`;
+            }).join('');
+        }
+
+        async function sendRecurringInvoice(recordId, name, email, phone, amount, service, paymentMethod) {
+            let invoiceAmount = amount;
+            let invoiceService = service;
+
+            if (!invoiceAmount || invoiceAmount <= 0) {
+                const input = prompt("Enter invoice amount for " + name + ":");
+                if (!input) return;
+                invoiceAmount = parseFloat(input);
+                if (isNaN(invoiceAmount) || invoiceAmount <= 0) {
+                    alert("Invalid amount.");
+                    return;
+                }
+            }
+
+            if (!invoiceService || invoiceService.trim() === "") {
+                const svcInput = prompt("Enter service description for " + name + ":");
+                if (!svcInput) return;
+                invoiceService = svcInput.trim();
+            }
+
+            if (!confirm("Send Stripe invoice to " + name + " at " + email + " for $" + invoiceAmount + "? They will receive a PDF invoice by email with a 30-day payment link.")) return;
+
+            try {
+                const res = await fetch("/dashboard/action/send-recurring-invoice", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "X-Dashboard-Token": getCookie("dashboard_token")
+                    },
+                    body: JSON.stringify({
+                        customer_name: name,
+                        customer_email: email,
+                        customer_phone: phone,
+                        amount: invoiceAmount,
+                        service: invoiceService,
+                        payment_method: paymentMethod
+                    })
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    alert("Invoice sent to " + email + "!\nInvoice #: " + data.invoice_number + "\nAmount: $" + invoiceAmount);
+                } else {
+                    alert("Error: " + (data.error || "Something went wrong"));
+                }
+            } catch(e) {
+                alert("Request failed. Please try again.");
+            }
+        }
+
+        // ── REVENUE SUMMARY ──────────────────────────
+        async function loadRevenue() {
+            try {
+                const res = await fetch('/dashboard/revenue', {
+                    headers: { 'X-Dashboard-Token': getCookie('dashboard_token') }
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    document.getElementById('revWeek').textContent = '$' + data.week_revenue.toLocaleString();
+                    document.getElementById('revMonth').textContent = '$' + data.month_revenue.toLocaleString();
+                    document.getElementById('revMonthLabel').textContent = data.month_name;
+                    document.getElementById('revJobs').textContent = data.jobs_this_month + ' jobs paid';
+                    document.getElementById('revYear').textContent = '$' + data.year_revenue.toLocaleString();
+                    document.getElementById('revOutstanding').textContent = '$' + data.outstanding.toLocaleString();
+                }
+            } catch(e) {
+                console.error('Revenue load error:', e);
+            }
+        }
+
+        
+
+        // ── REGULAR CLIENTS ──────────────────────────
+        let regularBookData = {};
+
+        async function loadRegularClients() {
+            try {
+                const res = await fetch('/dashboard/regular-clients', {
+                    headers: { 'X-Dashboard-Token': getCookie('dashboard_token') }
+                });
+                const data = await res.json();
+                if (data.ok) renderRegularClients(data.clients);
+            } catch(e) {
+                console.error('Regular clients load error:', e);
+            }
+        }
+
+        function renderRegularClients(clients) {
+            document.getElementById('regularCount').textContent = clients.length;
+            const el = document.getElementById('regularClients');
+            if (!clients.length) {
+                el.innerHTML = '<div class="empty-state">No regular clients - add them in Airtable</div>';
+                return;
+            }
+            el.innerHTML = clients.map(c => {
+                const urgency = c.days_until !== null && c.days_until <= 2
+                    ? 'border-left: 3px solid #ef4444;'
+                    : c.days_until !== null && c.days_until <= 5
+                    ? 'border-left: 3px solid #f59e0b;'
+                    : '';
+
+                const daysLabel = c.days_until !== null
+                    ? c.days_until === 0 ? '🔴 Today!'
+                    : c.days_until === 1 ? '🟡 Tomorrow'
+                    : c.days_until < 0 ? `🔴 Overdue ${Math.abs(c.days_until)}d`
+                    : `🟢 In ${c.days_until} days`
+                    : '';
+
+                return `
+                <div class="job-card" style="${urgency}">
+                    <div class="job-name">${c.name || 'Unknown'}</div>
+                    <div class="job-address">${c.address || ''}</div>
+                    <div class="job-type">${c.service || ''} - Every ${c.frequency_days} days</div>
+                    ${c.next_appointment ? `
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px">
+                        <div style="color:#22c55e;font-size:13px;font-family:monospace">${c.next_appointment}</div>
+                        <div style="font-size:12px">${daysLabel}</div>
+                    </div>` : '<div style="color:#555;font-size:12px;margin-top:8px;font-family:monospace">No appointment scheduled</div>'}
+                    <div class="job-actions" style="margin-top:10px">
+                        <button onclick="openRegularBookModal('${c.record_id}', '${c.name}', '${c.phone}', '${c.address}', '${c.service}', ${c.frequency_days}, '${c.preferred_time}')"
+                            class="action-btn btn-sms">📅 Book</button>
+                        <button onclick="completeRegularClient('${c.record_id}', '${c.name}', ${c.frequency_days}, '${c.phone}', '${c.service}')"
+                            class="action-btn" style="background:#22c55e;color:#000">Done</button>
+                    </div>
+                    ${c.phone ? `
+                    <div class="job-actions" style="margin-top:8px">
+                        <a href="tel:${c.phone}" class="action-btn btn-call">📞 Call</a>
+                        <a href="sms:${c.phone}" class="action-btn btn-sms">💬 Text</a>
+                    </div>` : ''}
+                </div>`;
+            }).join('');
+        }
+
+        function openRegularBookModal(recordId, name, phone, address, service, frequencyDays, preferredTime) {
+            regularBookData = { recordId, name, phone, address, service, frequencyDays };
+            document.getElementById('regularBookCustomer').textContent = name + ' - Every ' + frequencyDays + ' days';
+            document.getElementById('regularBookTime').value = preferredTime || '09:00';
+
+            // Pre-fill date with today
+            const today = new Date();
+            const dateStr = today.toISOString().split('T')[0];
+            document.getElementById('regularBookDate').value = dateStr;
+
+            document.getElementById('regularBookModal').classList.add('active');
+        }
+
+        function closeRegularBookModal() {
+            document.getElementById('regularBookModal').classList.remove('active');
+        }
+
+        async function submitRegularBooking() {
+            const date = document.getElementById('regularBookDate').value;
+            const time = document.getElementById('regularBookTime').value;
+
+            if (!date) {
+                alert('Please select a date.');
+                return;
+            }
+
+            const btn = document.getElementById('regularBookBtn');
+            btn.textContent = 'Booking...';
+            btn.disabled = true;
+
+            try {
+                const res = await fetch('/dashboard/action/book-regular-client', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Dashboard-Token': getCookie('dashboard_token')
+                    },
+                    body: JSON.stringify({
+                        record_id: regularBookData.recordId,
+                        customer_name: regularBookData.name,
+                        customer_phone: regularBookData.phone,
+                        service_address: regularBookData.address,
+                        job_description: regularBookData.service,
+                        appointment_date: date,
+                        appointment_time: time,
+                        frequency_days: regularBookData.frequencyDays,
+                        twilio_number: dashboardData.twilio_number
+                    })
+                });
+
+                const data = await res.json();
+                if (data.ok) {
+                    alert(`✅ Booked for ${data.appointment}!\nNext appointment auto-set for ${data.next_appointment}.\nConfirmation SMS sent to customer.`);
+                    closeRegularBookModal();
+                    loadRegularClients();
+                    loadDashboard();
+                } else {
+                    alert('Error: ' + (data.error || 'Something went wrong'));
+                }
+            } catch(e) {
+                alert('Request failed. Please try again.');
+            } finally {
+                btn.textContent = 'Book & Confirm';
+                btn.disabled = false;
+            }
+        }
+
+        async function completeRegularClient(recordId, name, frequencyDays, phone, jobType) {
+            if (!confirm("Mark " + name + " visit as complete?")) return;
+
+            try {
+                const res = await fetch("/dashboard/action/complete-regular-client", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "X-Dashboard-Token": getCookie("dashboard_token")
+                    },
+                    body: JSON.stringify({
+                        record_id: recordId,
+                        frequency_days: frequencyDays
+                    })
+                });
+
+                const data = await res.json();
+                if (data.ok) {
+                    // Open Complete & Pay modal after marking done
+                    openCompletePayModal(recordId, name, phone, jobType);
+                } else {
+                    alert("Error: " + (data.error || "Something went wrong"));
+                }
+            } catch(e) {
+                alert("Request failed. Please try again.");
+            }
+        }
+
+        // ── SEASONAL CAMPAIGNS ──────────────────────────
+        async function loadSeasonalCampaigns() {
+            try {
+                const res = await fetch('/dashboard/seasonal-campaigns', {
+                    headers: { 'X-Dashboard-Token': getCookie('dashboard_token') }
+                });
+                const data = await res.json();
+                if (data.ok) renderSeasonalCampaigns(data.campaigns);
+            } catch(e) {
+                console.error('Seasonal campaigns load error:', e);
+            }
+        }
+
+        function renderSeasonalCampaigns(campaigns) {
+            const el = document.getElementById('seasonalCampaigns');
+            if (!campaigns.length) {
+                el.innerHTML = '<div class="empty-state">No active campaigns - add one in Airtable</div>';
+                return;
+            }
+            el.innerHTML = campaigns.map(c => `
+                <div class="job-card">
+                    <div class="job-name">${c.name}</div>
+                    <div class="job-type">${c.message_type} - ${c.season || 'All seasons'}</div>
+                    <div style="font-size:12px;color:#888;margin-top:6px">${c.message_body.substring(0, 80)}...</div>
+                    <div style="font-size:11px;color:#22c55e;margin-top:6px">Sent ${c.send_count || 0} times</div>
+                    <div class="job-actions" style="margin-top:10px">
+                        <button onclick="sendSeasonalBlast('${c.name}')" class="action-btn" style="background:#22c55e;color:#000">📤 Send Blast</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function sendSeasonalBlast(campaignName) {
+            if (!confirm(`Send "${campaignName}" to all active regular clients?`)) return;
+
+            try {
+                const res = await fetch('/send-seasonal-blast', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Dashboard-Token': getCookie('dashboard_token')
+                    },
+                    body: JSON.stringify({
+                        twilio_number: dashboardData.twilio_number,
+                        campaign_name: campaignName
+                    })
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    alert(`✅ Sent to ${data.sent} clients (${data.failed} failed)`);
+                    loadSeasonalCampaigns();
+                } else {
+                    alert('Error: ' + (data.error || 'Something went wrong'));
+                }
+            } catch(e) {
+                alert('Request failed. Please try again.');
+            }
+        }
+
+        
+
+        // ── VOICE INPUT ──────────────────────────
+        let voiceRecognition = null;
+        let isListening = false;
+
+        function startVoiceInput() {
+            if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+                alert('Voice input is not supported on this browser. Please use Safari on iPhone/iPad or Chrome on desktop.');
+                return;
+            }
+
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            const btn = document.getElementById('voiceBtn');
+
+            if (isListening) {
+                voiceRecognition.stop();
+                return;
+            }
+
+            voiceRecognition = new SpeechRecognition();
+            voiceRecognition.continuous = false;
+            voiceRecognition.interimResults = false;
+            voiceRecognition.lang = 'en-US';
+
+            voiceRecognition.onstart = () => {
+                isListening = true;
+                btn.textContent = '🔴 Listening...';
+                btn.style.background = '#fee2e2';
+                btn.style.borderColor = '#dc2626';
+                btn.style.color = '#dc2626';
+            };
+
+            voiceRecognition.onresult = async (event) => {
+                const transcript = event.results[0][0].transcript;
+                console.log('Voice transcript:', transcript);
+                btn.textContent = '⏳ Processing...';
+                btn.style.background = '#fef9c3';
+                btn.style.borderColor = '#d97706';
+                btn.style.color = '#d97706';
+                await parseVoiceTranscript(transcript);
+            };
+
+            voiceRecognition.onerror = (event) => {
+                console.error('Voice error:', event.error);
+                resetVoiceBtn();
+                if (event.error === 'not-allowed') {
+                    alert('Microphone access denied. Please allow microphone access in your browser settings.');
+                } else {
+                    alert('Voice recognition error: ' + event.error);
+                }
+            };
+
+            voiceRecognition.onend = () => {
+                isListening = false;
+                if (btn.textContent === '🔴 Listening...') {
+                    resetVoiceBtn();
+                }
+            };
+
+            voiceRecognition.start();
+        }
+
+        function resetVoiceBtn() {
+            const btn = document.getElementById('voiceBtn');
+            btn.textContent = '🎤 Voice';
+            btn.style.background = '';
+            btn.style.borderColor = '';
+            btn.style.color = '';
+            isListening = false;
+        }
+
+        async function parseVoiceTranscript(transcript) {
+            try {
+                const res = await fetch('/dashboard/voice-parse', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Dashboard-Token': getCookie('dashboard_token')
+                    },
+                    body: JSON.stringify({ transcript })
+                });
+
+                const data = await res.json();
+
+                if (data.ok && data.fields) {
+                    const f = data.fields;
+
+                    // Open booking modal and fill fields
+                    openBookingModal(f.date || '');
+
+                    // Fill in parsed fields with slight delay for modal to open
+                    setTimeout(() => {
+                        if (f.name) document.getElementById('bookName').value = f.name;
+                        if (f.phone) document.getElementById('bookPhone').value = f.phone;
+                        if (f.address) document.getElementById('bookAddress').value = f.address;
+                        if (f.job) document.getElementById('bookJob').value = f.job;
+                        if (f.date) document.getElementById('bookDate').value = f.date;
+                        if (f.time) document.getElementById('bookTime').value = f.time;
+                    }, 100);
+
+                    resetVoiceBtn();
+
+                    // Show what was parsed
+                    const filled = [];
+                    if (f.name) filled.push(`Name: ${f.name}`);
+                    if (f.date) filled.push(`Date: ${f.date}`);
+                    if (f.time) filled.push(`Time: ${f.time}`);
+                    if (filled.length) {
+                        console.log('Voice parsed:', filled.join(', '));
+                    }
+
+                } else {
+                    resetVoiceBtn();
+                    alert('Could not parse your voice input. Please try again or fill in manually.');
+                }
+            } catch(e) {
+                resetVoiceBtn();
+                alert('Voice processing failed. Please try again.');
+            }
+        }
+
+        // -- WALKTHROUGH RECORDING --
+        let wtRecognition = null;
+        let wtIsRecording = false;
+        let wtTranscriptFull = '';
+        let wtTimerInterval = null;
+        let wtSeconds = 0;
+
+        function openWalkthroughModal() {
+            wtTranscriptFull = '';
+            wtSeconds = 0;
+            document.getElementById('wtCustomer').value = '';
+            document.getElementById('wtAddress').value = '';
+            document.getElementById('wtTranscript').value = '';
+            document.getElementById('wtStatus').textContent = 'Tap to start recording';
+            document.getElementById('wtTimer').style.display = 'none';
+            document.getElementById('wtRecordBtn').textContent = 'REC';
+            document.getElementById('wtRecordBtn').style.background = 'var(--gradient)';
+            document.getElementById('wtSubmitBtn').disabled = false;
+            document.getElementById('wtSubmitBtn').textContent = 'Generate Estimate';
+            document.getElementById('walkthroughModal').classList.add('active');
+        }
+
+        function closeWalkthroughModal() {
+            stopWalkthroughRecording();
+            document.getElementById('walkthroughModal').classList.remove('active');
+        }
+
+        function toggleWalkthroughRecording() {
+            if (wtIsRecording) {
+                stopWalkthroughRecording();
+            } else {
+                startWalkthroughRecording();
+            }
+        }
+
+        function startWalkthroughRecording() {
+            if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+                alert(`Voice recording not supported. Use Safari on iPhone or Chrome on desktop.`);
+                return;
+            }
+            const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+            wtRecognition = new SR();
+            wtRecognition.continuous = true;
+            wtRecognition.interimResults = true;
+            wtRecognition.lang = 'en-US';
+            let interim = '';
+            wtRecognition.onresult = function(event) {
+                interim = '';
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    if (event.results[i].isFinal) {
+                        wtTranscriptFull += event.results[i][0].transcript + ' ';
+                    } else {
+                        interim += event.results[i][0].transcript;
+                    }
+                }
+                document.getElementById('wtTranscript').value = wtTranscriptFull + interim;
+            };
+            wtRecognition.onerror = function(e) {
+                if (e.error !== 'no-speech') console.error('Walkthrough error:', e.error);
+            };
+            wtRecognition.onend = function() {
+                if (wtIsRecording) wtRecognition.start();
+            };
+            wtRecognition.start();
+            wtIsRecording = true;
+            document.getElementById('wtRecordBtn').textContent = 'STOP';
+            document.getElementById('wtRecordBtn').style.background = '#dc2626';
+            document.getElementById('wtStatus').textContent = 'Recording - speak as you walk the property';
+            document.getElementById('wtTimer').style.display = 'block';
+            wtSeconds = 0;
+            wtTimerInterval = setInterval(function() {
+                wtSeconds++;
+                var m = Math.floor(wtSeconds / 60);
+                var s = wtSeconds % 60;
+                document.getElementById('wtTimer').textContent = m + ':' + (s < 10 ? '0' : '') + s;
+            }, 1000);
+        }
+
+        function stopWalkthroughRecording() {
+            if (wtRecognition) {
+                wtIsRecording = false;
+                try { wtRecognition.abort(); } catch(e) {}
+                wtRecognition = null;
+            }
+            if (wtTimerInterval) {
+                clearInterval(wtTimerInterval);
+                wtTimerInterval = null;
+            }
+            var btn = document.getElementById('wtRecordBtn');
+            if (btn) {
+                btn.textContent = 'REC';
+                btn.style.background = 'var(--gradient)';
+            }
+            document.getElementById('wtStatus').textContent = 'Recording stopped - review transcript below';
+            document.getElementById('wtTimer').style.display = 'none';
+        }
+
+        async function submitVoiceWalkthrough() {
+            var customer = document.getElementById('wtCustomer').value.trim();
+            var address = document.getElementById('wtAddress').value.trim();
+            var projectType = document.getElementById('wtProjectType').value;
+            var transcript = document.getElementById('wtTranscript').value.trim();
+
+            if (!transcript) {
+                alert('Please record a walkthrough or type notes first.');
+                return;
+            }
+
+            var btn = document.getElementById('wtSubmitBtn');
+            btn.textContent = 'Generating estimate...';
+            btn.disabled = true;
+
+            try {
+                var res = await fetch('/dashboard/walkthrough', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Dashboard-Token': getCookie('dashboard_token')
+                    },
+                    body: JSON.stringify({
+                        transcript: transcript,
+                        customer_name: customer,
+                        property_address: address,
+                        project_type: projectType
+                    })
+                });
+                var data = await res.json();
+                if (data.ok) {
+                    closeWalkthroughModal();
+                    alert(`Walkthrough estimate generated!\n\nEstimate: ${data.estimate_range}\nTimeline: ${data.timeline}\n\nPDF emailed to you!`);
+                } else {
+                    alert('Error: ' + (data.error || 'Something went wrong'));
+                }
+            } catch(e) {
+                alert('Request failed. Please try again.');
+            } finally {
+                btn.textContent = 'Generate Estimate';
+                btn.disabled = false;
+            }
+        }
+
+        // ── ONESIGNAL PUSH NOTIFICATIONS ──────────────────────────
+        async function registerOneSignal() {
+            try {
+                if (typeof OneSignalDeferred === 'undefined') {
+                    console.log('OneSignal not loaded');
+                    return;
+                }
+                OneSignalDeferred.push(async function(OneSignal) {
+                    try {
+                        const permission = await OneSignal.Notifications.permission;
+                        if (!permission) {
+                            await OneSignal.Notifications.requestPermission();
+                        }
+                        const playerId = OneSignal.User.PushSubscription.id;
+                        if (!playerId) return;
+                        await fetch('/onesignal/register', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-Dashboard-Token': getCookie('dashboard_token')
+                            },
+                            body: JSON.stringify({ player_id: playerId })
+                        });
+                    } catch(e) {
+                        console.log('OneSignal inner error:', e);
+                    }
+                });
+            } catch(e) {
+                console.log('OneSignal error:', e);
+            }
+        }
+
+        async function loadDashboard() {
+            try {
+                const token = getCookie('dashboard_token');
+                if (!token) {
+                    window.location.href = '/dashboard/login';
+                    return;
+                }
+                const res = await fetch('/dashboard/data', {
+                    headers: { 'X-Dashboard-Token': token }
+                });
+                if (res.status === 401) {
+                    localStorage.removeItem('dashboard_token');
+                    window.location.href = '/dashboard/login';
+                    return;
+                }
+                dashboardData = await res.json();
+                renderAll();
+                loadRecurringCustomers();
+                loadRevenue();
+                loadRegularClients();
+                loadSeasonalCampaigns();
+                setTimeout(registerOneSignal, 3000);  // ← delay 3 seconds, never blocks
+            } catch(e) {
+                console.error('Dashboard load error:', e);
+            }
+        }
+
+        // -- ADD CONTRACTOR --
+        function openAddContractorModal() {
+            document.getElementById("cName").value = "";
+            document.getElementById("cBusiness").value = "";
+            document.getElementById("cPhone").value = "";
+            document.getElementById("cEmail").value = "";
+            document.getElementById("cTwilio").value = "";
+            document.getElementById("cPassword").value = "";
+            document.getElementById("addContractorModal").classList.add("active");
+        }
+
+        function closeAddContractorModal() {
+            document.getElementById("addContractorModal").classList.remove("active");
+        }
+
+        async function submitAddContractor() {
+            var name = document.getElementById("cName").value.trim();
+            var business = document.getElementById("cBusiness").value.trim();
+            var phone = document.getElementById("cPhone").value.trim();
+            var email = document.getElementById("cEmail").value.trim();
+            var twilio = document.getElementById("cTwilio").value.trim();
+            var password = document.getElementById("cPassword").value.trim();
+
+            if (!name || !phone || !twilio || !password) {
+                alert("Please fill in Name, Phone, Twilio Number and Password.");
+                return;
+            }
+
+            var btn = document.getElementById("addContractorBtn");
+            btn.textContent = "Adding...";
+            btn.disabled = true;
+
+            try {
+                var res = await fetch("/dashboard/action/add-contractor", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "X-Dashboard-Token": getCookie("dashboard_token")
+                    },
+                    body: JSON.stringify({
+                        contractor_name: name,
+                        business_name: business,
+                        phone: phone,
+                        email: email,
+                        twilio_number: twilio,
+                        password: password
+                    })
+                });
+                var data = await res.json();
+                if (data.ok) {
+                    closeAddContractorModal();
+                    alert("Contractor added! SMS and email sent. Record ID: " + data.record_id);
+                } else {
+                    alert("Error: " + (data.error || "Something went wrong"));
+                }
+            } catch(e) {
+                alert("Request failed. Please try again.");
+            } finally {
+                btn.textContent = "Add and Send Invite";
+                btn.disabled = false;
+            }
+        }
+
+        async function connectStripe() {
+            try {
+                const res = await fetch("/dashboard/action/connect-stripe", {
+                    method: "POST",
+                    headers: { "X-Dashboard-Token": getCookie("dashboard_token") }
+                });
+                const data = await res.json();
+                if (data.ok && data.url) {
+                    window.location.href = data.url;
+                } else {
+                    alert("Error: " + (data.error || "Could not start Stripe setup"));
+                }
+            } catch(e) {
+                alert("Request failed. Please try again.");
+            }
+        }
+
+        // Load on startup
+        loadDashboard();
+        // Auto-refresh every 5 minutes
+        setInterval(loadDashboard, 5 * 60 * 1000);
+    </script>
+    <!-- Booking Modal -->
+    <div class="modal-overlay" id="bookingModal">
+        <div class="booking-modal">
+        <div class="modal-title">➕ Add Job</div>
+        <div class="modal-date" id="modalDate"></div>
+
+        <div class="form-group">
+            <label class="form-label">Customer Name *</label>
+            <input type="text" class="form-input" id="bookName" placeholder="John Doe">
+        </div>
+        <div class="form-group">
+            <label class="form-label">Phone Number *</label>
+            <input type="tel" class="form-input" id="bookPhone" placeholder="+12025551234">
+        </div>
+        <div class="form-group">
+            <label class="form-label">Service Address</label>
+            <input type="text" class="form-input" id="bookAddress" placeholder="123 Main St, Bowie MD">
+        </div>
+        <div class="form-group">
+            <label class="form-label">Job Description</label>
+            <input type="text" class="form-input" id="bookJob" placeholder="Lawn mowing, edging...">
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label class="form-label">Date *</label>
+                <input type="date" class="form-input" id="bookDate">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Time</label>
+                <input type="time" class="form-input" id="bookTime" value="09:00">
+            </div>
+        </div>
+
+        <div class="modal-actions">
+            <button class="btn-cancel-modal" onclick="closeBookingModal()">Cancel</button>
+            <button class="btn-book" onclick="submitBooking()">Add Job →</button>
+        </div>
+    </div>
+</div>
+    <!-- Complete & Pay Modal -->
+    <div class="modal-overlay" id="completePayModal">
+        <div class="booking-modal">
+            <div class="modal-title">✓ Mark Job Complete</div>
+            <div class="modal-date" id="completePayCustomer"></div>
+
+            <div class="form-group">
+                <label class="form-label">Amount *</label>
+                <input type="number" class="form-input" id="payAmount" placeholder="0.00" step="0.01" min="0">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Payment Method *</label>
+                <div class="payment-method-grid">
+                    <button class="payment-method-btn" onclick="selectPayMethod('Stripe', this)">💳 Stripe</button>
+                    <button class="payment-method-btn" onclick="selectPayMethod('Zelle', this)">🏦 Zelle</button>
+                    <button class="payment-method-btn" onclick="selectPayMethod('QuickBooks', this)">📚 QuickBooks</button>
+                    <button class="payment-method-btn" onclick="selectPayMethod('Cash', this)">💵 Cash</button>
+                </div>
+            </div>
+
+            <div class="form-group email-field" id="emailField">
+                <label class="form-label">Customer Email (QuickBooks)</label>
+                <input type="email" class="form-input" id="payEmail" placeholder="customer@email.com">
+            </div>
+
+            <div class="modal-actions">
+                <button class="btn-cancel-modal" onclick="closeCompletePayModal()">Cancel</button>
+                <button class="btn-book" id="completePayBtn" onclick="submitCompleteAndPay()">Send Payment →</button>
+            </div>
+        </div>
+</div>
+
+    <!-- Regular Client Booking Modal -->
+<div class="modal-overlay" id="regularBookModal">
+    <div class="booking-modal">
+        <div class="modal-title">📅 Book Appointment</div>
+        <div class="modal-date" id="regularBookCustomer"></div>
+        <div class="form-row">
+            <div class="form-group">
+                <label class="form-label">Date *</label>
+                <input type="date" class="form-input" id="regularBookDate">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Time</label>
+                <input type="time" class="form-input" id="regularBookTime" value="09:00">
+            </div>
+        </div>
+        <div class="modal-actions">
+            <button class="btn-cancel-modal" onclick="closeRegularBookModal()">Cancel</button>
+            <button class="btn-book" id="regularBookBtn" onclick="submitRegularBooking()">Book & Confirm →</button>
+        </div>
+    </div>
+</div>
+
+    <!-- Walkthrough Recording Modal -->
+    <div class="modal-overlay" id="walkthroughModal">
+        <div class="booking-modal">
+            <div class="modal-title">Walkthrough Estimate</div>
+            <div class="modal-date">Walk the property and describe what you see</div>
+            <div class="form-group">
+                <label class="form-label">Customer Name</label>
+                <input type="text" class="form-input" id="wtCustomer" placeholder="John Smith">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Property Address</label>
+                <input type="text" class="form-input" id="wtAddress" placeholder="123 Main St, Bowie MD">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Project Type</label>
+                <select class="form-input" id="wtProjectType">
+                    <option>Lawn and Landscaping</option>
+                    <option>Home Remodel</option>
+                    <option>Exterior Project</option>
+                    <option>HVAC</option>
+                    <option>Electrical</option>
+                    <option>Carpentry</option>
+                    <option>Pressure Washing</option>
+                    <option>Snow and Ice</option>
+                    <option>General Contracting</option>
+                    <option>Other</option>
+                </select>
+            </div>
+            <div style="background:var(--bg);border:1px solid var(--card-border);border-radius:12px;padding:16px;margin-bottom:16px;text-align:center">
+                <button id="wtRecordBtn" onclick="toggleWalkthroughRecording()" style="background:var(--gradient);color:white;border:none;border-radius:50%;width:72px;height:72px;font-size:16px;font-weight:700;cursor:pointer;display:block;margin:0 auto 12px">
+                    REC
+                </button>
+                <div id="wtStatus" style="font-size:13px;color:var(--text-muted)">Tap to start recording</div>
+                <div id="wtTimer" style="font-size:24px;font-weight:700;color:var(--blue);margin-top:8px;display:none">0:00</div>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Transcript (auto-filled or type notes)</label>
+                <textarea class="form-input" id="wtTranscript" rows="4" placeholder="Your walkthrough notes will appear here as you speak." style="resize:none;font-size:13px"></textarea>
+            </div>
+            <div class="modal-actions">
+                <button class="btn-cancel-modal" onclick="closeWalkthroughModal()">Cancel</button>
+                <button class="btn-book" id="wtSubmitBtn" onclick="submitVoiceWalkthrough()">Generate Estimate</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Contractor Modal -->
+    <div class="modal-overlay" id="addContractorModal">
+        <div class="booking-modal">
+            <div class="modal-title">Add Contractor</div>
+            <div class="modal-date">New contractor onboarding</div>
+            <div class="form-group">
+                <label class="form-label">Contractor Name *</label>
+                <input type="text" class="form-input" id="cName" placeholder="John Smith">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Business Name</label>
+                <input type="text" class="form-input" id="cBusiness" placeholder="Smith Lawn Care LLC">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Their Phone Number *</label>
+                <input type="tel" class="form-input" id="cPhone" placeholder="+12025551234">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Email</label>
+                <input type="email" class="form-input" id="cEmail" placeholder="john@smithlawn.com">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Their Twilio Number *</label>
+                <input type="tel" class="form-input" id="cTwilio" placeholder="+12405551234">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Dashboard Password *</label>
+                <input type="text" class="form-input" id="cPassword" placeholder="Create a password for them">
+            </div>
+            <div class="modal-actions">
+                <button class="btn-cancel-modal" onclick="closeAddContractorModal()">Cancel</button>
+                <button class="btn-book" id="addContractorBtn" onclick="submitAddContractor()">Add and Send Invite</button>
+            </div>
+        </div>
+    </div>
+
+    </body>
+</html>
