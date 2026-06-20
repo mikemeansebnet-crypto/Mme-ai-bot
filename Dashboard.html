@@ -685,7 +685,10 @@
         <div class="section">
             <div class="section-header">
                 <div class="section-title">Regular Clients</div>
-                <div class="section-count" id="regularCount">0</div>
+                <div style="display:flex;gap:8px;align-items:center">
+                    <div class="section-count" id="regularCount">0</div>
+                    <button onclick="openAddRegularClientModal()" style="background:var(--gradient);color:white;border:none;border-radius:8px;padding:4px 10px;font-size:11px;font-weight:600;cursor:pointer">+ Add</button>
+                </div>
             </div>
             <div id="regularClients"><div class="loading">Loading...</div></div>
         </div>
@@ -693,7 +696,7 @@
         <!-- Seasonal Campaigns -->
         <div class="section">
             <div class="section-header">
-                <div class="section-title">📣 Seasonal Campaigns</div>
+                <div class="section-title">Seasonal Campaigns</div>
             </div>
             <div id="seasonalCampaigns"><div class="loading">Loading...</div></div>
         </div>
@@ -702,14 +705,17 @@
         <div class="section">
             <div class="section-header">
                 <div class="section-title">Recurring Invoices</div>
-                <div class="section-count" id="recurringCount">0</div>
+                <div style="display:flex;gap:8px;align-items:center">
+                    <div class="section-count" id="recurringCount">0</div>
+                    <button onclick="openAddRecurringModal()" style="background:var(--gradient);color:white;border:none;border-radius:8px;padding:4px 10px;font-size:11px;font-weight:600;cursor:pointer">+ Add</button>
+                </div>
             </div>
             <div id="recurringCustomers"><div class="loading">Loading...</div></div>
         </div>
         
     </div>
     
-    <button class="refresh-btn" onclick="loadDashboard()" title="Refresh">↻</button>
+    <button class="refresh-btn" onclick="loadDashboard()" title="Refresh">&#8635;</button>
 
     <script>
         let dashboardData = {};
