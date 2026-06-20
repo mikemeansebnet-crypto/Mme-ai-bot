@@ -1211,7 +1211,7 @@
             document.getElementById('recurringCount').textContent = customers.length;
             const el = document.getElementById('recurringCustomers');
             if (!customers.length) {
-                el.innerHTML = '<div class="empty-state">No recurring customers - add them in Airtable</div>';
+                el.innerHTML = '<div class="empty-state">No recurring invoices yet - tap + Add above to get started</div>';
                 return;
             }
             el.innerHTML = customers.map(c => {
@@ -1333,7 +1333,7 @@
             document.getElementById('regularCount').textContent = clients.length;
             const el = document.getElementById('regularClients');
             if (!clients.length) {
-                el.innerHTML = '<div class="empty-state">No regular clients - add them in Airtable</div>';
+                el.innerHTML = '<div class="empty-state">No regular clients yet - tap + Add above to get started</div>';
                 return;
             }
             el.innerHTML = clients.map(c => {
