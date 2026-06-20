@@ -3831,6 +3831,79 @@ def walkthrough_page():
     root_dir = os.path.dirname(os.path.abspath(__file__))
     return send_from_directory(root_dir, 'Walkthrough.html')
 
+@app.route("/dashboard/action/add-regular-client", methods=["POST"])
+@dashboard_auth_required
+def dashboard_add_regular_client():
+    try:
+        data = request.get_json(silent=True) or {}
+        twilio_number = request.twilio_number
+        AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
+        AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
+        headers = {"Authorization": f"Bearer {AIRTABLE_TOKEN}", "Content-Type": "application/json"}
+
+        # Convert preferred_time to display format
+        preferred_time = data.get("preferred_time", "09:00")
+        try:
+            from datetime import datetime
+            t = datetime.strptime(preferred_time, "%H:%M")
+            preferred_time_display = t.strftime("%-I:%M %p")
+        except Exception:
+            preferred_time_display = preferred_time
+
+        resp = requests.post(
+            f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tbl3LAJzXa6Vsexry",
+            headers=headers,
+            json={"fields": {
+                "Client Name": data.get("name", ""),
+                "Phone": data.get("phone", ""),
+                "Service Address": data.get("address", ""),
+                "Service Description": data.get("service", ""),
+                "Frequency (Days)": int(data.get("frequency_days", 14)),
+                "Preferred Time": preferred_time_display,
+                "Twilio Number": twilio_number,
+                "Active": True,
+            }}
+        )
+        if resp.status_code in [200, 201]:
+            return jsonify({"ok": True, "record_id": resp.json().get("id")})
+        else:
+            return jsonify({"ok": False, "error": resp.text}), 500
+    except Exception as e:
+        print(f"ADD REGULAR CLIENT ERROR | {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route("/dashboard/action/add-recurring-customer", methods=["POST"])
+@dashboard_auth_required
+def dashboard_add_recurring_customer():
+    try:
+        data = request.get_json(silent=True) or {}
+        twilio_number = request.twilio_number
+        AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
+        AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
+        headers = {"Authorization": f"Bearer {AIRTABLE_TOKEN}", "Content-Type": "application/json"}
+
+        resp = requests.post(
+            f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tblxGfrifBiGRk80M",
+            headers=headers,
+            json={"fields": {
+                "Name": data.get("name", ""),
+                "Email": data.get("email", ""),
+                "Phone": data.get("phone", ""),
+                "Service": data.get("service", ""),
+                "Amount": float(data.get("amount", 0)),
+                "Payment Method": data.get("payment_method", "Stripe"),
+                "Twilio Number": twilio_number,
+            }}
+        )
+        if resp.status_code in [200, 201]:
+            return jsonify({"ok": True, "record_id": resp.json().get("id")})
+        else:
+            return jsonify({"ok": False, "error": resp.text}), 500
+    except Exception as e:
+        print(f"ADD RECURRING CUSTOMER ERROR | {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
 @app.route("/onesignal/register", methods=["POST"])
 @dashboard_auth_required
 def onesignal_register():
