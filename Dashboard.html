@@ -2112,5 +2112,88 @@
         </div>
     </div>
 
+    <!-- Add Regular Client Modal -->
+    <div class="modal-overlay" id="addRegularClientModal">
+        <div class="booking-modal">
+            <div class="modal-title">Add Regular Client</div>
+            <div class="modal-date">Client you service on a recurring schedule</div>
+            <div class="form-group">
+                <label class="form-label">Client Name *</label>
+                <input type="text" class="form-input" id="rcName" placeholder="Jane Smith">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Phone Number *</label>
+                <input type="tel" class="form-input" id="rcPhone" placeholder="+12025551234">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Service Address</label>
+                <input type="text" class="form-input" id="rcAddress" placeholder="123 Main St">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Service Description</label>
+                <input type="text" class="form-input" id="rcService" placeholder="Lawn mowing, edging...">
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Every X Days *</label>
+                    <input type="number" class="form-input" id="rcFrequency" placeholder="14" min="1" value="14">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Preferred Time</label>
+                    <input type="time" class="form-input" id="rcPreferredTime" value="09:00">
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn-cancel-modal" onclick="closeAddRegularClientModal()">Cancel</button>
+                <button class="btn-book" id="addRegularClientBtn" onclick="submitAddRegularClient()">Add Client</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Recurring Customer Modal -->
+    <div class="modal-overlay" id="addRecurringModal">
+        <div class="booking-modal">
+            <div class="modal-title">Add Recurring Invoice</div>
+            <div class="modal-date">Commercial client you invoice regularly</div>
+            <div class="form-group">
+                <label class="form-label">Business / Client Name *</label>
+                <input type="text" class="form-input" id="rrName" placeholder="Mishkan Torah">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Email *</label>
+                <input type="email" class="form-input" id="rrEmail" placeholder="billing@client.com">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Phone</label>
+                <input type="tel" class="form-input" id="rrPhone" placeholder="+12025551234">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Service Description</label>
+                <input type="text" class="form-input" id="rrService" placeholder="Monthly grounds maintenance">
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Amount ($)</label>
+                    <input type="number" class="form-input" id="rrAmount" placeholder="245.00" step="0.01" min="0">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Payment Method</label>
+                    <select class="form-input" id="rrPaymentMethod">
+                        <option>Stripe</option>
+                        <option>Check</option>
+                        <option>EFT</option>
+                        <option>Zelle</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn-cancel-modal" onclick="closeAddRecurringModal()">Cancel</button>
+                <button class="btn-book" id="addRecurringBtn" onclick="submitAddRecurring()">Add Client</button>
+            </div>
+        </div>
+    </div>
+
+    
+
     </body>
 </html>
