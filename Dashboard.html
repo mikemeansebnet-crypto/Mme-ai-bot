@@ -1931,6 +1931,126 @@
             }
         }
 
+        // -- ADD REGULAR CLIENT --
+        function openAddRegularClientModal() {
+            document.getElementById("rcName").value = "";
+            document.getElementById("rcPhone").value = "";
+            document.getElementById("rcAddress").value = "";
+            document.getElementById("rcService").value = "";
+            document.getElementById("rcFrequency").value = "14";
+            document.getElementById("rcPreferredTime").value = "09:00";
+            document.getElementById("addRegularClientModal").classList.add("active");
+        }
+
+        function closeAddRegularClientModal() {
+            document.getElementById("addRegularClientModal").classList.remove("active");
+        }
+
+        async function submitAddRegularClient() {
+            const name = document.getElementById("rcName").value.trim();
+            const phone = document.getElementById("rcPhone").value.trim();
+            const address = document.getElementById("rcAddress").value.trim();
+            const service = document.getElementById("rcService").value.trim();
+            const frequency = document.getElementById("rcFrequency").value.trim();
+            const preferredTime = document.getElementById("rcPreferredTime").value.trim();
+
+            if (!name || !phone) {
+                alert("Please fill in Name and Phone.");
+                return;
+            }
+
+            const btn = document.getElementById("addRegularClientBtn");
+            btn.textContent = "Adding...";
+            btn.disabled = true;
+
+            try {
+                const res = await fetch("/dashboard/action/add-regular-client", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "X-Dashboard-Token": getCookie("dashboard_token")
+                    },
+                    body: JSON.stringify({
+                        name, phone, address, service,
+                        frequency_days: parseInt(frequency) || 14,
+                        preferred_time: preferredTime
+                    })
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    closeAddRegularClientModal();
+                    loadRegularClients();
+                    alert("Regular client added!");
+                } else {
+                    alert("Error: " + (data.error || "Something went wrong"));
+                }
+            } catch(e) {
+                alert("Request failed. Please try again.");
+            } finally {
+                btn.textContent = "Add Client";
+                btn.disabled = false;
+            }
+        }
+
+        // -- ADD RECURRING CUSTOMER --
+        function openAddRecurringModal() {
+            document.getElementById("rrName").value = "";
+            document.getElementById("rrEmail").value = "";
+            document.getElementById("rrPhone").value = "";
+            document.getElementById("rrService").value = "";
+            document.getElementById("rrAmount").value = "";
+            document.getElementById("rrPaymentMethod").value = "Stripe";
+            document.getElementById("addRecurringModal").classList.add("active");
+        }
+
+        function closeAddRecurringModal() {
+            document.getElementById("addRecurringModal").classList.remove("active");
+        }
+
+        async function submitAddRecurring() {
+            const name = document.getElementById("rrName").value.trim();
+            const email = document.getElementById("rrEmail").value.trim();
+            const phone = document.getElementById("rrPhone").value.trim();
+            const service = document.getElementById("rrService").value.trim();
+            const amount = parseFloat(document.getElementById("rrAmount").value) || 0;
+            const paymentMethod = document.getElementById("rrPaymentMethod").value;
+
+            if (!name || !email) {
+                alert("Please fill in Name and Email.");
+                return;
+            }
+
+            const btn = document.getElementById("addRecurringBtn");
+            btn.textContent = "Adding...";
+            btn.disabled = true;
+
+            try {
+                const res = await fetch("/dashboard/action/add-recurring-customer", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "X-Dashboard-Token": getCookie("dashboard_token")
+                    },
+                    body: JSON.stringify({
+                        name, email, phone, service, amount, payment_method: paymentMethod
+                    })
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    closeAddRecurringModal();
+                    loadRecurringCustomers();
+                    alert("Recurring customer added!");
+                } else {
+                    alert("Error: " + (data.error || "Something went wrong"));
+                }
+            } catch(e) {
+                alert("Request failed. Please try again.");
+            } finally {
+                btn.textContent = "Add Client";
+                btn.disabled = false;
+            }
+        }
+
         // Load on startup
         loadDashboard();
         // Auto-refresh every 5 minutes
