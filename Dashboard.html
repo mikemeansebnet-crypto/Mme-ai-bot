@@ -1491,7 +1491,7 @@
         function renderSeasonalCampaigns(campaigns) {
             const el = document.getElementById('seasonalCampaigns');
             if (!campaigns.length) {
-                el.innerHTML = '<div class="empty-state">No active campaigns - add one in Airtable</div>';
+                el.innerHTML = '<div class="empty-state">No active campaigns — click + New Campaign to create one</div>';
                 return;
             }
             el.innerHTML = campaigns.map(c => `
