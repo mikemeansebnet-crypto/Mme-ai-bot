@@ -3974,6 +3974,53 @@ def dashboard_seasonal_campaigns():
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
 
+@app.route("/dashboard/action/create-campaign", methods=["POST"])
+@dashboard_auth_required
+def create_seasonal_campaign():
+    """Creates a new Seasonal Campaign record for the logged-in contractor."""
+    try:
+        import requests as req
+        twilio_number = request.twilio_number
+
+        data = request.get_json(force=True)
+        campaign_name = (data.get("campaign_name") or "").strip()
+        message_type = (data.get("message_type") or "Promo").strip()
+        season = (data.get("season") or "Year-round").strip()
+        message_body = (data.get("message_body") or "").strip()
+        active = data.get("active", True)
+
+        if not campaign_name or not message_body:
+            return jsonify({"ok": False, "error": "Campaign name and message body are required"}), 400
+
+        AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
+        AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
+        headers = {
+            "Authorization": f"Bearer {AIRTABLE_TOKEN}",
+            "Content-Type": "application/json"
+        }
+
+        campaigns_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tblSrBFioDKG0uKIU"
+        resp = req.post(campaigns_url, headers=headers, json={"fields": {
+            "Campaign Name": campaign_name,
+            "Twilio Number": twilio_number,
+            "Message Type": message_type,
+            "Season": season,
+            "Message Body": message_body,
+            "Active": active,
+        }})
+
+        if resp.status_code not in (200, 201):
+            return jsonify({"ok": False, "error": f"Airtable error: {resp.text}"}), 500
+
+        record_id = resp.json().get("id", "")
+        print(f"CAMPAIGN CREATED | {campaign_name} | {twilio_number} | {record_id}")
+
+        return jsonify({"ok": True, "record_id": record_id, "message": "Campaign created!"})
+
+    except Exception as e:
+        print(f"CREATE CAMPAIGN ERROR | {type(e).__name__} | {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
 
 
 
