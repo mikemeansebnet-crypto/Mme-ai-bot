@@ -2227,6 +2227,70 @@ async function submitCreateCampaign() {
         </div>
     </div>
 </div>
+
+    <!-- Create Campaign Modal -->
+    <div class="modal-overlay" id="createCampaignModal">
+        <div class="booking-modal">
+            <div class="modal-title">📣 New Campaign</div>
+
+            <div class="form-group">
+                <label class="form-label">Campaign Name</label>
+                <input type="text" class="form-input" id="campName" placeholder="e.g. Spring Cleanup 2026">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Message Type</label>
+                <select class="form-input" id="campType">
+                    <option value="Promo">Promo</option>
+                    <option value="Seasonal Reminder">Seasonal Reminder</option>
+                    <option value="Referral Request">Referral Request</option>
+                    <option value="Review Request">Review Request</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Season</label>
+                <select class="form-input" id="campSeason">
+                    <option value="Year-round">Year-round</option>
+                    <option value="Spring">Spring</option>
+                    <option value="Summer">Summer</option>
+                    <option value="Fall">Fall</option>
+                    <option value="Winter">Winter</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Quick Templates</label>
+                <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">
+                    <button onclick="fillTemplate('landscaping_spring')" class="action-btn btn-sms" style="font-size:11px;flex:none">🌱 Spring Cleanup</button>
+                    <button onclick="fillTemplate('landscaping_summer')" class="action-btn btn-sms" style="font-size:11px;flex:none">☀️ Summer Mowing</button>
+                    <button onclick="fillTemplate('landscaping_fall')" class="action-btn btn-sms" style="font-size:11px;flex:none">🍂 Fall Cleanup</button>
+                    <button onclick="fillTemplate('pressure_wash')" class="action-btn btn-sms" style="font-size:11px;flex:none">💦 Pressure Wash</button>
+                    <button onclick="fillTemplate('painting')" class="action-btn btn-sms" style="font-size:11px;flex:none">🎨 Painting</button>
+                    <button onclick="fillTemplate('plumbing')" class="action-btn btn-sms" style="font-size:11px;flex:none">🔧 Plumbing</button>
+                    <button onclick="fillTemplate('hvac')" class="action-btn btn-sms" style="font-size:11px;flex:none">❄️ HVAC</button>
+                    <button onclick="fillTemplate('referral')" class="action-btn btn-sms" style="font-size:11px;flex:none">🤝 Referral Ask</button>
+                    <button onclick="fillTemplate('review')" class="action-btn btn-sms" style="font-size:11px;flex:none">⭐ Review Ask</button>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Message Body <span style="color:#555;text-transform:none;letter-spacing:0">(use {name} to personalize)</span></label>
+                <textarea class="form-input" id="campBody" rows="5" placeholder="Hi {name}, it's that time of year..." style="resize:vertical"></textarea>
+            </div>
+
+            <div style="margin-bottom:16px;display:flex;align-items:center;gap:8px">
+                <input type="checkbox" id="campActive" checked style="width:18px;height:18px">
+                <label for="campActive" style="font-size:13px">Active (ready to send)</label>
+            </div>
+
+            <div class="modal-actions">
+                <button class="btn-cancel-modal" onclick="closeCampaignModal()">Cancel</button>
+                <button class="btn-book" id="createCampaignBtn" onclick="submitCreateCampaign()">Create Campaign →</button>
+            </div>
+        </div>
+    </div
+        
     <!-- Complete & Pay Modal -->
     <div class="modal-overlay" id="completePayModal">
         <div class="booking-modal">
