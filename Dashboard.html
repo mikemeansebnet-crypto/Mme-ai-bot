@@ -1107,6 +1107,74 @@
             }
         }
 
+        <!-- Create Campaign Modal -->
+        <div id="createCampaignModal" class="modal-overlay">
+            <div class="modal-card">
+                <div class="modal-title">📣 New Campaign</div>
+
+                <div style="margin-bottom:12px">
+                    <label style="font-size:12px;color:#888">Campaign Name</label>
+                    <input id="campName" type="text" placeholder="e.g. Spring Cleanup 2026"
+                        style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--card-border);background:var(--card);color:var(--text);margin-top:4px;box-sizing:border-box">
+                </div>
+
+                <div style="margin-bottom:12px">
+                    <label style="font-size:12px;color:#888">Message Type</label>
+                    <select id="campType"
+                        style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--card-border);background:var(--card);color:var(--text);margin-top:4px">
+                        <option value="Promo">Promo</option>
+                        <option value="Seasonal Reminder">Seasonal Reminder</option>
+                        <option value="Referral Request">Referral Request</option>
+                        <option value="Review Request">Review Request</option>
+                    </select>
+                </div>
+
+                <div style="margin-bottom:12px">
+                    <label style="font-size:12px;color:#888">Season</label>
+                    <select id="campSeason"
+                        style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--card-border);background:var(--card);color:var(--text);margin-top:4px">
+                        <option value="Year-round">Year-round</option>
+                        <option value="Spring">Spring</option>
+                        <option value="Summer">Summer</option>
+                        <option value="Fall">Fall</option>
+                        <option value="Winter">Winter</option>
+                    </select>
+                </div>
+
+                <div style="margin-bottom:8px">
+                    <label style="font-size:12px;color:#888">Quick Templates</label>
+                    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">
+                        <button onclick="fillTemplate('landscaping_spring')" class="action-btn btn-sms" style="font-size:11px">🌱 Spring Cleanup</button>
+                        <button onclick="fillTemplate('landscaping_summer')" class="action-btn btn-sms" style="font-size:11px">☀️ Summer Mowing</button>
+                        <button onclick="fillTemplate('landscaping_fall')" class="action-btn btn-sms" style="font-size:11px">🍂 Fall Cleanup</button>
+                        <button onclick="fillTemplate('pressure_wash')" class="action-btn btn-sms" style="font-size:11px">💦 Pressure Wash</button>
+                        <button onclick="fillTemplate('painting')" class="action-btn btn-sms" style="font-size:11px">🎨 Painting</button>
+                        <button onclick="fillTemplate('plumbing')" class="action-btn btn-sms" style="font-size:11px">🔧 Plumbing</button>
+                        <button onclick="fillTemplate('hvac')" class="action-btn btn-sms" style="font-size:11px">❄️ HVAC</button>
+                        <button onclick="fillTemplate('referral')" class="action-btn btn-sms" style="font-size:11px">🤝 Referral Ask</button>
+                        <button onclick="fillTemplate('review')" class="action-btn btn-sms" style="font-size:11px">⭐ Review Ask</button>
+                    </div>
+                </div>
+
+                <div style="margin-bottom:12px">
+                    <label style="font-size:12px;color:#888">Message Body <span style="color:#555">(use {name} to personalize)</span></label>
+                    <textarea id="campBody" rows="5" placeholder="Hi {name}, it's that time of year..."
+                        style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--card-border);background:var(--card);color:var(--text);margin-top:4px;box-sizing:border-box;resize:vertical"></textarea>
+                </div>
+
+                <div style="margin-bottom:16px;display:flex;align-items:center;gap:8px">
+                    <input type="checkbox" id="campActive" checked style="width:18px;height:18px">
+                    <label for="campActive" style="font-size:13px">Active (ready to send)</label>
+                </div>
+
+                <div style="display:flex;gap:10px">
+                    <button onclick="closeCampaignModal()" class="action-btn" style="flex:1">Cancel</button>
+                    <button onclick="submitCreateCampaign()" id="createCampaignBtn"
+                        class="action-btn" style="flex:2;background:#22c55e;color:#000">Create Campaign →</button>
+                </div>
+            </div>
+        </div>
+
         // ── COMPLETE & PAY MODAL ────────────────────────
         let completePayData = {};
         let selectedPayMethod = '';
@@ -1195,73 +1263,7 @@
             }
         }
 
-        <!-- Create Campaign Modal -->
-        <div id="createCampaignModal" class="modal-overlay">
-            <div class="modal-card">
-                <div class="modal-title">📣 New Campaign</div>
-
-                <div style="margin-bottom:12px">
-                    <label style="font-size:12px;color:#888">Campaign Name</label>
-                    <input id="campName" type="text" placeholder="e.g. Spring Cleanup 2026"
-                        style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--card-border);background:var(--card);color:var(--text);margin-top:4px;box-sizing:border-box">
-                </div>
-
-                <div style="margin-bottom:12px">
-                    <label style="font-size:12px;color:#888">Message Type</label>
-                    <select id="campType"
-                        style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--card-border);background:var(--card);color:var(--text);margin-top:4px">
-                        <option value="Promo">Promo</option>
-                        <option value="Seasonal Reminder">Seasonal Reminder</option>
-                        <option value="Referral Request">Referral Request</option>
-                        <option value="Review Request">Review Request</option>
-                    </select>
-                </div>
-
-                <div style="margin-bottom:12px">
-                    <label style="font-size:12px;color:#888">Season</label>
-                    <select id="campSeason"
-                        style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--card-border);background:var(--card);color:var(--text);margin-top:4px">
-                        <option value="Year-round">Year-round</option>
-                        <option value="Spring">Spring</option>
-                        <option value="Summer">Summer</option>
-                        <option value="Fall">Fall</option>
-                        <option value="Winter">Winter</option>
-                    </select>
-                </div>
-
-                <div style="margin-bottom:8px">
-                    <label style="font-size:12px;color:#888">Quick Templates</label>
-                    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">
-                        <button onclick="fillTemplate('landscaping_spring')" class="action-btn btn-sms" style="font-size:11px">🌱 Spring Cleanup</button>
-                        <button onclick="fillTemplate('landscaping_summer')" class="action-btn btn-sms" style="font-size:11px">☀️ Summer Mowing</button>
-                        <button onclick="fillTemplate('landscaping_fall')" class="action-btn btn-sms" style="font-size:11px">🍂 Fall Cleanup</button>
-                        <button onclick="fillTemplate('pressure_wash')" class="action-btn btn-sms" style="font-size:11px">💦 Pressure Wash</button>
-                        <button onclick="fillTemplate('painting')" class="action-btn btn-sms" style="font-size:11px">🎨 Painting</button>
-                        <button onclick="fillTemplate('plumbing')" class="action-btn btn-sms" style="font-size:11px">🔧 Plumbing</button>
-                        <button onclick="fillTemplate('hvac')" class="action-btn btn-sms" style="font-size:11px">❄️ HVAC</button>
-                        <button onclick="fillTemplate('referral')" class="action-btn btn-sms" style="font-size:11px">🤝 Referral Ask</button>
-                        <button onclick="fillTemplate('review')" class="action-btn btn-sms" style="font-size:11px">⭐ Review Ask</button>
-                    </div>
-                </div>
-
-                <div style="margin-bottom:12px">
-                    <label style="font-size:12px;color:#888">Message Body <span style="color:#555">(use {name} to personalize)</span></label>
-                    <textarea id="campBody" rows="5" placeholder="Hi {name}, it's that time of year..."
-                        style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--card-border);background:var(--card);color:var(--text);margin-top:4px;box-sizing:border-box;resize:vertical"></textarea>
-                </div>
-
-                <div style="margin-bottom:16px;display:flex;align-items:center;gap:8px">
-                    <input type="checkbox" id="campActive" checked style="width:18px;height:18px">
-                    <label for="campActive" style="font-size:13px">Active (ready to send)</label>
-                </div>
-
-                <div style="display:flex;gap:10px">
-                    <button onclick="closeCampaignModal()" class="action-btn" style="flex:1">Cancel</button>
-                    <button onclick="submitCreateCampaign()" id="createCampaignBtn"
-                        class="action-btn" style="flex:2;background:#22c55e;color:#000">Create Campaign →</button>
-                </div>
-            </div>
-        </div>
+        
 
         // ── RECURRING INVOICES ──────────────────────────
         async function loadRecurringCustomers() {
