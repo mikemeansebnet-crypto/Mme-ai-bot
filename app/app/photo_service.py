@@ -109,6 +109,7 @@ def analyze_photos_with_claude(
     contractor_name: str = "our team",
     client_name: str = "Customer",
     service_address: str = "",
+    contractor_notes: str = "",
 ) -> dict:
     """
     Send photos to Claude Vision for job scope analysis.
