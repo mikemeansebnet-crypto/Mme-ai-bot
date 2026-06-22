@@ -4713,6 +4713,29 @@ Be thorough - price every single item you observe needs attention."""
             )
             print(f"WALKTHROUGH | Email sent | {notify_email}")
 
+        # Send estimate approval link to customer if phone available
+        customer_phone = request.form.get("customer_phone", "").strip()
+        if customer_phone:
+            try:
+                quote_low_str = estimate_data.get("estimate_range", "$0 - $0").split("-")[0].strip().replace("$","").replace(",","")
+                quote_high_str = estimate_data.get("estimate_range", "$0 - $0").split("-")[-1].strip().replace("$","").replace(",","")
+                create_estimate_approval(
+                    customer_name=customer_name,
+                    customer_phone=customer_phone,
+                    customer_email="",
+                    service_address=property_address,
+                    project_type=project_type,
+                    quote_low=float(quote_low_str or 0),
+                    quote_high=float(quote_high_str or 0),
+                    materials=estimate_data.get("materials", []),
+                    notes=estimate_data.get("notes", ""),
+                    twilio_number=twilio_number,
+                    pdf_url=video_url,
+                )
+                print(f"WALKTHROUGH | Estimate approval sent to customer | {customer_phone}")
+            except Exception as e:
+                print(f"WALKTHROUGH | Estimate approval error | {e}")
+
         # Cleanup temp file
         try:
             os.remove(tmp_path)
