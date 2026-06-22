@@ -149,6 +149,9 @@ def analyze_photos_with_claude(
 Customer name: {client_name}
 Service address: {service_address}
 Job described as: "{job_description}"
+Contractor notes: "{contractor_notes if contractor_notes else 'No additional notes provided'}"
+
+IMPORTANT: The contractor notes above take priority over what you might assume from the photos alone. If the notes say "remove" - estimate removal not trimming. If they say "replace" - estimate replacement. Always follow the contractor's explicit instructions.
 Contractor business: {contractor_name}
 
 Analyze these photos and provide TWO separate outputs:
