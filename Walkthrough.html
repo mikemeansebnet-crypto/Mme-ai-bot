@@ -680,6 +680,7 @@
 
                 const transcript = document.getElementById("transcriptBox").value.trim();
                 formData.append("contractor_notes", transcript);
+                formData.append('customer_phone', document.getElementById('wtPhone').value.trim());
 
                 const res = await fetch("/dashboard/walkthrough", {
                     method: "POST",
