@@ -4740,6 +4740,104 @@ def dashboard_regular_clients():
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
+@app.route("/approve-estimate/<token>")
+def approve_estimate_page(token):
+    root_dir = os.path.dirname(os.path.abspath(__file__))
+    return send_from_directory(root_dir, "Estimate.html")
+
+@app.route("/estimate-data/<token>")
+def estimate_data(token):
+    try:
+        AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
+        AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
+        headers = {"Authorization": f"Bearer {AIRTABLE_TOKEN}"}
+        resp = requests.get(
+            f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tblOcfjhxlXQ5XP24",
+            headers=headers,
+            params={"filterByFormula": f"{{Approval Token}} = '{token}'"}
+        )
+        records = resp.json().get("records", [])
+        if not records:
+            return jsonify({"ok": False, "error": "Not found"}), 404
+        fields = records[0].get("fields", {})
+        status = fields.get("Status", {})
+        if isinstance(status, dict):
+            status = status.get("name", "Pending")
+        if status != "Pending":
+            return jsonify({"ok": False, "error": "Already responded"}), 400
+        twilio_number = fields.get("Twilio Number", "")
+        contractor = get_contractor_by_twilio_number(twilio_number) or {}
+        materials_raw = fields.get("Materials List", "")
+        try:
+            import json as _json
+            materials = _json.loads(materials_raw) if materials_raw else []
+        except Exception:
+            materials = []
+        return jsonify({
+            "ok": True,
+            "business_name": contractor.get("Business Name", "Your Contractor"),
+            "project_type": fields.get("Project Type", ""),
+            "address": fields.get("Service Address", ""),
+            "quote_low": fields.get("Quote Low", 0),
+            "quote_high": fields.get("Quote High", 0),
+            "notes": fields.get("Notes", ""),
+            "materials": materials,
+        })
+    except Exception as e:
+        print(f"ESTIMATE DATA ERROR | {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+@app.route("/estimate-respond/<token>", methods=["POST"])
+def estimate_respond(token):
+    try:
+        from datetime import datetime, timezone
+        data = request.get_json(silent=True) or {}
+        action = data.get("action", "")
+        comments = data.get("comments", "")
+        AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
+        AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
+        at_headers = {
+            "Authorization": f"Bearer {AIRTABLE_TOKEN}",
+            "Content-Type": "application/json"
+        }
+        resp = requests.get(
+            f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tblOcfjhxlXQ5XP24",
+            headers=at_headers,
+            params={"filterByFormula": f"{{Approval Token}} = '{token}'"}
+        )
+        records = resp.json().get("records", [])
+        if not records:
+            return jsonify({"ok": False, "error": "Not found"}), 404
+        record_id = records[0]["id"]
+        fields = records[0].get("fields", {})
+        now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+        requests.patch(
+            f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tblOcfjhxlXQ5XP24/{record_id}",
+            headers=at_headers,
+            json={"fields": {
+                "Status": action,
+                "Customer Comments": comments,
+                "Approved At": now_iso,
+            }}
+        )
+        twilio_number = fields.get("Twilio Number", "")
+        contractor = get_contractor_by_twilio_number(twilio_number) or {}
+        notify_sms = (contractor.get("Notify SMS") or "").strip()
+        customer_name = fields.get("Customer Name", "Customer")
+        quote_low = fields.get("Quote Low", 0)
+        quote_high = fields.get("Quote High", 0)
+        if notify_sms:
+            if action == "Approved":
+                msg = f"Estimate APPROVED by {customer_name}! ${quote_low:,.0f}-${quote_high:,.0f}. Ready to schedule."
+            else:
+                msg = f"Estimate changes requested by {customer_name}: {comments[:100]}"
+            send_fallback_sms(to_number=notify_sms, body=msg)
+        return jsonify({"ok": True})
+    except Exception as e:
+        print(f"ESTIMATE RESPOND ERROR | {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
 @app.route("/dashboard/action/book-regular-client", methods=["POST"])
 @dashboard_auth_required
 def dashboard_book_regular_client():
