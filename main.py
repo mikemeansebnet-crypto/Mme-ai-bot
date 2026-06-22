@@ -724,6 +724,56 @@ def send_email(subject: str, body: str, to_email: str = None, reply_to: str = No
     response = sg.send(message)
     print("EMAIL SENT:", response.status_code)
 
+def create_estimate_approval(
+    customer_name, customer_phone, customer_email,
+    service_address, project_type, quote_low, quote_high,
+    materials, notes, twilio_number, pdf_url=""
+):
+    """Creates an Estimate Approval record and texts the customer an approval link."""
+    import secrets
+    import json as _json
+    token = secrets.token_urlsafe(16)
+    AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
+    AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
+    at_headers = {
+        "Authorization": f"Bearer {AIRTABLE_TOKEN}",
+        "Content-Type": "application/json"
+    }
+    requests.post(
+        f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tblOcfjhxlXQ5XP24",
+        headers=at_headers,
+        json={"fields": {
+            "Customer Name": customer_name,
+            "Customer Phone": customer_phone,
+            "Customer Email": customer_email,
+            "Service Address": service_address,
+            "Project Type": project_type,
+            "Quote Low": float(quote_low),
+            "Quote High": float(quote_high),
+            "Materials List": _json.dumps(materials),
+            "Notes": notes,
+            "Approval Token": token,
+            "Status": "Pending",
+            "Twilio Number": twilio_number,
+            "PDF URL": pdf_url,
+        }}
+    )
+    base_url = os.environ.get("APP_BASE_URL", "https://mme-ai-bot.onrender.com")
+    approval_url = f"{base_url}/approve-estimate/{token}"
+    if customer_phone:
+        contractor = get_contractor_by_twilio_number(twilio_number) or {}
+        business_name = contractor.get("Business Name", "Your contractor")
+        first_name = customer_name.split()[0] if customer_name else "there"
+        send_fallback_sms(
+            to_number=customer_phone,
+            body=(
+                f"Hi {first_name}! {business_name} has sent your estimate for "
+                f"{project_type}. Estimated range: ${float(quote_low):,.0f}-${float(quote_high):,.0f}. "
+                f"Review and approve here: {approval_url}"
+            )
+        )
+    return {"ok": True, "token": token, "url": approval_url}
+
 
 def send_intake_summary(state: dict, notify_email: str = None, reply_to_email: str = None):
     print("EMAIL DEBUG | entering send_intake_summary")
