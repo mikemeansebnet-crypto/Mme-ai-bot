@@ -4453,12 +4453,27 @@ Return ONLY this JSON format:
   "line_items": [
     {{"description": "Specific task", "detail": "Location and specifics", "labor": 0.00, "materials": 0.00, "total": 0.00}}
   ],
+  "materials": [
+    {{"item": "Material name and size/type", "quantity": 0, "unit": "unit of measure"}}
+  ],
   "timeline": "estimated completion time",
   "notes": "important observations, concerns, or recommendations",
   "estimate_total": 0.00,
   "estimate_range": "$X,XXX - $X,XXX",
   "areas_identified": ["list of areas/rooms identified in video"]
 }}
+For the materials array, calculate based on what you observe:
+- Fencing: count linear feet, boards per 8ft section, post every 8ft, concrete per post
+- Painting interior: wall sqft minus doors/windows, 1 gallon per 400sqft per coat, primer + 2 coats paint
+- Painting exterior: siding sqft, 1 gallon per 300sqft, caulk tubes, primer
+- Decking: board count from sqft (divide by board width + 10% waste), baluster every 4 inches of railing, posts
+- Drywall: sheets (4x8=32sqft each + 15% waste), joint compound buckets, tape rolls, corner bead
+- Flooring: sqft + 10% waste, underlayment, transition strips
+- Sod/turf: sqft from aerial + 5% waste, starter fertilizer
+- Mulch: cubic yards (bed area sqft x depth inches / 324)
+- Roofing: squares (sqft / 100), shingle bundles (3 per square), underlayment rolls
+- Handyman/general: list specific hardware, fasteners, materials needed
+Always include quantity and unit for every item. Be specific with sizes and types.
 Base pricing on current US contractor rates for the {property_address} region.
 Be thorough - price every single item you observe needs attention."""
 
