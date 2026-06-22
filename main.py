@@ -4617,6 +4617,35 @@ Be thorough - price every single item you observe needs attention."""
 
         story.append(Spacer(1, 12))
 
+        # Materials List
+        materials = estimate_data.get("materials", [])
+        if materials:
+            story.append(Paragraph("Estimated Materials List", heading_style))
+            mat_data = [["Item", "Qty", "Unit"]]
+            for mat in materials:
+                mat_data.append([
+                    str(mat.get("item", "")),
+                    str(mat.get("quantity", "")),
+                    str(mat.get("unit", ""))
+                ])
+            mat_table = Table(mat_data, colWidths=[4.0*inch, 0.8*inch, 1.0*inch])
+            mat_table.setStyle(TableStyle([
+                ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#2563EB")),
+                ("TEXTCOLOR", (0,0), (-1,0), colors.white),
+                ("FONTNAME", (0,0), (-1,0), "Helvetica-Bold"),
+                ("FONTSIZE", (0,0), (-1,-1), 9),
+                ("GRID", (0,0), (-1,-1), 0.5, colors.HexColor("#dddddd")),
+                ("ROWBACKGROUNDS", (0,1), (-1,-1), [colors.white, colors.HexColor("#f9fafb")]),
+                ("PADDING", (0,0), (-1,-1), 7),
+            ]))
+            story.append(mat_table)
+            story.append(Paragraph(
+                "* Material quantities are estimates. Verify before purchasing.",
+                small_style
+            ))
+
+        story.append(Spacer(1, 12))
+
         if estimate_data.get("timeline"):
             story.append(Paragraph("Timeline", heading_style))
             story.append(Paragraph(estimate_data.get("timeline"), normal_style))
