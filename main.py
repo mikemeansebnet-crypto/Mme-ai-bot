@@ -4520,17 +4520,30 @@ Be thorough - price every single item you observe needs attention."""
                 ]
             )
         except Exception as gemini_err:
-            print(f"WALKTHROUGH | gemini-2.5-flash unavailable, falling back to 2.0 | {gemini_err}")
-            response = client.models.generate_content(
-                model="gemini-2.0-flash",
-                contents=[
-                    types.Part.from_bytes(
-                        data=video_bytes,
-                        mime_type="video/mp4" if suffix == ".mp4" else "video/webm" if suffix == ".webm" else "video/quicktime"
-                    ),
-                    prompt
-                ]
-            )
+            print(f"WALKTHROUGH | gemini-2.5-flash unavailable, trying 2.5-flash-lite | {gemini_err}")
+            try:
+                response = client.models.generate_content(
+                    model="gemini-2.5-flash-lite",
+                    contents=[
+                        types.Part.from_bytes(
+                            data=video_bytes,
+                            mime_type="video/mp4" if suffix == ".mp4" else "video/webm" if suffix == ".webm" else "video/quicktime"
+                        ),
+                        prompt
+                    ]
+                )
+            except Exception as gemini_err2:
+                print(f"WALKTHROUGH | gemini-2.5-flash-lite unavailable, trying gemini-3.5-flash | {gemini_err2}")
+                response = client.models.generate_content(
+                    model="gemini-3.5-flash",
+                    contents=[
+                        types.Part.from_bytes(
+                            data=video_bytes,
+                            mime_type="video/mp4" if suffix == ".mp4" else "video/webm" if suffix == ".webm" else "video/quicktime"
+                        ),
+                        prompt
+                    ]
+                )
         raw = response.text.strip()
         print(f"WALKTHROUGH | Gemini analysis complete | {raw[:200]}")
 
