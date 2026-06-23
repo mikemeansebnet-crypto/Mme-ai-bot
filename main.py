@@ -3904,14 +3904,14 @@ def dashboard_add_regular_client():
             f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tbl3LAJzXa6Vsexry",
             headers=headers,
             json={"fields": {
-                "Client Name": data.get("name", ""),
-                "Phone": data.get("phone", ""),
-                "Service Address": data.get("address", ""),
-                "Service Description": data.get("service", ""),
-                "Frequency (Days)": int(data.get("frequency_days", 14)),
-                "Preferred Time": preferred_time_display,
-                "Twilio Number": twilio_number,
-                "Active": True,
+                "flduQxjVit8uWN5Dv": data.get("name", ""),
+                "fldDDowbOopi3fDJQ": data.get("phone", ""),
+                "fld2fCwFmQawpTJUn": data.get("address", ""),
+                "fldUGzZMXoaWBh1Fp": data.get("service", ""),
+                "fldVWQckFWmsE00Yl": int(data.get("frequency_days", 14)),
+                "fldalhyHTo9Tffwnd": preferred_time_display,
+                "fldfpTsHoSOhTnDEg": twilio_number,
+                "fldDnk0E2NyFGhg6l": True,
             }}
         )
         if resp.status_code in [200, 201]:
