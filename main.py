@@ -6133,6 +6133,18 @@ def photo_upload_page(lead_id):
 
                 <div class="selected-info" id="selected-info"></div>
 
+                <div style="margin-bottom:16px">
+                    <label style="display:block;font-size:14px;font-weight:600;color:#374151;margin-bottom:6px">
+                        Notes for contractor (optional)
+                    </label>
+                    <textarea
+                        name="contractor_notes"
+                        rows="3"
+                        placeholder="Describe what needs to be done — e.g. remove shrubs, not trim. Replace rotted boards. Paint only the front door."
+                        style="width:100%;border:1px solid #d1d5db;border-radius:8px;padding:10px 12px;font-size:14px;font-family:inherit;resize:none;outline:none"
+                    ></textarea>
+                </div>
+
                 <button type="submit" class="btn">Send Photos</button>
             </form>
 
