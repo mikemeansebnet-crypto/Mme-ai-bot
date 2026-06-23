@@ -4489,16 +4489,29 @@ Be thorough - price every single item you observe needs attention."""
         with open(tmp_path, "rb") as vf:
             video_bytes = vf.read()
 
-        response = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=[
-                types.Part.from_bytes(
-                    data=video_bytes,
-                    mime_type="video/mp4" if suffix == ".mp4" else "video/webm" if suffix == ".webm" else "video/quicktime"
-                ),
-                prompt
-            ]
-        )
+        try:
+            response = client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=[
+                    types.Part.from_bytes(
+                        data=video_bytes,
+                        mime_type="video/mp4" if suffix == ".mp4" else "video/webm" if suffix == ".webm" else "video/quicktime"
+                    ),
+                    prompt
+                ]
+            )
+        except Exception as gemini_err:
+            print(f"WALKTHROUGH | gemini-2.5-flash unavailable, falling back to 2.0 | {gemini_err}")
+            response = client.models.generate_content(
+                model="gemini-2.0-flash",
+                contents=[
+                    types.Part.from_bytes(
+                        data=video_bytes,
+                        mime_type="video/mp4" if suffix == ".mp4" else "video/webm" if suffix == ".webm" else "video/quicktime"
+                    ),
+                    prompt
+                ]
+            )
         raw = response.text.strip()
         print(f"WALKTHROUGH | Gemini analysis complete | {raw[:200]}")
 
