@@ -6249,6 +6249,7 @@ def process_photos():
     job_description = lead.get("Job Description", "general contractor work")
     client_name = lead.get("Client Name", "Customer")
     service_address = lead.get("Service Address", "")
+    contractor_notes = request.form.get("contractor_notes", "").strip()
 
     # Run Claude Vision analysis
     analysis = analyze_photos_with_claude(
