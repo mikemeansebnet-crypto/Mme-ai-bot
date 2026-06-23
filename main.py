@@ -4419,6 +4419,25 @@ def dashboard_walkthrough():
 
         print(f"WALKTHROUGH | Video saved to temp | {tmp_path}")
 
+        # Compress video if too large before sending to Gemini
+        try:
+            import subprocess
+            compressed_path = tmp_path.replace(suffix, "_compressed.mp4")
+            subprocess.run([
+                "ffmpeg", "-i", tmp_path,
+                "-vf", "scale=1280:-2",
+                "-cfs", "28",
+                "-preset", "fast",
+                "-y", compressed_path
+            ], capture_output=True, timeout=60)
+            if os.path.exists(compressed_path):
+                os.remove(tmp_path)
+                tmp_path = compressed_path
+                suffix = ".mp4"
+                print(f"WALKTHROUGH | Video compressed | {os.path.getsize(tmp_path)} bytes")
+        except Exception as e:
+            print(f"WALKTHROUGH | ffmpeg compression skipped | {e}")
+
         # Step 2 — Upload to Cloudinary for storage
         video_url = ""
         try:
