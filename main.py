@@ -4014,6 +4014,138 @@ def dashboard_add_recurring_customer():
         print(f"ADD RECURRING CUSTOMER ERROR | {e}")
         return jsonify({"ok": False, "error": str(e)}), 500
 
+@app.route("/dashboard/inbox")
+@dashboard_auth_required
+def dashboard_inbox():
+    """Returns all message threads grouped by customer phone number."""
+    try:
+        twilio_number = request.twilio_number
+        AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
+        AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
+        headers = {"Authorization": f"Bearer {AIRTABLE_TOKEN}"}
+
+        resp = requests.get(
+            f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tbl18156IPGMjNMYx",
+            headers=headers,
+            params={
+                "filterByFormula": f"{{Twilio Number}} = '{twilio_number}'",
+                "sort[0][field]": "Timestamp",
+                "sort[0][direction]": "desc",
+                "pageSize": 200,
+            }
+        )
+        records = resp.json().get("records", [])
+
+        # Group by customer phone number (the "other" number in each conversation)
+        threads = {}
+        for r in records:
+            f = r.get("fields", {})
+            direction = f.get("Direction", {})
+            if isinstance(direction, dict):
+                direction = direction.get("name", "")
+
+            customer_phone = f.get("From Number") if direction == "inbound" else f.get("To Number")
+            if customer_phone == twilio_number:
+                customer_phone = f.get("To Number") if direction == "inbound" else f.get("From Number")
+
+            if not customer_phone or customer_phone == twilio_number:
+                continue
+
+            if customer_phone not in threads:
+                threads[customer_phone] = {
+                    "customer_phone": customer_phone,
+                    "customer_name": f.get("Customer Name", ""),
+                    "last_message": f.get("Body", ""),
+                    "last_timestamp": f.get("Timestamp", ""),
+                    "unread": 0,
+                    "messages": []
+                }
+
+            if not f.get("Read") and direction == "inbound":
+                threads[customer_phone]["unread"] += 1
+
+            threads[customer_phone]["messages"].append({
+                "body": f.get("Body", ""),
+                "direction": direction,
+                "timestamp": f.get("Timestamp", ""),
+                "read": f.get("Read", False),
+            })
+
+        thread_list = sorted(
+            threads.values(),
+            key=lambda x: x.get("last_timestamp", ""),
+            reverse=True
+        )
+
+        return jsonify({"ok": True, "threads": thread_list})
+    except Exception as e:
+        print(f"INBOX ERROR | {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route("/dashboard/inbox/send", methods=["POST"])
+@dashboard_auth_required
+def dashboard_inbox_send():
+    """Sends a manual SMS reply from the contractor dashboard."""
+    try:
+        data = request.get_json(silent=True) or {}
+        to_number = data.get("to_number", "").strip()
+        body = data.get("body", "").strip()
+        twilio_number = request.twilio_number
+
+        if not to_number or not body:
+            return jsonify({"ok": False, "error": "Missing number or message"}), 400
+
+        result = send_fallback_sms(to_number=to_number, body=body)
+
+        if result.get("ok"):
+            save_message_to_inbox(
+                message_sid=f"manual-{int(time.time())}",
+                from_number=twilio_number,
+                to_number=to_number,
+                body=body,
+                direction="outbound",
+                twilio_number=twilio_number,
+            )
+
+        return jsonify(result)
+    except Exception as e:
+        print(f"INBOX SEND ERROR | {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route("/dashboard/inbox/mark-read", methods=["POST"])
+@dashboard_auth_required
+def dashboard_inbox_mark_read():
+    """Marks all messages from a customer as read."""
+    try:
+        data = request.get_json(silent=True) or {}
+        customer_phone = data.get("customer_phone", "").strip()
+        twilio_number = request.twilio_number
+        AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
+        AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
+        headers = {"Authorization": f"Bearer {AIRTABLE_TOKEN}", "Content-Type": "application/json"}
+
+        resp = requests.get(
+            f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tbl18156IPGMjNMYx",
+            headers=headers,
+            params={
+                "filterByFormula": f"AND({{Twilio Number}} = '{twilio_number}', {{From Number}} = '{customer_phone}', {{Read}} = FALSE())"
+            }
+        )
+        records = resp.json().get("records", [])
+        for r in records:
+            requests.patch(
+                f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tbl18156IPGMjNMYx/{r['id']}",
+                headers=headers,
+                json={"fields": {"fldFcfqOCOhECwpux": True}}
+            )
+
+        return jsonify({"ok": True, "marked": len(records)})
+    except Exception as e:
+        print(f"MARK READ ERROR | {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
 @app.route("/onesignal/register", methods=["POST"])
 @dashboard_auth_required
 def onesignal_register():
