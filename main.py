@@ -6497,7 +6497,7 @@ def process_photos():
         contractor_name=lead.get("Business Name", "our team"),
         client_name=client_name,
         service_address=service_address,
-        contractor_notes=incoming_msg,
+        contractor_notes=contractor_notes,
     
     )
     print("CLAUDE VISION ANALYSIS |", analysis)
