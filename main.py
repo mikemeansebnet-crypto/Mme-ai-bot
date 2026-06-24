@@ -4028,9 +4028,7 @@ def dashboard_inbox():
             f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tbl18156IPGMjNMYx",
             headers=headers,
             params={
-                "filterByFormula": f"{{Twilio Number}} = '{twilio_number}'",
-                "sort[0][field]": "Timestamp",
-                "sort[0][direction]": "desc",
+                "filterByFormula": f"AND({{Twilio Number}} = '{twilio_number}')",
                 "pageSize": 200,
             }
         )
