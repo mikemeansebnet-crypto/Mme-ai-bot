@@ -2209,6 +2209,7 @@ async function submitCreateCampaign() {
         }
 
         function renderInbox(threads) {
+            window._inboxThreads = threads;
             const totalUnread = threads.reduce((sum, t) => sum + t.unread, 0);
             document.getElementById('inboxUnread').textContent = totalUnread;
             const el = document.getElementById('inboxThreads');
