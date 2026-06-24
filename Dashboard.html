@@ -2192,6 +2192,120 @@ async function submitCreateCampaign() {
             }
         }
 
+        // -- MESSAGES INBOX --
+        let activeThread = null;
+
+        async function loadInbox() {
+            try {
+                const res = await fetch('/dashboard/inbox', {
+                    headers: { 'X-Dashboard-Token': getCookie('dashboard_token') }
+                });
+                const data = await res.json();
+                if (data.ok) renderInbox(data.threads);
+            } catch(e) {
+                console.error('Inbox load error:', e);
+            }
+        }
+
+        function renderInbox(threads) {
+            const totalUnread = threads.reduce((sum, t) => sum + t.unread, 0);
+            document.getElementById('inboxUnread').textContent = totalUnread;
+            const el = document.getElementById('inboxThreads');
+
+            if (!threads.length) {
+                el.innerHTML = '<div class="empty-state">No messages yet</div>';
+                return;
+            }
+
+            el.innerHTML = threads.map(t => {
+                const unreadBadge = t.unread > 0
+                    ? `<span class="badge badge-new">${t.unread} new</span>`
+                    : '';
+                const name = t.customer_name || t.customer_phone;
+                const preview = (t.last_message || '').substring(0, 60);
+                return `
+                <div class="job-card" onclick="openThread('${t.customer_phone}', '${name.replace(/'/g, '')}')">
+                    <div class="job-name">${name}${unreadBadge}</div>
+                    <div class="job-type">${preview}${preview.length === 60 ? '...' : ''}</div>
+                    <div style="font-size:11px;color:var(--text-muted);margin-top:4px;font-family:'DM Mono',monospace">${t.customer_phone}</div>
+                </div>`;
+            }).join('');
+        }
+
+        function openThread(phone, name) {
+            activeThread = { phone, name };
+            const thread = (window._inboxThreads || []).find(t => t.customer_phone === phone);
+            const messages = thread ? thread.messages.slice().reverse() : [];
+
+            document.getElementById('inboxThreads').innerHTML = `
+                <div style="margin-bottom:12px">
+                    <button onclick="loadInbox()" style="background:none;border:none;color:#60a5fa;font-size:13px;cursor:pointer;font-family:'DM Mono',monospace">Back to all messages</button>
+                </div>
+                <div class="job-card">
+                    <div class="job-name">${name}</div>
+                    <div style="font-size:12px;color:var(--text-muted);font-family:'DM Mono',monospace;margin-bottom:12px">${phone}</div>
+                    <div id="threadMessages" style="max-height:300px;overflow-y:auto;margin-bottom:12px">
+                        ${messages.map(m => `
+                            <div style="margin-bottom:8px;text-align:${m.direction === 'outbound' ? 'right' : 'left'}">
+                                <div style="display:inline-block;max-width:80%;background:${m.direction === 'outbound' ? '#2563EB' : '#334155'};color:white;border-radius:12px;padding:8px 12px;font-size:13px;text-align:left">
+                                    ${m.body}
+                                </div>
+                                <div style="font-size:10px;color:var(--text-muted);margin-top:2px;font-family:'DM Mono',monospace">${m.direction === 'outbound' ? 'You' : 'Customer'}</div>
+                            </div>
+                        `).join('')}
+                    </div>
+                    <div style="display:flex;gap:8px">
+                        <input type="text" id="replyBox" class="form-input" placeholder="Type a message..." style="flex:1;font-size:14px;padding:10px 12px">
+                        <button onclick="sendReply()" style="background:var(--gradient);color:white;border:none;border-radius:10px;padding:10px 16px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif">Send</button>
+                    </div>
+                </div>`;
+
+            // Auto-scroll to bottom of messages
+            const msgEl = document.getElementById('threadMessages');
+            if (msgEl) msgEl.scrollTop = msgEl.scrollHeight;
+
+            // Mark as read
+            fetch('/dashboard/inbox/mark-read', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Dashboard-Token': getCookie('dashboard_token')
+                },
+                body: JSON.stringify({ customer_phone: phone })
+            });
+        }
+
+        async function sendReply() {
+            const body = document.getElementById('replyBox').value.trim();
+            if (!body || !activeThread) return;
+
+            document.getElementById('replyBox').value = '';
+
+            try {
+                const res = await fetch('/dashboard/inbox/send', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Dashboard-Token': getCookie('dashboard_token')
+                    },
+                    body: JSON.stringify({
+                        to_number: activeThread.phone,
+                        body: body
+                    })
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    // Refresh thread view
+                    await loadInbox();
+                    openThread(activeThread.phone, activeThread.name);
+                } else {
+                    alert('Failed to send: ' + (data.error || 'Unknown error'));
+                }
+            } catch(e) {
+                alert('Send failed. Please try again.');
+            }
+        }
+
         // Load on startup
         loadDashboard();
         // Auto-refresh every 5 minutes
