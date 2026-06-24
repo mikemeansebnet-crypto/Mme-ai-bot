@@ -4017,59 +4017,54 @@ def dashboard_add_recurring_customer():
 @app.route("/dashboard/inbox")
 @dashboard_auth_required
 def dashboard_inbox():
-    """Returns all message threads grouped by customer phone number."""
     try:
         twilio_number = request.twilio_number
         AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
         AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
-        headers = {"Authorization": f"Bearer {AIRTABLE_TOKEN}"}
 
         resp = requests.get(
             f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tbl18156IPGMjNMYx",
             headers={"Authorization": f"Bearer {AIRTABLE_TOKEN}"}
         )
-        resp_json = resp.json()
-        print(f"INBOX | Airtable response status: {resp.status_code}")
-        print(f"INBOX | Airtable response: {str(resp_json)[:200]}")
-        all_records = resp_json.get("records", [])
-        print(f"INBOX | Total records fetched: {len(all_records)} | filtering for: {twilio_number}")
+        all_records = resp.json().get("records", [])
+        print(f"INBOX | Total records: {len(all_records)} | filtering for: {twilio_number}")
 
-        # Filter in Python to avoid URL encoding issues with + in phone numbers
+        # Filter using display names — what Airtable returns on GET
         records = [
             r for r in all_records
-            if r.get("fields", {}).get("fldzGHqH4MvN7IiSE", "") == twilio_number
+            if r.get("fields", {}).get("Twilio Number", "") == twilio_number
         ]
-        print(f"INBOX | Records after filter: {len(records)}")
+        print(f"INBOX | After filter: {len(records)}")
 
         threads = {}
         for r in records:
             f = r.get("fields", {})
-            direction = f.get("fld178Rsj7TBvGSb1", {})
+            direction = f.get("Direction", "")
             if isinstance(direction, dict):
                 direction = direction.get("name", "")
 
-            customer_phone = f.get("fldOulXgSGddefRXN") if direction == "inbound" else f.get("fldm2XVUhWe2XxLeJ")
+            customer_phone = f.get("From Number") if direction == "inbound" else f.get("To Number")
             if not customer_phone or customer_phone == twilio_number:
                 continue
 
             if customer_phone not in threads:
                 threads[customer_phone] = {
                     "customer_phone": customer_phone,
-                    "customer_name": f.get("fldFEDRsM8UTn6Jf6", ""),
-                    "last_message": f.get("fldwPA4xCPRyPlkEL", ""),
-                    "last_timestamp": f.get("fldk2sBG9JkBCkvc5", ""),
+                    "customer_name": f.get("Customer Name", ""),
+                    "last_message": f.get("Body", ""),
+                    "last_timestamp": f.get("Timestamp", ""),
                     "unread": 0,
                     "messages": []
                 }
 
-            if not f.get("fldFcfqOCOhECwpux") and direction == "inbound":
+            if not f.get("Read") and direction == "inbound":
                 threads[customer_phone]["unread"] += 1
 
             threads[customer_phone]["messages"].append({
-                "body": f.get("fldwPA4xCPRyPlkEL", ""),
+                "body": f.get("Body", ""),
                 "direction": direction,
-                "timestamp": f.get("fldk2sBG9JkBCkvc5", ""),
-                "read": f.get("fldFcfqOCOhECwpux", False),
+                "timestamp": f.get("Timestamp", ""),
+                "read": f.get("Read", False),
             })
 
         thread_list = sorted(
@@ -4131,19 +4126,24 @@ def dashboard_inbox_mark_read():
         resp = requests.get(
             f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tbl18156IPGMjNMYx",
             headers=headers,
-            params={
-                "filterByFormula": f"AND({{Twilio Number}} = '{twilio_number}', {{From Number}} = '{customer_phone}', {{Read}} = FALSE())"
-            }
         )
-        records = resp.json().get("records", [])
-        for r in records:
+        all_records = resp.json().get("records", [])
+
+        to_mark = [
+            r for r in all_records
+            if r.get("fields", {}).get("Twilio Number") == twilio_number
+            and r.get("fields", {}).get("From Number") == customer_phone
+            and not r.get("fields", {}).get("Read")
+        ]
+
+        for r in to_mark:
             requests.patch(
                 f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tbl18156IPGMjNMYx/{r['id']}",
                 headers=headers,
-                json={"fields": {"fldFcfqOCOhECwpux": True}}
+                json={"fields": {"Read": True}}
             )
 
-        return jsonify({"ok": True, "marked": len(records)})
+        return jsonify({"ok": True, "marked": len(to_mark)})
     except Exception as e:
         print(f"MARK READ ERROR | {e}")
         return jsonify({"ok": False, "error": str(e)}), 500
