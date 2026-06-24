@@ -2637,6 +2637,46 @@ async function submitCreateCampaign() {
         </div>
     </div>
 
+    <!-- Edit Regular Client Modal -->
+    <div class="modal-overlay" id="editRegularClientModal">
+        <div class="booking-modal">
+            <div class="modal-title">Edit Regular Client</div>
+            <div class="modal-date" id="editRegularClientName"></div>
+            <div class="form-group">
+                <label class="form-label">Client Name</label>
+                <input type="text" class="form-input" id="editRcName" placeholder="Jane Smith">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Phone Number</label>
+                <input type="tel" class="form-input" id="editRcPhone" placeholder="+12025551234">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Service Address</label>
+                <input type="text" class="form-input" id="editRcAddress" placeholder="123 Main St">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Service Description</label>
+                <input type="text" class="form-input" id="editRcService" placeholder="Lawn mowing, edging...">
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Every X Days</label>
+                    <input type="number" class="form-input" id="editRcFrequency" min="1" value="14">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Preferred Time</label>
+                    <input type="time" class="form-input" id="editRcPreferredTime" value="09:00">
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn-cancel-modal" onclick="closeEditRegularClientModal()">Cancel</button>
+                <button class="btn-book" id="editRegularClientBtn" onclick="submitEditRegularClient()">Save Changes</button>
+            </div>
+        </div>
+    </div>
+
+    
+
     
 
     </body>
