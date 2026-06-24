@@ -724,6 +724,38 @@ def send_email(subject: str, body: str, to_email: str = None, reply_to: str = No
     response = sg.send(message)
     print("EMAIL SENT:", response.status_code)
 
+def save_message_to_inbox(
+    message_sid: str,
+    from_number: str,
+    to_number: str,
+    body: str,
+    direction: str,
+    twilio_number: str,
+    customer_name: str = ""
+) -> None:
+    """Saves an SMS message to the Messages inbox table."""
+    try:
+        from datetime import datetime, timezone
+        AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
+        AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
+        requests.post(
+            f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tbl18156IPGMjNMYx",
+            headers={"Authorization": f"Bearer {AIRTABLE_TOKEN}", "Content-Type": "application/json"},
+            json={"fields": {
+                "flddReP91Tcs7tWOB": message_sid,
+                "fldOulXgSGddefRXN": from_number,
+                "fldm2XVUhWe2XxLeJ": to_number,
+                "fldwPA4xCPRyPlkEL": body,
+                "fld178Rsj7TBvGSb1": direction,
+                "fldzGHqH4MvN7IiSE": twilio_number,
+                "fldFEDRsM8UTn6Jf6": customer_name,
+                "fldk2sBG9JkBCkvc5": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z"),
+            }}
+        )
+        print(f"INBOX | Saved {direction} message | {from_number} | {body[:40]}")
+    except Exception as e:
+        print(f"INBOX SAVE ERROR | {e}")
+
 def create_estimate_approval(
     customer_name, customer_phone, customer_email,
     service_address, project_type, quote_low, quote_high,
