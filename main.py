@@ -4027,46 +4027,47 @@ def dashboard_inbox():
         resp = requests.get(
             f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tbl18156IPGMjNMYx",
             headers=headers,
-            params={
-                "filterByFormula": f"AND({{Twilio Number}} = '{twilio_number}')",
-                "pageSize": 200,
-            }
+            params={"pageSize": 200}
         )
-        records = resp.json().get("records", [])
+        all_records = resp.json().get("records", [])
+        print(f"INBOX | Total records fetched: {len(all_records)} | filtering for: {twilio_number}")
 
-        # Group by customer phone number (the "other" number in each conversation)
+        # Filter in Python to avoid URL encoding issues with + in phone numbers
+        records = [
+            r for r in all_records
+            if r.get("fields", {}).get("fldzGHqH4MvN7IiSE", "") == twilio_number
+        ]
+        print(f"INBOX | Records after filter: {len(records)}")
+
         threads = {}
         for r in records:
             f = r.get("fields", {})
-            direction = f.get("Direction", {})
+            direction = f.get("fld178Rsj7TBvGSb1", {})
             if isinstance(direction, dict):
                 direction = direction.get("name", "")
 
-            customer_phone = f.get("From Number") if direction == "inbound" else f.get("To Number")
-            if customer_phone == twilio_number:
-                customer_phone = f.get("To Number") if direction == "inbound" else f.get("From Number")
-
+            customer_phone = f.get("fldOulXgSGddefRXN") if direction == "inbound" else f.get("fldm2XVUhWe2XxLeJ")
             if not customer_phone or customer_phone == twilio_number:
                 continue
 
             if customer_phone not in threads:
                 threads[customer_phone] = {
                     "customer_phone": customer_phone,
-                    "customer_name": f.get("Customer Name", ""),
-                    "last_message": f.get("Body", ""),
-                    "last_timestamp": f.get("Timestamp", ""),
+                    "customer_name": f.get("fldFEDRsM8UTn6Jf6", ""),
+                    "last_message": f.get("fldwPA4xCPRyPlkEL", ""),
+                    "last_timestamp": f.get("fldk2sBG9JkBCkvc5", ""),
                     "unread": 0,
                     "messages": []
                 }
 
-            if not f.get("Read") and direction == "inbound":
+            if not f.get("fldFcfqOCOhECwpux") and direction == "inbound":
                 threads[customer_phone]["unread"] += 1
 
             threads[customer_phone]["messages"].append({
-                "body": f.get("Body", ""),
+                "body": f.get("fldwPA4xCPRyPlkEL", ""),
                 "direction": direction,
-                "timestamp": f.get("Timestamp", ""),
-                "read": f.get("Read", False),
+                "timestamp": f.get("fldk2sBG9JkBCkvc5", ""),
+                "read": f.get("fldFcfqOCOhECwpux", False),
             })
 
         thread_list = sorted(
@@ -4075,6 +4076,7 @@ def dashboard_inbox():
             reverse=True
         )
 
+        print(f"INBOX | Threads built: {len(thread_list)}")
         return jsonify({"ok": True, "threads": thread_list})
     except Exception as e:
         print(f"INBOX ERROR | {e}")
