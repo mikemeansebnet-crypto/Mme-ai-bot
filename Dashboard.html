@@ -2210,27 +2210,26 @@ async function submitCreateCampaign() {
 
         function renderInbox(threads) {
             window._inboxThreads = threads;
-            const totalUnread = threads.reduce((sum, t) => sum + t.unread, 0);
+            const totalUnread = threads.reduce(function(sum, t) { return sum + t.unread; }, 0);
             document.getElementById('inboxUnread').textContent = totalUnread;
             const el = document.getElementById('inboxThreads');
 
-            if (!threads.length) {
+            if (!threads || !threads.length) {
                 el.innerHTML = '<div class="empty-state">No messages yet</div>';
                 return;
             }
 
-            el.innerHTML = threads.map(t => {
+            el.innerHTML = threads.map(function(t) {
                 const unreadBadge = t.unread > 0
-                    ? `<span class="badge badge-new">${t.unread} new</span>`
+                    ? '<span class="badge badge-new">' + t.unread + ' new</span>'
                     : '';
                 const name = t.customer_name || t.customer_phone;
                 const preview = (t.last_message || '').substring(0, 60);
-                return `
-                <div class="job-card" onclick="openThread('${t.customer_phone}', '${name.replace(/'/g, '')}')">
-                    <div class="job-name">${name}${unreadBadge}</div>
-                    <div class="job-type">${preview}${preview.length === 60 ? '...' : ''}</div>
-                    <div style="font-size:11px;color:var(--text-muted);margin-top:4px;font-family:'DM Mono',monospace">${t.customer_phone}</div>
-                </div>`;
+                return '<div class="job-card" onclick="openThread(\'' + t.customer_phone + '\', \'' + name.replace(/'/g, '') + '\')">'
+                    + '<div class="job-name">' + name + unreadBadge + '</div>'
+                    + '<div class="job-type">' + preview + (preview.length === 60 ? '...' : '') + '</div>'
+                    + '<div style="font-size:11px;color:var(--text-muted);margin-top:4px;font-family:DM Mono,monospace">' + t.customer_phone + '</div>'
+                    + '</div>';
             }).join('');
         }
 
