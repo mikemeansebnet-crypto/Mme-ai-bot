@@ -670,7 +670,21 @@ def send_fallback_sms(to_number: str, body: str) -> dict:
         from_number = os.getenv("TWILIO_PHONE_NUMBER") or os.getenv("TWILIO_FROM_NUMBER")
         if not from_number:
             return {"ok": False, "error": "missing_twilio_from_number"}
-        return send_sms(to_number=to_number, body=body, from_number=from_number)
+        result = send_sms(to_number=to_number, body=body, from_number=from_number)
+        # Save outbound message to inbox
+        if result.get("ok"):
+            try:
+                save_message_to_inbox(
+                    message_sid=result.get("sid", ""),
+                    from_number=from_number,
+                    to_number=to_number,
+                    body=body,
+                    direction="outbound",
+                    twilio_number=from_number,
+                )
+            except Exception as inbox_err:
+                print(f"INBOX OUTBOUND SAVE ERROR | {inbox_err}")
+        return result
     except Exception as e:
         print("FALLBACK SMS ERROR |", str(e))
         return {"ok": False, "error": str(e)}
