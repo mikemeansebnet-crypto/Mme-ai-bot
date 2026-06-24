@@ -1381,6 +1381,10 @@
                         <button onclick="completeRegularClient('${c.record_id}', '${c.name}', ${c.frequency_days}, '${c.phone}', '${c.service}')"
                             class="action-btn" style="background:#22c55e;color:#000">Done</button>
                     </div>
+                    <div class="job-actions" style="margin-top:8px">
+                        <button onclick="openEditRegularClientModal('${c.record_id}', '${c.name}', '${c.phone}', '${c.address}', '${c.service}', ${c.frequency_days}, '${c.preferred_time}')"
+                            class="action-btn btn-sms" style="font-size:12px">Edit</button>
+                    </div>
                     ${c.phone ? `
                     <div class="job-actions" style="margin-top:8px">
                         <a href="tel:${c.phone}" class="action-btn btn-call">📞 Call</a>
