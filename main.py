@@ -1924,6 +1924,20 @@ def sms():
 
     print(f"SMS FROM {from_number} | TO {to_number} | MSG: {incoming_msg}")
 
+    # Save inbound message to inbox
+    try:
+        msg_sid = request.form.get("MessageSid", "")
+        save_message_to_inbox(
+            message_sid=msg_sid,
+            from_number=from_number,
+            to_number=to_number,
+            body=incoming_msg,
+            direction="inbound",
+            twilio_number=to_number,
+        )
+    except Exception as e:
+        print(f"INBOX INBOUND SAVE ERROR | {e}")
+
     # Handle opt-out keywords immediately
     if incoming_msg.lower() in ["stop", "unsubscribe", "quit", "end"]:
         return Response(
