@@ -2311,6 +2311,85 @@ async function submitCreateCampaign() {
             }
         }
 
+        // -- EDIT REGULAR CLIENT --
+        let editRegularClientId = '';
+
+        function openEditRegularClientModal(recordId, name, phone, address, service, frequencyDays, preferredTime) {
+            editRegularClientId = recordId;
+            document.getElementById('editRegularClientName').textContent = name;
+            document.getElementById('editRcName').value = name || '';
+            document.getElementById('editRcPhone').value = phone || '';
+            document.getElementById('editRcAddress').value = address || '';
+            document.getElementById('editRcService').value = service || '';
+            document.getElementById('editRcFrequency').value = frequencyDays || 14;
+            // Convert preferred time like "9:00 AM" to "09:00" for time input
+            try {
+                if (preferredTime && preferredTime.includes(':')) {
+                    const parts = preferredTime.replace(' AM','').replace(' PM','').split(':');
+                    let hours = parseInt(parts[0]);
+                    const mins = parts[1] ? parts[1].substring(0,2) : '00';
+                    if (preferredTime.includes('PM') && hours !== 12) hours += 12;
+                    if (preferredTime.includes('AM') && hours === 12) hours = 0;
+                    document.getElementById('editRcPreferredTime').value =
+                        String(hours).padStart(2,'0') + ':' + mins;
+                }
+            } catch(e) {
+                document.getElementById('editRcPreferredTime').value = '09:00';
+            }
+            document.getElementById('editRegularClientModal').classList.add('active');
+        }
+
+        function closeEditRegularClientModal() {
+            document.getElementById('editRegularClientModal').classList.remove('active');
+        }
+
+        async function submitEditRegularClient() {
+            const name = document.getElementById('editRcName').value.trim();
+            const phone = document.getElementById('editRcPhone').value.trim();
+            const address = document.getElementById('editRcAddress').value.trim();
+            const service = document.getElementById('editRcService').value.trim();
+            const frequency = parseInt(document.getElementById('editRcFrequency').value) || 14;
+            const preferredTime = document.getElementById('editRcPreferredTime').value;
+
+            if (!name || !phone) {
+                alert('Name and phone are required.');
+                return;
+            }
+
+            const btn = document.getElementById('editRegularClientBtn');
+            btn.textContent = 'Saving...';
+            btn.disabled = true;
+
+            try {
+                const res = await fetch('/dashboard/action/edit-regular-client', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Dashboard-Token': getCookie('dashboard_token')
+                    },
+                    body: JSON.stringify({
+                        record_id: editRegularClientId,
+                        name, phone, address, service,
+                        frequency_days: frequency,
+                        preferred_time: preferredTime
+                    })
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    closeEditRegularClientModal();
+                    loadRegularClients();
+                    alert('Client updated!');
+                } else {
+                    alert('Error: ' + (data.error || 'Something went wrong'));
+                }
+            } catch(e) {
+                alert('Request failed. Please try again.');
+            } finally {
+                btn.textContent = 'Save Changes';
+                btn.disabled = false;
+            }
+        }
+
         // Load on startup
         loadDashboard();
         // Auto-refresh every 5 minutes
