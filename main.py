@@ -4148,6 +4148,47 @@ def dashboard_inbox_mark_read():
         print(f"MARK READ ERROR | {e}")
         return jsonify({"ok": False, "error": str(e)}), 500
 
+@app.route("/dashboard/action/edit-regular-client", methods=["POST"])
+@dashboard_auth_required
+def dashboard_edit_regular_client():
+    try:
+        data = request.get_json(silent=True) or {}
+        record_id = data.get("record_id", "").strip()
+        if not record_id:
+            return jsonify({"ok": False, "error": "Missing record ID"}), 400
+
+        AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
+        AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
+        headers = {"Authorization": f"Bearer {AIRTABLE_TOKEN}", "Content-Type": "application/json"}
+
+        preferred_time = data.get("preferred_time", "09:00")
+        try:
+            from datetime import datetime
+            t = datetime.strptime(preferred_time, "%H:%M")
+            preferred_time_display = t.strftime("%-I:%M %p")
+        except Exception:
+            preferred_time_display = preferred_time
+
+        resp = requests.patch(
+            f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tbl3LAJzXa6Vsexry/{record_id}",
+            headers=headers,
+            json={"fields": {
+                "flduQxjVit8uWN5Dv": data.get("name", ""),
+                "fldDDowbOopi3fDJQ": data.get("phone", ""),
+                "fld2fCwFmQawpTJUn": data.get("address", ""),
+                "fldUGzZMXoaWBh1Fp": data.get("service", ""),
+                "fldVWQckFWmsE00Yl": int(data.get("frequency_days", 14)),
+                "fldalhyHTo9Tffwnd": preferred_time_display,
+            }}
+        )
+        if resp.status_code == 200:
+            return jsonify({"ok": True})
+        else:
+            return jsonify({"ok": False, "error": resp.text}), 500
+    except Exception as e:
+        print(f"EDIT REGULAR CLIENT ERROR | {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
 @app.route("/onesignal/register", methods=["POST"])
 @dashboard_auth_required
 def onesignal_register():
