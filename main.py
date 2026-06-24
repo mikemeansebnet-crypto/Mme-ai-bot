@@ -4026,10 +4026,12 @@ def dashboard_inbox():
 
         resp = requests.get(
             f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tbl18156IPGMjNMYx",
-            headers=headers,
-            params={"pageSize": 200}
+            headers={"Authorization": f"Bearer {AIRTABLE_TOKEN}"}
         )
-        all_records = resp.json().get("records", [])
+        resp_json = resp.json()
+        print(f"INBOX | Airtable response status: {resp.status_code}")
+        print(f"INBOX | Airtable response: {str(resp_json)[:200]}")
+        all_records = resp_json.get("records", [])
         print(f"INBOX | Total records fetched: {len(all_records)} | filtering for: {twilio_number}")
 
         # Filter in Python to avoid URL encoding issues with + in phone numbers
