@@ -2382,6 +2382,8 @@ async function submitCreateCampaign() {
             const service = document.getElementById('editRcService').value.trim();
             const frequency = parseInt(document.getElementById('editRcFrequency').value) || 14;
             const preferredTime = document.getElementById('editRcPreferredTime').value;
+            const nextDate = document.getElementById('editRcNextDate').value;
+            const nextTime = document.getElementById('editRcNextTime').value;
 
             if (!name || !phone) {
                 alert('Name and phone are required.');
@@ -2403,7 +2405,9 @@ async function submitCreateCampaign() {
                         record_id: editRegularClientId,
                         name, phone, address, service,
                         frequency_days: frequency,
-                        preferred_time: preferredTime
+                        preferred_time: preferredTime,
+                        next_appointment_date: nextDate,
+                        next_appointment_time: nextTime,
                     })
                 });
                 const data = await res.json();
