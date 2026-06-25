@@ -4169,6 +4169,22 @@ def dashboard_edit_regular_client():
         except Exception:
             preferred_time_display = preferred_time
 
+        # Calculate next appointment datetime if date provided
+        next_appt_iso = None
+        next_date = data.get("next_appointment_date", "").strip()
+        next_time = data.get("next_appointment_time", "09:00").strip()
+        if next_date:
+            try:
+                from zoneinfo import ZoneInfo
+                from datetime import datetime
+                eastern = ZoneInfo("America/New_York")
+                hour, minute = map(int, next_time.split(":"))
+                year, month, day = map(int, next_date.split("-"))
+                dt = datetime(year, month, day, hour, minute, tzinfo=eastern)
+                next_appt_iso = dt.isoformat()
+            except Exception as e:
+                print(f"EDIT REGULAR CLIENT | next appt parse error | {e}")
+
         resp = requests.patch(
             f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tbl3LAJzXa6Vsexry/{record_id}",
             headers=headers,
