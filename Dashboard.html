@@ -2314,7 +2314,7 @@ async function submitCreateCampaign() {
         // -- EDIT REGULAR CLIENT --
         let editRegularClientId = '';
 
-        function openEditRegularClientModal(recordId, name, phone, address, service, frequencyDays, preferredTime) {
+        function openEditRegularClientModal(recordId, name, phone, address, service, frequencyDays, preferredTime, nextApptRaw) {
             editRegularClientId = recordId;
             document.getElementById('editRegularClientName').textContent = name;
             document.getElementById('editRcName').value = name || '';
