@@ -4185,17 +4185,21 @@ def dashboard_edit_regular_client():
             except Exception as e:
                 print(f"EDIT REGULAR CLIENT | next appt parse error | {e}")
 
+        fields_to_update = {
+            "flduQxjVit8uWN5Dv": data.get("name", ""),
+            "fldDDowbOopi3fDJQ": data.get("phone", ""),
+            "fld2fCwFmQawpTJUn": data.get("address", ""),
+            "fldUGzZMXoaWBh1Fp": data.get("service", ""),
+            "fldVWQckFWmsE00Yl": int(data.get("frequency_days", 14)),
+            "fldalhyHTo9Tffwnd": preferred_time_display,
+        }
+        if next_appt_iso:
+            fields_to_update["fldrQYykMd28OcYUI"] = next_appt_iso
+
         resp = requests.patch(
             f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tbl3LAJzXa6Vsexry/{record_id}",
             headers=headers,
-            json={"fields": {
-                "flduQxjVit8uWN5Dv": data.get("name", ""),
-                "fldDDowbOopi3fDJQ": data.get("phone", ""),
-                "fld2fCwFmQawpTJUn": data.get("address", ""),
-                "fldUGzZMXoaWBh1Fp": data.get("service", ""),
-                "fldVWQckFWmsE00Yl": int(data.get("frequency_days", 14)),
-                "fldalhyHTo9Tffwnd": preferred_time_display,
-            }}
+            json={"fields": fields_to_update}
         )
         if resp.status_code == 200:
             return jsonify({"ok": True})
