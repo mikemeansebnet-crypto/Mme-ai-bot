@@ -3997,13 +3997,13 @@ def dashboard_add_recurring_customer():
             f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tblxGfrifBiGRk80M",
             headers=headers,
             json={"fields": {
-                "Name": data.get("name", ""),
-                "Email": data.get("email", ""),
-                "Phone": data.get("phone", ""),
-                "Service": data.get("service", ""),
-                "Amount": float(data.get("amount", 0)),
-                "Payment Method": data.get("payment_method", "Stripe"),
-                "Twilio Number": twilio_number,
+                "fldPuAlqhczssx7tv": data.get("name", ""),
+                "fldwF0Y5Lq8ByKbci": data.get("email", ""),
+                "fldfMjtIpd4ezOhSZ": data.get("service", ""),
+                "fldAOGM6qhA7TVqRB": float(data.get("amount", 0)),
+                "fldklqdfKIJFIDEv7": data.get("payment_method", "Stripe"),
+                "fld0l5YPPxTSnQdfb": twilio_number,
+                "fld0mlAcXtjRZQvQX": True,
             }}
         )
         if resp.status_code in [200, 201]:
