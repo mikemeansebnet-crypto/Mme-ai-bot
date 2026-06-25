@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+    <title>CrewCachePro - Start Your Free Trial</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'DM Sans', sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #0d2137 50%, #0f2818 100%);
+            color: #f1f5f9;
+            min-height: 100vh;
+            padding: 24px 16px 60px;
+        }
+        .header { text-align: center; margin-bottom: 32px; padding-top: 20px; }
+        .logo { font-size: 28px; font-weight: 700; margin-bottom: 8px; }
+        .logo span { color: #22c55e; }
+        .tagline { font-size: 14px; color: #94a3b8; font-family: 'DM Mono', monospace; }
+        .card {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 20px;
+            padding: 28px 24px;
+            max-width: 480px;
+            margin: 0 auto 16px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+        }
+        .card-title { font-size: 18px; font-weight: 700; color: white; margin-bottom: 4px; }
+        .card-sub { font-size: 13px; color: #94a3b8; font-family: 'DM Mono', monospace; margin-bottom: 20px; }
+        .form-group { margin-bottom: 14px; }
+        .form-label {
+            display: block;
+            font-size: 11px;
+            color: #94a3b8;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            font-family: 'DM Mono', monospace;
+            margin-bottom: 6px;
+        }
+        .form-input {
+            width: 100%;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 10px;
+            padding: 12px 14px;
+            color: white;
+            font-size: 16px;
+            outline: none;
+            font-family: 'DM Sans', sans-serif;
+        }
+        .form-input:focus { border-color: #2563EB; }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .plan-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+        .plan-card {
+            background: #0f172a;
+            border: 2px solid #334155;
+            border-radius: 12px;
+            padding: 14px 10px;
+            cursor: pointer;
+            transition: border-color 0.15s;
+            text-align: center;
+        }
+        .plan-card.selected { border-color: #22c55e; background: rgba(34,197,94,0.08); }
+        .plan-name { font-size: 14px; font-weight: 700; color: white; margin-bottom: 4px; }
+        .plan-price { font-size: 16px; font-weight: 700; color: #22c55e; margin-bottom: 4px; }
+        .plan-feature { font-size: 10px; color: #94a3b8; font-family: 'DM Mono', monospace; line-height: 1.4; }
+        .plan-badge {
+            display: inline-block;
+            background: rgba(37,99,235,0.2);
+            color: #60a5fa;
+            font-size: 9px;
+            padding: 2px 6px;
+            border-radius: 10px;
+            font-family: 'DM Mono', monospace;
+            margin-top: 4px;
+        }
+        .submit-btn {
+            width: 100%;
+            background: linear-gradient(135deg, #2563EB, #16a34a);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            padding: 18px;
+            font-size: 17px;
+            font-weight: 700;
+            cursor: pointer;
+            font-family: 'DM Sans', sans-serif;
+            margin-top: 8px;
+        }
+        .submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .features { max-width: 480px; margin: 0 auto 16px; }
+        .feature-item {
+            display: flex;
+            gap: 10px;
+            align-items: flex-start;
+            margin-bottom: 10px;
+            font-size: 13px;
+            color: #94a3b8;
+        }
+        .feature-icon { color: #22c55e; font-size: 14px; flex-shrink: 0; margin-top: 1px; }
+        .feature-locked { color: #475569; }
+        .feature-locked .feature-icon { color: #475569; }
+        .plan-compare {
+            max-width: 480px;
+            margin: 0 auto 16px;
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 16px;
+            padding: 20px;
+        }
+        .plan-compare-title {
+            font-size: 12px;
+            color: #94a3b8;
+            font-family: 'DM Mono', monospace;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            margin-bottom: 12px;
+        }
+        .compare-row {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 1fr;
+            gap: 8px;
+            padding: 8px 0;
+            border-bottom: 1px solid #1e293b;
+            font-size: 12px;
+            align-items: center;
+        }
+        .compare-row.header {
+            font-family: 'DM Mono', monospace;
+            color: #94a3b8;
+            font-size: 11px;
+            border-bottom: 1px solid #334155;
+            padding-bottom: 10px;
+        }
+        .compare-feature { color: #f1f5f9; }
+        .compare-check { text-align: center; color: #22c55e; font-size: 14px; }
+        .compare-x { text-align: center; color: #475569; font-size: 14px; }
+        .success-card {
+            display: none;
+            background: linear-gradient(135deg, #1e3a5f, #1a3a2a);
+            border: 1px solid rgba(34,197,94,0.3);
+            border-radius: 20px;
+            padding: 40px 24px;
+            max-width: 480px;
+            margin: 0 auto;
+            text-align: center;
+        }
+        .success-icon { font-size: 56px; margin-bottom: 16px; }
+        .success-title { font-size: 24px; font-weight: 700; color: #22c55e; margin-bottom: 8px; }
+        .success-sub { font-size: 14px; color: #94a3b8; line-height: 1.6; }
+        .error-msg {
+            background: rgba(239,68,68,0.1);
+            border: 1px solid #ef4444;
+            border-radius: 8px;
+            padding: 10px 14px;
+            font-size: 13px;
+            color: #ef4444;
+            margin-bottom: 14px;
+            display: none;
+        }
+        .disclaimer {
+            text-align: center;
+            font-size: 11px;
+            color: #475569;
+            max-width: 480px;
+            margin: 16px auto 0;
+            font-family: 'DM Mono', monospace;
+            line-height: 1.6;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="logo">Crew<span>Cache</span>Pro</div>
+        <div class="tagline">AI-powered field management for contractors</div>
+    </div>
+
+    <div id="signupForm">
+        <div class="card">
+            <div class="card-title">Get Started Today</div>
+            <div class="card-sub">Your business number is provisioned instantly</div>
+
+            <div class="error-msg" id="errorMsg"></div>
+
+            <div class="form-group">
+                <label class="form-label">Business Name *</label>
+                <input type="text" class="form-input" id="businessName" placeholder="Smith Lawn Care LLC">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Your Name *</label>
+                <input type="text" class="form-input" id="contactName" placeholder="John Smith">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Email *</label>
+                <input type="email" class="form-input" id="email" placeholder="john@smithlawn.com">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Your Cell Phone * (dashboard alerts)</label>
+                <input type="tel" class="form-input" id="personalPhone" placeholder="+12025551234">
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Preferred Area Code *</label>
+                    <input type="text" class="form-input" id="areaCode" placeholder="214" maxlength="3">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Dashboard Password *</label>
+                    <input type="password" class="form-input" id="password" placeholder="Min 6 characters">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Choose Your Plan</label>
+                <div class="plan-grid">
+                    <div class="plan-card" id="planTrial" onclick="selectPlan('Trial')">
+                        <div class="plan-name">Trial</div>
+                        <div class="plan-price">Free</div>
+                        <div class="plan-feature">30 days</div>
+                        <div class="plan-feature">Calls only</div>
+                        <div class="plan-badge">No card</div>
+                    </div>
+                    <div class="plan-card selected" id="planStarter" onclick="selectPlan('Starter')">
+                        <div class="plan-name">Starter</div>
+                        <div class="plan-price">$49/mo</div>
+                        <div class="plan-feature">Full SMS</div>
+                        <div class="plan-feature">+ estimates</div>
+                        <div class="plan-badge">Popular</div>
+                    </div>
+                    <div class="plan-card" id="planPro" onclick="selectPlan('Pro')">
+                        <div class="plan-name">Pro</div>
+                        <div class="plan-price">$99/mo</div>
+                        <div class="plan-feature">Everything</div>
+                        <div class="plan-feature">+ priority</div>
+                        <div class="plan-badge">Best value</div>
+                    </div>
+                </div>
+            </div>
+
+            <button class="submit-btn" id="submitBtn" onclick="submitSignup()">
+                Get My Business Number
+            </button>
+        </div>
+
+        <div class="plan-compare">
+            <div class="plan-compare-title">What's included</div>
+            <div class="compare-row header">
+                <div></div>
+                <div style="text-align:center">Trial</div>
+                <div style="text-align:center">Starter</div>
+                <div style="text-align:center">Pro</div>
+            </div>
+            <div class="compare-row">
+                <div class="compare-feature">Business phone number</div>
+                <div class="compare-check">✓</div>
+                <div class="compare-check">✓</div>
+                <div class="compare-check">✓</div>
+            </div>
+            <div class="compare-row">
+                <div class="compare-feature">Voice AI receptionist</div>
+                <div class="compare-check">✓</div>
+                <div class="compare-check">✓</div>
+                <div class="compare-check">✓</div>
+            </div>
+            <div class="compare-row">
+                <div class="compare-feature">Dashboard access</div>
+                <div class="compare-check">✓</div>
+                <div class="compare-check">✓</div>
+                <div class="compare-check">✓</div>
+            </div>
+            <div class="compare-row">
+                <div class="compare-feature">SMS lead intake</div>
+                <div class="compare-x">-</div>
+                <div class="compare-check">✓</div>
+                <div class="compare-check">✓</div>
+            </div>
+            <div class="compare-row">
+                <div class="compare-feature">Online booking page</div>
+                <div class="compare-x">-</div>
+                <div class="compare-check">✓</div>
+                <div class="compare-check">✓</div>
+            </div>
+            <div class="compare-row">
+                <div class="compare-feature">Job reminders + briefings</div>
+                <div class="compare-x">-</div>
+                <div class="compare-check">✓</div>
+                <div class="compare-check">✓</div>
+            </div>
+            <div class="compare-row">
+                <div class="compare-feature">Stripe payments</div>
+                <div class="compare-x">-</div>
+                <div class="compare-check">✓</div>
+                <div class="compare-check">✓</div>
+            </div>
+            <div class="compare-row">
+                <div class="compare-feature">Photo + AI estimates</div>
+                <div class="compare-x">-</div>
+                <div class="compare-x">-</div>
+                <div class="compare-check">✓</div>
+            </div>
+            <div class="compare-row">
+                <div class="compare-feature">Video walkthrough estimates</div>
+                <div class="compare-x">-</div>
+                <div class="compare-x">-</div>
+                <div class="compare-check">✓</div>
+            </div>
+            <div class="compare-row">
+                <div class="compare-feature">Aerial quotes + materials list</div>
+                <div class="compare-x">-</div>
+                <div class="compare-x">-</div>
+                <div class="compare-check">✓</div>
+            </div>
+            <div class="compare-row" style="border-bottom:none">
+                <div class="compare-feature">Customer estimate approval</div>
+                <div class="compare-x">-</div>
+                <div class="compare-x">-</div>
+                <div class="compare-check">✓</div>
+            </div>
+        </div>
+
+        <div class="disclaimer">
+            Trial is 30 days — calls only, no credit card required. Starter and Pro plans
+            billed monthly after signup. Twilio usage (calls and texts) billed at cost.
+            Cancel anytime. No contracts.
+        </div>
+    </div>
+
+    <div class="success-card" id="successCard">
+        <div class="success-icon">🎉</div>
+        <div class="success-title" id="successTitle">You're all set!</div>
+        <div class="success-sub" id="successMsg"></div>
+    </div>
+
+    <script>
+        let selectedPlan = 'Starter';
+
+        function selectPlan(plan) {
+            selectedPlan = plan;
+            document.getElementById('planTrial').classList.toggle('selected', plan === 'Trial');
+            document.getElementById('planStarter').classList.toggle('selected', plan === 'Starter');
+            document.getElementById('planPro').classList.toggle('selected', plan === 'Pro');
+        }
+
+        async function submitSignup() {
+            const businessName = document.getElementById('businessName').value.trim();
+            const contactName = document.getElementById('contactName').value.trim();
+            const email = document.getElementById('email').value.trim();
+            const personalPhone = document.getElementById('personalPhone').value.trim();
+            const areaCode = document.getElementById('areaCode').value.trim();
+            const password = document.getElementById('password').value.trim();
+            const errorEl = document.getElementById('errorMsg');
+
+            errorEl.style.display = 'none';
+
+            if (!businessName || !contactName || !email || !personalPhone || !areaCode || !password) {
+                errorEl.textContent = 'Please fill in all required fields.';
+                errorEl.style.display = 'block';
+                return;
+            }
+            if (areaCode.length !== 3 || isNaN(areaCode)) {
+                errorEl.textContent = 'Please enter a valid 3-digit area code.';
+                errorEl.style.display = 'block';
+                return;
+            }
+            if (password.length < 6) {
+                errorEl.textContent = 'Password must be at least 6 characters.';
+                errorEl.style.display = 'block';
+                return;
+            }
+
+            const btn = document.getElementById('submitBtn');
+            btn.disabled = true;
+            btn.textContent = selectedPlan === 'Trial' ? 'Setting up your trial...' : 'Provisioning your number...';
+
+            try {
+                const res = await fetch('/signup', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        business_name: businessName,
+                        contact_name: contactName,
+                        email: email,
+                        personal_phone: personalPhone,
+                        area_code: areaCode,
+                        password: password,
+                        plan: selectedPlan
+                    })
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    document.getElementById('signupForm').style.display = 'none';
+                    const successCard = document.getElementById('successCard');
+                    successCard.style.display = 'block';
+                    document.getElementById('successTitle').textContent = selectedPlan === 'Trial'
+                        ? 'Trial activated!' : 'Welcome to CrewCachePro!';
+                    const planNote = selectedPlan === 'Trial'
+                        ? 'Your 30-day trial includes voice calls. Upgrade anytime to unlock full SMS and estimates.'
+                        : 'All features are live and ready to go.';
+                    document.getElementById('successMsg').innerHTML =
+                        'Your business number <strong>' + data.phone_number + '</strong> is live.<br><br>' +
+                        'Login credentials sent to <strong>' + email + '</strong> and texted to your phone.<br><br>' +
+                        planNote + '<br><br>' +
+                        '<a href="/dashboard/login" style="color:#22c55e;font-weight:700;font-size:16px">Log into your dashboard</a>';
+                } else {
+                    errorEl.textContent = data.error || 'Something went wrong. Please try again.';
+                    errorEl.style.display = 'block';
+                    btn.disabled = false;
+                    btn.textContent = 'Get My Business Number';
+                }
+            } catch(e) {
+                errorEl.textContent = 'Request failed. Please try again.';
+                errorEl.style.display = 'block';
+                btn.disabled = false;
+                btn.textContent = 'Get My Business Number';
+            }
+        }
+    </script>
+</body>
+</html>
