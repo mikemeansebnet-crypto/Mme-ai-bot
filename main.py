@@ -5162,6 +5162,239 @@ def approve_estimate_page(token):
     root_dir = os.path.dirname(os.path.abspath(__file__))
     return send_from_directory(root_dir, "Estimate.html")
 
+@app.route("/signup")
+def signup_page():
+    root_dir = os.path.dirname(os.path.abspath(__file__))
+    return send_from_directory(root_dir, "Signup.html")
+
+
+@app.route("/signup", methods=["POST"])
+def signup_submit():
+    """
+    Automated contractor onboarding:
+    1. Search for available Twilio number in requested area code
+    2. Purchase number and configure SMS + Voice webhooks
+    3. Add to existing A2P messaging service
+    4. Create Contractor record in Airtable with correct plan features
+    5. Send welcome SMS and email
+    """
+    try:
+        from datetime import datetime, timezone
+        data = request.get_json(silent=True) or {}
+        business_name = data.get("business_name", "").strip()
+        contact_name = data.get("contact_name", "").strip()
+        email = data.get("email", "").strip()
+        personal_phone = data.get("personal_phone", "").strip()
+        area_code = data.get("area_code", "").strip()
+        password = data.get("password", "").strip()
+        plan = data.get("plan", "Starter").strip()
+
+        if not all([business_name, contact_name, email, personal_phone, area_code, password]):
+            return jsonify({"ok": False, "error": "All fields are required"}), 400
+
+        # Feature flags based on plan
+        # Trial: voice calls only — no SMS intake, no photo estimates, no advanced features
+        # Starter: full SMS + booking + payments + reminders — no AI estimates
+        # Pro: everything including photo/video/aerial estimates
+        is_trial = plan == "Trial"
+        is_starter = plan == "Starter"
+        is_pro = plan == "Pro"
+
+        sms_intake_on = not is_trial           # Trial = calls only
+        photo_estimates_on = is_pro            # Pro only
+        advanced_features_on = not is_trial    # Starter + Pro
+
+        AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
+        AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
+        at_headers = {
+            "Authorization": f"Bearer {AIRTABLE_TOKEN}",
+            "Content-Type": "application/json"
+        }
+
+        # Log signup request in Airtable
+        now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+        signup_resp = requests.post(
+            f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tblXYVqydTJrtlLhM",
+            headers=at_headers,
+            json={"fields": {
+                "fldHwQENbamJRVoDm": business_name,
+                "fldpabQt8Kz6W2Uak": contact_name,
+                "fldr0k7jNfzyNaMHN": email,
+                "fldkQ2hNXih3H9Z1k": personal_phone,
+                "fld8aimi9K5EIygvf": area_code,
+                "fldIoC96DnlTcwLYx": "Pending",
+                "fldRvNmGtpnI3m7wC": plan,
+                "fldE8apnFregBj9hz": now_iso,
+            }}
+        )
+        signup_record_id = signup_resp.json().get("id", "")
+        print(f"SIGNUP | Request logged | {business_name} | {plan}")
+
+        # Step 1 — Search for available number
+        from twilio.rest import Client as TwilioClient
+        tc = TwilioClient(
+            os.environ.get("TWILIO_ACCOUNT_SID"),
+            os.environ.get("TWILIO_AUTH_TOKEN")
+        )
+
+        available = tc.available_phone_numbers("US").local.list(
+            area_code=area_code,
+            limit=5
+        )
+
+        # Fallback to any available number if area code has none
+        if not available:
+            print(f"SIGNUP | No numbers in area code {area_code}, searching broadly")
+            available = tc.available_phone_numbers("US").local.list(limit=5)
+
+        if not available:
+            requests.patch(
+                f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tblXYVqydTJrtlLhM/{signup_record_id}",
+                headers=at_headers,
+                json={"fields": {
+                    "fldIoC96DnlTcwLYx": "Failed",
+                    "fldvRYmDTkgFHJqX2": "No available numbers found"
+                }}
+            )
+            return jsonify({"ok": False, "error": f"No phone numbers available in area code {area_code}. Please try a nearby area code."}), 400
+
+        phone_to_buy = available[0].phone_number
+        print(f"SIGNUP | Found number: {phone_to_buy}")
+
+        # Step 2 — Purchase number and configure webhooks
+        base_url = os.environ.get("APP_BASE_URL", "https://mme-ai-bot.onrender.com")
+        purchased = tc.incoming_phone_numbers.create(
+            phone_number=phone_to_buy,
+            sms_url=f"{base_url}/sms",
+            sms_method="POST",
+            voice_url=f"{base_url}/voice",
+            voice_method="POST",
+            friendly_name=f"CrewCachePro - {business_name}"
+        )
+        twilio_number = purchased.phone_number
+        twilio_number_sid = purchased.sid
+        print(f"SIGNUP | Number purchased: {twilio_number} | SID: {twilio_number_sid}")
+
+        # Step 3 — Add to existing A2P messaging service
+        messaging_service_sid = os.environ.get("TWILIO_MESSAGING_SERVICE_SID", "").strip()
+        if messaging_service_sid:
+            try:
+                tc.messaging.v1.services(messaging_service_sid).phone_numbers.create(
+                    phone_number_sid=twilio_number_sid
+                )
+                print(f"SIGNUP | Added to A2P messaging service")
+            except Exception as e:
+                print(f"SIGNUP | Messaging service add error (non-fatal) | {e}")
+
+        # Step 4 — Create Contractor record with correct plan features
+        hashed_password = hash_password(password)
+        contractor_resp = requests.post(
+            f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{os.environ.get('AIRTABLE_CONTRACTORS_TABLE')}",
+            headers=at_headers,
+            json={"fields": {
+                "fldKEO0aWYZbhBeXt": business_name,        # Business Name
+                "fldSgEmSzXBZMePeo": twilio_number,         # Twilio Number
+                "fldZ5hBUeysxIxwI2": personal_phone,        # Notify SMS
+                "fldhBOq79Am3U9oCy": email,                  # Notify Email
+                "flduWr6PWkcmWaOkc": hashed_password,        # Dashboard Password
+                "fldWOpyKH2OEc8unv": "Active",              # Status
+                "fldeKfnHpN4H0OdNx": plan,                  # Plan
+                "fldQuVwpmEONXGcAW": True,                  # Active
+                "fldT56OuwPxHqrfVD": sms_intake_on,         # SMS Intake
+                "fldNMuQUdMrBmBFBB": photo_estimates_on,    # Photo Estimates (Pro only)
+                "fldl5PLRyJ6z1DB9k": advanced_features_on,  # Advanced features
+            }}
+        )
+        contractor_record_id = contractor_resp.json().get("id", "")
+        print(f"SIGNUP | Contractor record created | {contractor_record_id} | {plan}")
+
+        # Update signup log with assigned number
+        requests.patch(
+            f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tblXYVqydTJrtlLhM/{signup_record_id}",
+            headers=at_headers,
+            json={"fields": {
+                "fldIoC96DnlTcwLYx": "Provisioned",
+                "fldaxVYeH5RuIKHuK": twilio_number,
+            }}
+        )
+
+        # Step 5 — Send welcome SMS and email
+        dashboard_url = f"{base_url}/dashboard/login"
+        onboarding_url = f"{base_url}/onboard/{contractor_record_id}"
+        first_name = contact_name.split()[0] if contact_name else "there"
+
+        if is_trial:
+            plan_note = "Your 30-day trial includes voice calls. Log in to see your dashboard and upgrade anytime for full SMS and estimates."
+        elif is_starter:
+            plan_note = "Your Starter plan includes full SMS intake, booking, payments, and job management."
+        else:
+            plan_note = "Your Pro plan includes everything — AI estimates, photo/video analysis, aerial quotes, and more."
+
+        welcome_sms = (
+            f"Welcome to CrewCachePro, {first_name}! "
+            f"Your business number: {twilio_number} "
+            f"Dashboard: {dashboard_url} "
+            f"Login: {twilio_number} | Password: {password}"
+        )
+        send_fallback_sms(to_number=personal_phone, body=welcome_sms)
+
+        # Welcome email
+        try:
+            email_body = (
+                f"Welcome to CrewCachePro, {contact_name}!\n\n"
+                f"Your account is live on the {plan} plan. Here are your details:\n\n"
+                f"Business Number: {twilio_number}\n"
+                f"Dashboard: {dashboard_url}\n"
+                f"Login Number: {twilio_number}\n"
+                f"Password: {password}\n\n"
+                f"{plan_note}\n\n"
+                f"Next step — connect your Google Calendar so customers can book online:\n"
+                f"{onboarding_url}\n\n"
+                f"Start putting {twilio_number} on your Google Business Profile, "
+                f"Facebook page, and website so leads start flowing in.\n\n"
+                f"Questions? Reply to this email anytime.\n\n"
+                f"- The CrewCachePro Team"
+            )
+            send_email(
+                subject=f"Welcome to CrewCachePro - Your number is {twilio_number}",
+                body=email_body,
+                to_email=email,
+            )
+        except Exception as e:
+            print(f"SIGNUP | Welcome email error (non-fatal) | {e}")
+
+        # Notify platform owner of new signup
+        try:
+            owner_notify = os.environ.get("NOTIFY_SMS", "")
+            if owner_notify:
+                send_fallback_sms(
+                    to_number=owner_notify,
+                    body=(
+                        f"New CrewCachePro signup!\n"
+                        f"Business: {business_name}\n"
+                        f"Contact: {contact_name}\n"
+                        f"Number: {twilio_number}\n"
+                        f"Plan: {plan}\n"
+                        f"Email: {email}"
+                    )
+                )
+        except Exception:
+            pass
+
+        print(f"SIGNUP COMPLETE | {business_name} | {twilio_number} | {plan}")
+        return jsonify({
+            "ok": True,
+            "phone_number": twilio_number,
+            "dashboard_url": dashboard_url,
+            "plan": plan,
+        })
+
+    except Exception as e:
+        print(f"SIGNUP ERROR | {type(e).__name__} | {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"ok": False, "error": str(e)}), 500
+
 @app.route("/estimate-data/<token>")
 def estimate_data(token):
     try:
