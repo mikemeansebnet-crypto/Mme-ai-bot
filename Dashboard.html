@@ -2336,6 +2336,22 @@ async function submitCreateCampaign() {
             } catch(e) {
                 document.getElementById('editRcPreferredTime').value = '09:00';
             }
+
+            // Pre-fill next appointment
+            try {
+                if (nextApptRaw) {
+                    const dt = new Date(nextApptRaw);
+                    document.getElementById('editRcNextDate').value = dt.toISOString().split('T')[0];
+                    document.getElementById('editRcNextTime').value =
+                        String(dt.getHours()).padStart(2,'0') + ':' + String(dt.getMinutes()).padStart(2,'0');
+                } else {
+                    document.getElementById('editRcNextDate').value = '';
+                    document.getElementById('editRcNextTime').value = '09:00';
+                }
+            } catch(e) {
+                document.getElementById('editRcNextDate').value = '';
+                document.getElementById('editRcNextTime').value = '09:00';
+            }
             document.getElementById('editRegularClientModal').classList.add('active');
         }
 
