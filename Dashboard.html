@@ -1382,7 +1382,7 @@
                             class="action-btn" style="background:#22c55e;color:#000">Done</button>
                     </div>
                     <div class="job-actions" style="margin-top:8px">
-                        <button onclick="openEditRegularClientModal('${c.record_id}', '${c.name}', '${c.phone}', '${c.address}', '${c.service}', ${c.frequency_days}, '${c.preferred_time}')"
+                        <button onclick="openEditRegularClientModal('${c.record_id}', '${c.name}', '${c.phone}', '${c.address}', '${c.service}', ${c.frequency_days}, '${c.preferred_time}', '${c.next_appointment_raw || ''}')"
                             class="action-btn btn-sms" style="font-size:12px">Edit</button>
                     </div>
                     ${c.phone ? `
