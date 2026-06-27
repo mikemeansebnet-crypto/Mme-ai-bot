@@ -767,6 +767,21 @@ def save_message_to_inbox(
             }}
         )
         print(f"INBOX | Saved {direction} message | {from_number} | {body[:40]}")
+
+        # Fire push notification for inbound messages only
+        if direction == "inbound":
+            try:
+                display_name = customer_name if customer_name else from_number
+                preview = body[:60] + "..." if len(body) > 60 else body
+                send_push_notification(
+                    twilio_number=twilio_number,
+                    title=f"New message from {display_name}",
+                    message=preview,
+                    url="/dashboard"
+                )
+            except Exception as push_err:
+                print(f"INBOX PUSH NOTIFICATION ERROR | {push_err}")
+
     except Exception as e:
         print(f"INBOX SAVE ERROR | {e}")
 
