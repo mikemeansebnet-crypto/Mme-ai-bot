@@ -685,10 +685,11 @@
         <div class="section">
             <div class="section-header">
                 <div class="section-title">Messages</div>
-                <div class="section-count" id="inboxUnread">0</div>
+                <div style="display:flex;gap:8px;align-items:center">
+                    <div class="section-count" id="inboxUnread">0</div>
+                    <button onclick="openNewMessageModal()" style="background:var(--gradient);color:white;border:none;border-radius:8px;padding:4px 10px;font-size:11px;font-weight:600;cursor:pointer">+ New</button>
+                </div>
             </div>
-            <div id="inboxThreads"><div class="loading">Loading...</div></div>
-        </div>
 
         <!-- Regular Clients -->
         <div class="section">
@@ -2426,6 +2427,52 @@ async function submitCreateCampaign() {
             }
         }
 
+        // -- NEW MESSAGE --
+        function openNewMessageModal() {
+            document.getElementById('newMsgPhone').value = '';
+            document.getElementById('newMsgBody').value = '';
+            document.getElementById('newMessageModal').classList.add('active');
+        }
+
+        function closeNewMessageModal() {
+            document.getElementById('newMessageModal').classList.remove('active');
+        }
+
+        async function submitNewMessage() {
+            const phone = document.getElementById('newMsgPhone').value.trim();
+            const body = document.getElementById('newMsgBody').value.trim();
+            if (!phone || !body) {
+                alert('Please enter a phone number and message.');
+                return;
+            }
+            const btn = document.getElementById('newMsgBtn');
+            btn.textContent = 'Sending...';
+            btn.disabled = true;
+            try {
+                const res = await fetch('/dashboard/inbox/send', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Dashboard-Token': getCookie('dashboard_token')
+                    },
+                    body: JSON.stringify({ to_number: phone, body: body })
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    closeNewMessageModal();
+                    loadInbox();
+                    alert('Message sent!');
+                } else {
+                    alert('Error: ' + (data.error || 'Something went wrong'));
+                }
+            } catch(e) {
+                alert('Send failed. Please try again.');
+            } finally {
+                btn.textContent = 'Send';
+                btn.disabled = false;
+            }
+        }
+
         // Load on startup
         loadDashboard();
         // Auto-refresh every 5 minutes
@@ -2796,6 +2843,26 @@ async function submitCreateCampaign() {
             <div class="modal-actions">
                 <button class="btn-cancel-modal" onclick="closeEditRegularClientModal()">Cancel</button>
                 <button class="btn-book" id="editRegularClientBtn" onclick="submitEditRegularClient()">Save Changes</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- New Message Modal -->
+    <div class="modal-overlay" id="newMessageModal">
+        <div class="booking-modal">
+            <div class="modal-title">New Message</div>
+            <div class="modal-date">Send from your business number</div>
+            <div class="form-group">
+                <label class="form-label">Phone Number *</label>
+                <input type="tel" class="form-input" id="newMsgPhone" placeholder="+12025551234">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Message *</label>
+                <textarea class="form-input" id="newMsgBody" rows="4" placeholder="Type your message..." style="resize:none;font-size:14px"></textarea>
+            </div>
+            <div class="modal-actions">
+                <button class="btn-cancel-modal" onclick="closeNewMessageModal()">Cancel</button>
+                <button class="btn-book" id="newMsgBtn" onclick="submitNewMessage()">Send</button>
             </div>
         </div>
     </div>
