@@ -2260,8 +2260,9 @@ async function submitCreateCampaign() {
             const messages = thread ? thread.messages.slice().reverse() : [];
 
             document.getElementById('inboxThreads').innerHTML = `
-                <div style="margin-bottom:12px">
+                <div style="margin-bottom:12px;display:flex;justify-content:space-between;align-items:center">
                     <button onclick="loadInbox()" style="background:none;border:none;color:#60a5fa;font-size:13px;cursor:pointer;font-family:'DM Mono',monospace">Back to all messages</button>
+                    <button onclick="deleteThread('${phone}')" style="background:none;border:none;color:#ef4444;font-size:13px;cursor:pointer;font-family:'DM Mono',monospace">Delete thread</button>
                 </div>
                 <div class="job-card">
                     <div class="job-name">${name}</div>
@@ -2282,11 +2283,9 @@ async function submitCreateCampaign() {
                     </div>
                 </div>`;
 
-            // Auto-scroll to bottom of messages
             const msgEl = document.getElementById('threadMessages');
             if (msgEl) msgEl.scrollTop = msgEl.scrollHeight;
 
-            // Mark as read
             fetch('/dashboard/inbox/mark-read', {
                 method: 'POST',
                 headers: {
@@ -2297,12 +2296,32 @@ async function submitCreateCampaign() {
             });
         }
 
+        async function deleteThread(phone) {
+            if (!confirm('Delete this entire conversation? This cannot be undone.')) return;
+            try {
+                const res = await fetch('/dashboard/inbox/delete-thread', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Dashboard-Token': getCookie('dashboard_token')
+                    },
+                    body: JSON.stringify({ customer_phone: phone })
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    loadInbox();
+                } else {
+                    alert('Error: ' + (data.error || 'Something went wrong'));
+                }
+            } catch(e) {
+                alert('Delete failed. Please try again.');
+            }
+        }
+
         async function sendReply() {
             const body = document.getElementById('replyBox').value.trim();
             if (!body || !activeThread) return;
-
             document.getElementById('replyBox').value = '';
-
             try {
                 const res = await fetch('/dashboard/inbox/send', {
                     method: 'POST',
@@ -2317,7 +2336,6 @@ async function submitCreateCampaign() {
                 });
                 const data = await res.json();
                 if (data.ok) {
-                    // Refresh thread view
                     await loadInbox();
                     openThread(activeThread.phone, activeThread.name);
                 } else {
