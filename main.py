@@ -4123,28 +4123,15 @@ def dashboard_inbox():
 @app.route("/dashboard/inbox/send", methods=["POST"])
 @dashboard_auth_required
 def dashboard_inbox_send():
-    """Sends a manual SMS reply from the contractor dashboard."""
     try:
         data = request.get_json(silent=True) or {}
         to_number = data.get("to_number", "").strip()
         body = data.get("body", "").strip()
-        twilio_number = request.twilio_number
 
         if not to_number or not body:
             return jsonify({"ok": False, "error": "Missing number or message"}), 400
 
         result = send_fallback_sms(to_number=to_number, body=body)
-
-        if result.get("ok"):
-            save_message_to_inbox(
-                message_sid=f"manual-{int(time.time())}",
-                from_number=twilio_number,
-                to_number=to_number,
-                body=body,
-                direction="outbound",
-                twilio_number=twilio_number,
-            )
-
         return jsonify(result)
     except Exception as e:
         print(f"INBOX SEND ERROR | {e}")
