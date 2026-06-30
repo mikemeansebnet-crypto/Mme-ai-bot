@@ -4163,6 +4163,45 @@ def dashboard_inbox_mark_read():
         print(f"MARK READ ERROR | {e}")
         return jsonify({"ok": False, "error": str(e)}), 500
 
+@app.route("/dashboard/inbox/delete-thread", methods=["POST"])
+@dashboard_auth_required
+def dashboard_inbox_delete_thread():
+    """Deletes every message in a conversation thread for this contractor."""
+    try:
+        data = request.get_json(silent=True) or {}
+        customer_phone = data.get("customer_phone", "").strip()
+        twilio_number = request.twilio_number
+        AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
+        AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
+        headers = {"Authorization": f"Bearer {AIRTABLE_TOKEN}"}
+
+        resp = requests.get(
+            f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tbl18156IPGMjNMYx",
+            headers=headers,
+        )
+        all_records = resp.json().get("records", [])
+
+        to_delete = [
+            r["id"] for r in all_records
+            if r.get("fields", {}).get("Twilio Number") == twilio_number
+            and (r.get("fields", {}).get("From Number") == customer_phone
+                 or r.get("fields", {}).get("To Number") == customer_phone)
+        ]
+
+        # Airtable allows max 10 record deletes per request
+        for i in range(0, len(to_delete), 10):
+            batch = to_delete[i:i+10]
+            requests.delete(
+                f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tbl18156IPGMjNMYx",
+                headers={"Authorization": f"Bearer {AIRTABLE_TOKEN}"},
+                params=[("records[]", rid) for rid in batch]
+            )
+
+        return jsonify({"ok": True, "deleted": len(to_delete)})
+    except Exception as e:
+        print(f"DELETE THREAD ERROR | {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
 @app.route("/dashboard/action/edit-regular-client", methods=["POST"])
 @dashboard_auth_required
 def dashboard_edit_regular_client():
