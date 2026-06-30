@@ -4621,13 +4621,81 @@ def dashboard_complete_and_pay():
             except Exception as e:
                 print(f"COMPLETE AND PAY | QB error | {e}")
 
+        # Auto-advance next appointment if this customer is a Regular Client
+        try:
+            from datetime import datetime, timedelta
+            from zoneinfo import ZoneInfo
+
+            customer_phone = data.get("customer_phone", "").strip()
+            twilio_number = request.twilio_number
+            eastern = ZoneInfo("America/New_York")
+
+            rc_resp = requests.get(
+                f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tbl3LAJzXa6Vsexry",
+                headers={"Authorization": f"Bearer {AIRTABLE_TOKEN}"}
+            )
+            rc_records = rc_resp.json().get("records", [])
+
+            matched_client = None
+            for r in rc_records:
+                f = r.get("fields", {})
+                rc_phone = f.get("Phone", "").strip().replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
+                cp_clean = customer_phone.strip().replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
+                rc_twilio = f.get("Twilio Number", "").strip()
+                if rc_phone and cp_clean and (rc_phone in cp_clean or cp_clean in rc_phone) and rc_twilio == twilio_number:
+                    matched_client = r
+                    break
+
+            if matched_client:
+                mf = matched_client.get("fields", {})
+                frequency_days = int(mf.get("fldVWQckFWmsE00Yl", 14) or 14)
+                preferred_time_str = mf.get("fldalhyHTo9Tffwnd", "9:00 AM") or "9:00 AM"
+                rc_record_id = matched_client["id"]
+
+                try:
+                    pt = datetime.strptime(preferred_time_str.strip(), "%I:%M %p")
+                    pref_hour, pref_minute = pt.hour, pt.minute
+                except Exception:
+                    try:
+                        pt = datetime.strptime(preferred_time_str.strip(), "%H:%M")
+                        pref_hour, pref_minute = pt.hour, pt.minute
+                    except Exception:
+                        pref_hour, pref_minute = 9, 0
+
+                next_date = datetime.now(eastern) + timedelta(days=frequency_days)
+                next_appt = next_date.replace(hour=pref_hour, minute=pref_minute, second=0, microsecond=0)
+
+                requests.patch(
+                    f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tbl3LAJzXa6Vsexry/{rc_record_id}",
+                    headers={"Authorization": f"Bearer {AIRTABLE_TOKEN}", "Content-Type": "application/json"},
+                    json={"fields": {"fldrQYykMd28OcYUI": next_appt.isoformat()}}
+                )
+                print(f"COMPLETE & PAY | Regular client next appt auto-advanced | {customer_phone} | {next_appt.isoformat()}")
+
+        except Exception as e:
+            print(f"COMPLETE & PAY | Regular client auto-advance error (non-fatal) | {e}")
+
+        # Archive the lead so it disappears from dashboard automatically
+        try:
+            if record_id:
+                AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
+                AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
+                leads_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tbl6YL7BYY2vawIF1"
+                requests.patch(
+                    f"{leads_url}/{record_id}",
+                    headers={"Authorization": f"Bearer {AIRTABLE_TOKEN}", "Content-Type": "application/json"},
+                    json={"fields": {"Archived": True}}
+                )
+                print(f"COMPLETE & PAY | Lead archived | {record_id}")
+        except Exception as e:
+            print(f"COMPLETE & PAY | Archive error (non-fatal) | {e}")
+
         method_messages = {
             "Stripe": f"Job complete! Stripe payment link sent to {customer_name}.",
             "Zelle": f"Job complete! Zelle payment request sent to {customer_name}.",
             "QuickBooks": f"Job complete! QuickBooks invoice emailed to {customer_email}.",
             "Cash": f"Job complete! Cash payment recorded."
         }
-
         return jsonify({
             "ok": True,
             "message": method_messages.get(payment_method, "Job marked complete!"),
