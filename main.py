@@ -2472,12 +2472,6 @@ def subscription_cancel():
     </html>
     """
  
-        
-  
-
-
- 
- 
 
 @app.route("/cal-webhook", methods=["POST"])
 def cal_webhook():
@@ -2938,6 +2932,37 @@ def send_job_reminders():
     except Exception as e:
         print(f"JOB REMINDER ERROR | {type(e).__name__} | {e}")
         return jsonify({"ok": False, "error": str(e)}), 500
+
+def cleanup_old_messages():
+    """Deletes messages older than 90 days from the inbox to keep it manageable."""
+    try:
+        from datetime import datetime, timezone, timedelta
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=90)).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+        AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
+        AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
+        headers = {"Authorization": f"Bearer {AIRTABLE_TOKEN}"}
+
+        resp = requests.get(
+            f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tbl18156IPGMjNMYx",
+            headers=headers,
+        )
+        all_records = resp.json().get("records", [])
+
+        old_records = [
+            r["id"] for r in all_records
+            if r.get("fields", {}).get("Timestamp", "9999") < cutoff
+        ]
+
+        for i in range(0, len(old_records), 10):
+            batch = old_records[i:i+10]
+            requests.delete(
+                f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tbl18156IPGMjNMYx",
+                headers={"Authorization": f"Bearer {AIRTABLE_TOKEN}"},
+                params=[("records[]", rid) for rid in batch]
+            )
+        print(f"CLEANUP | Deleted {len(old_records)} messages older than 90 days")
+    except Exception as e:
+        print(f"CLEANUP ERROR | {e}")
 
 @app.route("/send-daily-briefing", methods=["POST"])
 def send_daily_briefing():
