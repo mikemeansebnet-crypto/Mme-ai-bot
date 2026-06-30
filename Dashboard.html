@@ -2231,29 +2231,27 @@ async function submitCreateCampaign() {
 
         function renderInbox(threads) {
             window._inboxThreads = threads;
-            const totalUnread = threads.reduce(function(sum, t) { return sum + t.unread; }, 0);
+            const totalUnread = threads.reduce(function(sum, t) { return sum + (t.unread || 0); }, 0);
             document.getElementById('inboxUnread').textContent = totalUnread;
             const el = document.getElementById('inboxThreads');
-
             if (!threads || !threads.length) {
                 el.innerHTML = '<div class="empty-state">No messages yet</div>';
                 return;
             }
-
-            el.innerHTML = threads.map(function(t) {
-                const unreadBadge = t.unread > 0
-                    ? '<span class="badge badge-new">' + t.unread + ' new</span>'
-                    : '';
+            let html = '';
+            for (let i = 0; i < threads.length; i++) {
+                const t = threads[i];
                 const name = t.customer_name || t.customer_phone;
                 const preview = (t.last_message || '').substring(0, 60);
-                return '<div class="job-card" onclick="openThread(\'' + t.customer_phone + '\', \'' + name.replace(/'/g, '') + '\')">'
-                    + '<div class="job-name">' + name + unreadBadge + '</div>'
-                    + '<div class="job-type">' + preview + (preview.length === 60 ? '...' : '') + '</div>'
-                    + '<div style="font-size:11px;color:var(--text-muted);margin-top:4px;font-family:DM Mono,monospace">' + t.customer_phone + '</div>'
-                    + '</div>';
-            }).join('');
+                const badge = t.unread > 0 ? '<span class="badge badge-new">' + t.unread + ' new</span>' : '';
+                html += '<div class="job-card" onclick="openThread(\'' + t.customer_phone + '\', \'' + name.replace(/'/g, '') + '\')">';
+                html += '<div class="job-name">' + name + badge + '</div>';
+                html += '<div class="job-type">' + preview + (preview.length === 60 ? '...' : '') + '</div>';
+                html += '<div style="font-size:11px;color:var(--text-muted);margin-top:4px;font-family:DM Mono,monospace">' + t.customer_phone + '</div>';
+                html += '</div>';
+            }
+            el.innerHTML = html;
         }
-
         function openThread(phone, name) {
             activeThread = { phone, name };
             const thread = (window._inboxThreads || []).find(t => t.customer_phone === phone);
