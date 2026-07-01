@@ -570,9 +570,8 @@
                 Connect Stripe
             </button>
             
+            <button onclick="openQuickPayModal()" style="background:#22c55e;color:#000;border:none;border-radius:10px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif">💰 Quick Pay</button>
             <button onclick="openBookingModal('')" style="background:var(--gradient);color:white;border:none;border-radius:10px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif">+ Add Job</button>
-            <a href="/dashboard/logout" class="logout-btn">Sign out</a>
-        </div>
            
 
         
@@ -2489,6 +2488,83 @@ async function submitCreateCampaign() {
             }
         }
 
+        // -- QUICK PAY --
+        let selectedQpMethod = '';
+
+        function openQuickPayModal() {
+            document.getElementById('qpName').value = '';
+            document.getElementById('qpPhone').value = '';
+            document.getElementById('qpAmount').value = '';
+            document.getElementById('qpJob').value = '';
+            selectedQpMethod = '';
+            document.querySelectorAll('.payment-method-btn').forEach(b => b.classList.remove('selected'));
+            document.getElementById('quickPayModal').classList.add('active');
+        }
+
+        function closeQuickPayModal() {
+            document.getElementById('quickPayModal').classList.remove('active');
+        }
+
+        function selectQpMethod(method, btn) {
+            selectedQpMethod = method;
+            document.querySelectorAll('#quickPayModal .payment-method-btn').forEach(b => b.classList.remove('selected'));
+            btn.classList.add('selected');
+        }
+
+        async function submitQuickPay() {
+            const name = document.getElementById('qpName').value.trim();
+            const phone = document.getElementById('qpPhone').value.trim();
+            const amount = parseFloat(document.getElementById('qpAmount').value);
+            const job = document.getElementById('qpJob').value.trim();
+
+            if (!name || !phone) {
+                alert('Please enter customer name and phone.');
+                return;
+            }
+            if (!amount || amount <= 0) {
+                alert('Please enter a valid amount.');
+                return;
+            }
+            if (!selectedQpMethod) {
+                alert('Please select a payment method.');
+                return;
+            }
+
+            const btn = document.getElementById('quickPayBtn');
+            btn.textContent = 'Processing...';
+            btn.disabled = true;
+
+            try {
+                const res = await fetch('/dashboard/action/quick-pay', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Dashboard-Token': getCookie('dashboard_token')
+                    },
+                    body: JSON.stringify({
+                        customer_name: name,
+                        customer_phone: phone,
+                        amount: amount,
+                        job_description: job,
+                        payment_method: selectedQpMethod
+                    })
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    closeQuickPayModal();
+                    alert('Payment sent to ' + name + '!');
+                    loadDashboard();
+                } else {
+                    alert('Error: ' + (data.error || 'Something went wrong'));
+                }
+            } catch(e) {
+                alert('Request failed. Please try again.');
+            } finally {
+                btn.textContent = 'Send Payment →';
+                btn.disabled = false;
+            }
+        }
+
         // Load on startup
         loadDashboard();
         // Auto-refresh every 5 minutes
@@ -2879,6 +2955,43 @@ async function submitCreateCampaign() {
             <div class="modal-actions">
                 <button class="btn-cancel-modal" onclick="closeNewMessageModal()">Cancel</button>
                 <button class="btn-book" id="newMsgBtn" onclick="submitNewMessage()">Send</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Pay Modal -->
+    <div class="modal-overlay" id="quickPayModal">
+        <div class="booking-modal">
+            <div class="modal-title">💰 Quick Pay</div>
+            <div class="modal-date">Send payment without booking a job</div>
+            <div class="form-group">
+                <label class="form-label">Customer Name *</label>
+                <input type="text" class="form-input" id="qpName" placeholder="John Smith">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Customer Phone *</label>
+                <input type="tel" class="form-input" id="qpPhone" placeholder="+12025551234">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Amount *</label>
+                <input type="number" class="form-input" id="qpAmount" placeholder="0.00" step="0.01" min="0">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Job Description</label>
+                <input type="text" class="form-input" id="qpJob" placeholder="Lawn mowing, fence repair...">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Payment Method *</label>
+                <div class="payment-method-grid">
+                    <button class="payment-method-btn" onclick="selectQpMethod('Stripe', this)">💳 Stripe</button>
+                    <button class="payment-method-btn" onclick="selectQpMethod('Zelle', this)">🏦 Zelle</button>
+                    <button class="payment-method-btn" onclick="selectQpMethod('Cash', this)">💵 Cash</button>
+                    <button class="payment-method-btn" onclick="selectQpMethod('Check', this)">📝 Check</button>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn-cancel-modal" onclick="closeQuickPayModal()">Cancel</button>
+                <button class="btn-book" id="quickPayBtn" onclick="submitQuickPay()">Send Payment →</button>
             </div>
         </div>
     </div>
