@@ -1481,8 +1481,7 @@
         }
 
         async function completeRegularClient(recordId, name, frequencyDays, phone, jobType) {
-            if (!confirm("Mark " + name + " visit as complete?")) return;
-
+            if (!confirm("Mark " + name + " visit as complete and advance to next appointment?")) return;
             try {
                 const res = await fetch("/dashboard/action/complete-regular-client", {
                     method: "POST",
@@ -1495,11 +1494,10 @@
                         frequency_days: frequencyDays
                     })
                 });
-
                 const data = await res.json();
                 if (data.ok) {
-                    // Open Complete & Pay modal after marking done
-                    openCompletePayModal(recordId, name, phone, jobType);
+                    loadRegularClients();
+                    alert("Done! Next appointment scheduled.");
                 } else {
                     alert("Error: " + (data.error || "Something went wrong"));
                 }
