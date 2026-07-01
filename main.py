@@ -3094,7 +3094,31 @@ def send_daily_briefing():
                         except Exception:
                             pass
 
-                # Re-sort now that regular clients have been merged in
+                # Deduplicate by phone number — keep the Lead record over Regular Client
+                # since Lead has the confirmed appointment time
+                seen_phones = set()
+                deduped_jobs = []
+                for job in todays_jobs:
+                    phone = (job.get("phone") or "").strip().replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
+                    if phone and phone in seen_phones:
+                        continue
+                    if phone:
+                        seen_phones.add(phone)
+                    deduped_jobs.append(job)
+                todays_jobs = deduped_jobs
+
+                # Also deduplicate by name as fallback for jobs without phone
+                seen_names = set()
+                final_jobs = []
+                for job in todays_jobs:
+                    name = (job.get("name") or "").strip().lower()
+                    if name in seen_names:
+                        continue
+                    seen_names.add(name)
+                    final_jobs.append(job)
+                todays_jobs = final_jobs
+
+                # Re-sort after deduplication
                 todays_jobs.sort(key=lambda x: x["time"])
 
                 # Find regular clients due within 3 days
