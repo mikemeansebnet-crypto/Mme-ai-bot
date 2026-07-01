@@ -4238,6 +4238,62 @@ def dashboard_inbox_delete_thread():
         print(f"DELETE THREAD ERROR | {e}")
         return jsonify({"ok": False, "error": str(e)}), 500
 
+@app.route("/dashboard/action/quick-pay", methods=["POST"])
+@dashboard_auth_required
+def dashboard_quick_pay():
+    """Send a payment request without requiring a booked job record."""
+    try:
+        data = request.get_json(silent=True) or {}
+        customer_name = data.get("customer_name", "").strip()
+        customer_phone = data.get("customer_phone", "").strip()
+        amount = float(data.get("amount", 0))
+        job_description = data.get("job_description", "Service").strip()
+        payment_method = data.get("payment_method", "Stripe").strip()
+        twilio_number = request.twilio_number
+        contractor = get_contractor_by_twilio_number(twilio_number) or {}
+
+        if not customer_name or not customer_phone or not amount:
+            return jsonify({"ok": False, "error": "Missing required fields"}), 400
+
+        if payment_method == "Stripe":
+            from app.app.stripe_service import create_payment_link
+            result = create_payment_link(
+                customer_name=customer_name,
+                customer_phone=customer_phone,
+                amount=amount,
+                job_description=job_description,
+                contractor=contractor
+            )
+            if result.get("ok"):
+                send_fallback_sms(
+                    to_number=customer_phone,
+                    body=f"Hi {customer_name.split()[0]}! Your payment of ${amount:,.2f} for {job_description} is ready. Pay here: {result.get('url')}"
+                )
+            return jsonify(result)
+
+        elif payment_method == "Zelle":
+            zelle_info = (contractor.get("Zelle") or "").strip()
+            msg = f"Hi {customer_name.split()[0]}! Please send ${amount:,.2f} for {job_description} via Zelle to {zelle_info}. Thank you!"
+            send_fallback_sms(to_number=customer_phone, body=msg)
+            return jsonify({"ok": True})
+
+        elif payment_method == "Cash":
+            msg = f"Hi {customer_name.split()[0]}! Your balance of ${amount:,.2f} for {job_description} is due. Cash accepted at time of service. Thank you!"
+            send_fallback_sms(to_number=customer_phone, body=msg)
+            return jsonify({"ok": True})
+
+        elif payment_method == "Check":
+            business_name = (contractor.get("Business Name") or "").strip()
+            msg = f"Hi {customer_name.split()[0]}! Please make your check for ${amount:,.2f} payable to {business_name} for {job_description}. Thank you!"
+            send_fallback_sms(to_number=customer_phone, body=msg)
+            return jsonify({"ok": True})
+
+        return jsonify({"ok": False, "error": "Unknown payment method"}), 400
+
+    except Exception as e:
+        print(f"QUICK PAY ERROR | {type(e).__name__} | {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
 @app.route("/dashboard/action/edit-regular-client", methods=["POST"])
 @dashboard_auth_required
 def dashboard_edit_regular_client():
