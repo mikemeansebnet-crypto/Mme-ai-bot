@@ -4623,8 +4623,6 @@ def dashboard_complete_and_pay():
 
         # Auto-advance next appointment if this customer is a Regular Client
         try:
-            from datetime import datetime, timedelta
-            from zoneinfo import ZoneInfo
 
             customer_phone = data.get("customer_phone", "").strip()
             twilio_number = request.twilio_number
