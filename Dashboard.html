@@ -1147,8 +1147,8 @@
             document.getElementById('completePayCustomer').textContent = customerName + ' - ' + jobType;
             document.getElementById('payAmount').value = '';
             document.getElementById('payEmail').value = '';
+            document.getElementById('payJobDesc').value = '';
             document.getElementById('emailField').classList.remove('visible');
-            // Reset method buttons
             document.querySelectorAll('.payment-method-btn').forEach(b => b.classList.remove('selected'));
             document.getElementById('completePayModal').classList.add('active');
         }
