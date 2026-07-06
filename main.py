@@ -846,6 +846,20 @@ def send_intake_summary(state: dict, notify_email: str = None, reply_to_email: s
     print("CAL URL RAW |", contractor.get("CAL Booking URL"))  # TEMP DEBUG
     notify_email = contractor.get("Notify Email") or notify_email or os.getenv("TO_EMAIL")
     cal_booking_url = (contractor.get("CAL Booking URL") or "").strip()
+
+    # Use native booking page if contractor has services set up, else fall back to Cal.com
+    base_url = os.environ.get("APP_BASE_URL", "https://mme-ai-bot.onrender.com")
+    native_booking_url = f"{base_url}/book?c={twilio_number}"
+    try:
+        svc_resp = requests.get(
+            f"https://api.airtable.com/v0/{os.environ.get('AIRTABLE_BASE_ID')}/tblX8znMQVi443I4U",
+            headers={"Authorization": f"Bearer {os.environ.get('AIRTABLE_TOKEN')}"},
+            params={"filterByFormula": f"AND({{Twilio Number}} = '{twilio_number}', {{Active}} = TRUE())"}
+        )
+        has_native_services = len(svc_resp.json().get("records", [])) > 0
+    except Exception:
+        has_native_services = False
+    cal_booking_url = native_booking_url if has_native_services else cal_booking_url
     notify_sms = (contractor.get("Notify SMS") or "").strip()
     business_name = (contractor.get("Business Name") or "Your business").strip()
 
