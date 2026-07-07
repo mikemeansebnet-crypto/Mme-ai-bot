@@ -1718,10 +1718,16 @@ def handle_contractor_photo_estimate(request, contractor, from_number, to_number
             try:
                 notify_email = contractor.get("Notify Email", "").strip()
                 if notify_email and pdf_temp_path:
+                    materials_text = "\n".join([
+                        f"  • {m.get('item', '')} — {m.get('quantity', '')} {m.get('unit', '')}"
+                        for m in estimate_data.get("materials", [])
+                    ]) or "  No materials list generated"
+
                     email_body = (
                         f"📋 Estimate Ready — {business_name}\n\n"
                         f"Job: {estimate_data.get('job_summary', '')}\n"
                         f"Total: ${subtotal:,.2f}\n\n"
+                        f"MATERIALS LIST:\n{materials_text}\n\n"
                         f"PDF attached — review, adjust if needed, and forward to customer.\n\n"
                         f"Cloudinary link: {pdf_url or 'Not available'}"
                     )
