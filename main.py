@@ -1625,6 +1625,45 @@ def handle_contractor_photo_estimate(request, contractor, from_number, to_number
                         c.drawString(40, y, line)
                     y -= 20
 
+                # Materials List
+                materials = estimate_data.get("materials", [])
+                if materials:
+                    y -= 10
+                    c.setFillColor(colors.HexColor('#1A4D2E'))
+                    c.rect(40, y - 4, width - 80, 22, fill=1, stroke=0)
+                    c.setFillColor(colors.white)
+                    c.setFont("Helvetica-Bold", 9)
+                    c.drawString(48, y + 4, "ESTIMATED MATERIALS LIST")
+                    c.drawRightString(width - 160, y + 4, "QTY")
+                    c.drawRightString(width - 44, y + 4, "UNIT")
+                    y -= 26
+
+                    for i, mat in enumerate(materials):
+                        if y < 80:
+                            c.showPage()
+                            y = height - 60
+
+                        if i % 2 == 0:
+                            c.setFillColor(colors.HexColor('#E8F5ED'))
+                            c.rect(40, y - 6, width - 80, 20, fill=1, stroke=0)
+
+                        c.setFillColor(colors.HexColor('#333333'))
+                        c.setFont("Helvetica", 9)
+                        c.drawString(48, y + 4, str(mat.get("item", ""))[:55])
+                        c.drawRightString(width - 160, y + 4, str(mat.get("quantity", "")))
+                        c.drawRightString(width - 44, y + 4, str(mat.get("unit", ""))[:15])
+                        y -= 20
+
+                    y -= 8
+                    c.setStrokeColor(colors.HexColor('#CCCCCC'))
+                    c.setLineWidth(0.5)
+                    c.line(40, y, width - 40, y)
+                    y -= 18
+
+                c.setFont("Helvetica", 8)
+                c.setFillColor(colors.HexColor('#888888'))
+                c.drawString(40, y, "Material quantities are estimates. Verify before purchasing. Final pricing may vary after on-site inspection.")
+
                 c.setFont("Helvetica", 8)
                 c.setFillColor(colors.HexColor('#888888'))
                 c.drawString(40, y, "Ballpark estimate based on photos only. Final pricing may vary after on-site inspection.")
