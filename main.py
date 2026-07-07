@@ -1485,7 +1485,19 @@ def handle_contractor_photo_estimate(request, contractor, from_number, to_number
                 json_match = re.search(r"\{.*\}", raw, re.DOTALL)
                 if not json_match:
                     raise ValueError("No JSON in Claude response")
-                estimate_data = json.loads(json_match.group(0))
+                
+                # Clean common JSON breaking characters
+                clean_json = json_match.group(0)
+                clean_json = clean_json.replace('\u2019', "'").replace('\u2018', "'")
+                clean_json = clean_json.replace('\u201c', '"').replace('\u201d', '"')
+                
+                try:
+                    estimate_data = json.loads(clean_json)
+                except json.JSONDecodeError:
+                    # Try with more aggressive cleaning
+                    import ast
+                    clean_json = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', clean_json)
+                    estimate_data = json.loads(clean_json)
 
             except Exception as e:
                 print("CLAUDE VISION ERROR |", e)
