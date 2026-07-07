@@ -1448,15 +1448,27 @@ def handle_contractor_photo_estimate(request, contractor, from_number, to_number
                         "Midwest and rural rates are generally lower. "
                         "If no location is mentioned, use national average contractor rates. "
                         "Never use 0 as an amount. "
+                        "Break down every phase of work into separate line items — do NOT combine multiple tasks into one line. "
+                        "Each line item should represent one distinct phase or task. "
+                        "For drywall/repair work include separate line items for: protection, demo/removal, materials installation, finishing coats, sanding, priming, cleanup. "
+                        "For painting include: prep, primer, paint coats, trim, cleanup. "
+                        "For lawn/landscaping include: equipment, labor per area, disposal, materials. "
+                        "Every line item must have a realistic individual price — the total must equal the sum of all line items. "
+                        "A customer should be able to read the line items and understand exactly what they are paying for at each phase. "
+                        "Also include a separate materials list with specific quantities and units. "
                         "If a photo is unclear, use the contractor's text description to guide your estimate. "
                         "Respond ONLY in this exact JSON format with no other text:\n"
                         "{\n"
                         '  "job_summary": "Brief description of what you see",\n'
                         '  "line_items": [\n'
-                        '    {"description": "Item name", "detail": "Brief detail", "qty": "1", "unit": "Job", "amount": 150.00},\n'
-                        '    {"description": "Item name", "detail": "Brief detail", "qty": "500", "unit": "sq ft", "amount": 200.00}\n'
+                        '    {"description": "Phase name", "detail": "Specific scope and location", "qty": "1", "unit": "Job", "amount": 350.00},\n'
+                        '    {"description": "Phase name", "detail": "Specific scope and location", "qty": "1", "unit": "Job", "amount": 1450.00}\n'
                         "  ],\n"
-                        '  "notes": "Any important notes about the job"\n'
+                        '  "materials": [\n'
+                        '    {"item": "Material name and size/type", "quantity": 0, "unit": "unit of measure"},\n'
+                        '    {"item": "Material name and size/type", "quantity": 0, "unit": "unit of measure"}\n'
+                        "  ],\n"
+                        '  "notes": "Any important notes, exclusions, or contingencies"\n'
                         "}"
                     )
                 })
