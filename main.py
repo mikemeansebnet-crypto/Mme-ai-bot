@@ -2252,7 +2252,8 @@ def sms():
             print("SMS STATE SAVED |", sms_state_key, "| name:", sms_state.get("name"), "| address:", sms_state.get("service_address"))
         except Exception as e:
             print("SMS STATE SAVE ERROR |", e)
-
+    
+    time.sleep(random.uniform(2.5, 6.0))
     return Response(
         f"<Response><Message>{reply}</Message></Response>",
         mimetype="text/xml"
