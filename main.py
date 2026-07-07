@@ -1486,17 +1486,17 @@ def handle_contractor_photo_estimate(request, contractor, from_number, to_number
                 if not json_match:
                     raise ValueError("No JSON in Claude response")
                 
-                # Clean common JSON breaking characters
                 clean_json = json_match.group(0)
-                clean_json = clean_json.replace('\u2019', "'").replace('\u2018', "'")
-                clean_json = clean_json.replace('\u201c', '"').replace('\u201d', '"')
+                # Log the problem area
+                print(f"JSON LENGTH | {len(clean_json)}")
+                print(f"CHAR 4650-4690 | {repr(clean_json[4650:4690])}")
                 
                 try:
                     estimate_data = json.loads(clean_json)
-                except json.JSONDecodeError:
-                    # Try with more aggressive cleaning
-                    import ast
-                    clean_json = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', clean_json)
+                except json.JSONDecodeError as je:
+                    print(f"JSON ERROR DETAIL | {je}")
+                    # Remove all non-ASCII characters and try again
+                    clean_json = clean_json.encode('ascii', 'ignore').decode('ascii')
                     estimate_data = json.loads(clean_json)
 
             except Exception as e:
