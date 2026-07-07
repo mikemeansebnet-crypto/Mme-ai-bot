@@ -1462,7 +1462,7 @@ def handle_contractor_photo_estimate(request, contractor, from_number, to_number
                 })
 
                 vision_response = claude_client.messages.create(
-                    model="claude-sonnet-4-20250514",
+                    model="claude-sonnet-4-6",
                     max_tokens=1500,
                     messages=[{"role": "user", "content": image_blocks}]
                 )
