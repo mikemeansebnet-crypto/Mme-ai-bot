@@ -5375,14 +5375,18 @@ def dashboard_recurring():
         customers = []
         for r in records:
             f = r.get("fields", {})
+            # Payment method comes back as object from singleSelect
+            payment_method = f.get("Payment Method", "")
+            if isinstance(payment_method, dict):
+                payment_method = payment_method.get("name", "")
             customers.append({
                 "record_id": r.get("id", ""),
-                "name": f.get("Customer Name", ""),
+                "name": f.get("Name", "") or f.get("Customer Name", ""),
                 "email": f.get("Email", ""),
                 "phone": f.get("Phone", ""),
-                "service": f.get("Service Description", ""),
-                "amount": f.get("Amount", 0),
-                "payment_method": f.get("Payment Method", ""),
+                "service": f.get("Service", "") or f.get("Service Description", ""),
+                "amount": float(r.get("cellValuesByFieldId", {}).get("fldAOGM6qhA7TVqRB", 0) or 0),
+                "payment_method": payment_method,
                 "notes": f.get("Notes", ""),
             })
         return jsonify({"ok": True, "customers": customers})
