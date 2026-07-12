@@ -393,6 +393,19 @@ def create_stripe_invoice(
                 **stripe_kwargs
             )
 
+        # Delete any stale pending invoice items to prevent $0 invoices
+        try:
+            pending = stripe.InvoiceItem.list(
+                customer=customer.id,
+                pending=True,
+                **stripe_kwargs
+            )
+            for item in pending.data:
+                stripe.InvoiceItem.delete(item.id, **stripe_kwargs)
+                print(f"STRIPE | Deleted pending item | {item.id}")
+        except Exception as e:
+            print(f"STRIPE | Pending cleanup error (non-fatal) | {e}")
+
         # Create invoice item
         stripe.InvoiceItem.create(
             customer=customer.id,
