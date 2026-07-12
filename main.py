@@ -5368,11 +5368,13 @@ def dashboard_recurring():
         twilio_number = request.twilio_number
 
         url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tblxGfrifBiGRk80M"
-        resp = req.get(url, headers=headers, params={
-            "filterByFormula": f"AND({{Active}} = TRUE(), {{Twilio Number}} = '{twilio_number}')",
-            "cellFormat": "json",
-            "returnFieldsByFieldId": "true"
-        })
+        resp = req.get(url, headers=headers)
+        all_records = resp.json().get("records", [])
+        records = [
+            r for r in all_records
+            if r.get("fields", {}).get("Twilio Number", "") == twilio_number
+            and r.get("fields", {}).get("Active", False)
+        ]
         records = resp.json().get("records", [])
         customers = []
         for r in records:
