@@ -5381,7 +5381,7 @@ def dashboard_recurring():
                 "email": f.get("Email", ""),
                 "phone": f.get("Phone", ""),
                 "service": f.get("Service Description", ""),
-                "amount": f.get("Monthly Amount", 0),
+                "amount": f.get("Amount", 0),
                 "payment_method": f.get("Payment Method", ""),
                 "notes": f.get("Notes", ""),
             })
