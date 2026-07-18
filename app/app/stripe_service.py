@@ -375,6 +375,7 @@ def create_stripe_invoice(
     Supports both platform account (MME) and Connect (contractors).
     """
     try:
+        stripe.api_version = "2022-11-15"
         amount_cents = int(float(amount) * 100)
 
         stripe_kwargs = {}
@@ -412,6 +413,7 @@ def create_stripe_invoice(
             "collection_method": "send_invoice",
             "days_until_due": due_days,
             "auto_advance": False,
+            "pending_invoice_items_behavior": "exclude",
         }
         if contractor_stripe_account_id:
             invoice_create_params["application_fee_amount"] = int(amount_cents * (application_fee_percent / 100))
