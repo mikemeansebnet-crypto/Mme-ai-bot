@@ -4029,17 +4029,22 @@ def dashboard_data():
             })
 
         payments_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/Payments"
-        unpaid_resp = req.get(payments_url, headers=headers, params={
-            "filterByFormula": "AND({Payment Status} = 'Unpaid', {Phone Number} != '', {Send Invoice} = FALSE())"
-        })
-        unpaid_records = unpaid_resp.json().get("records", [])
-        unpaid_invoices = []
-        for r in unpaid_records:
+        unpaid_resp = req.get(payments_url, headers=headers)
+        all_payment_records = unpaid_resp.json().get("records", [])
+        unpaid_records = []
+        for r in all_payment_records:
             f = r.get("fields", {})
-            print(f"UNPAID PAYMENT FIELDS | {f}")
+            status = f.get("Payment Status", "")
+            if isinstance(status, dict):
+                status = status.get("name", "")
             contractor_links = f.get("Contractor", [])
             if contractor_record_id and contractor_record_id not in str(contractor_links):
                 continue
+            if status == "Unpaid":
+                unpaid_records.append(r)
+        unpaid_invoices = []
+        for r in unpaid_records:
+            f = r.get("fields", {})
             payment_date = f.get("Payment Date", "")
             days_outstanding = 0
             try:
@@ -4050,14 +4055,13 @@ def dashboard_data():
             except Exception:
                 pass
             unpaid_invoices.append({
-                # ADDED: record_id for action buttons
                 "record_id": r.get("id", ""),
                 "name": f.get("Customer Name") or f.get("Customer Name ") or f.get("Client Name") or f.get("Name") or "Unknown",
                 "phone": f.get("Phone Number", ""),
                 "amount": f.get("Amount", 0),
                 "job_type": f.get("Notes", ""),
                 "days_outstanding": days_outstanding
-            }) 
+            })
 
         recent_bookings = sorted(
             [j for j in all_jobs if j["date"]],
