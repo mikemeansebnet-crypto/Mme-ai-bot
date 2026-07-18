@@ -419,8 +419,9 @@ def create_stripe_invoice(
             invoice_create_params["application_fee_amount"] = int(amount_cents * (application_fee_percent / 100))
             invoice_create_params["transfer_data"] = {"destination": contractor_stripe_account_id}
         invoice = stripe.Invoice.create(**invoice_create_params, **stripe_kwargs)
+        print(f"STRIPE | Invoice created | {invoice.id}")
 
-        # Add invoice item directly to the invoice
+        # Add invoice item directly to this specific invoice
         try:
             invoice_item = stripe.InvoiceItem.create(
                 customer=customer.id,
@@ -435,22 +436,18 @@ def create_stripe_invoice(
             print(f"STRIPE | Invoice item FAILED | {item_err}")
             raise item_err
 
-        if contractor_stripe_account_id:
-            invoice_create_params["application_fee_amount"] = int(amount_cents * (application_fee_percent / 100))
-            invoice_create_params["transfer_data"] = {"destination": contractor_stripe_account_id}
-
-        invoice = stripe.Invoice.create(**invoice_create_params, **stripe_kwargs)
-
         # Finalize and send
-        invoice.finalize_invoice(**stripe_kwargs)
-        invoice.send_invoice(**stripe_kwargs)
+        finalized = stripe.Invoice.finalize_invoice(invoice.id, **stripe_kwargs)
+        print(f"STRIPE | Invoice finalized | {finalized.id}")
+        sent = stripe.Invoice.send_invoice(invoice.id, **stripe_kwargs)
+        print(f"STRIPE | Invoice sent | {sent.id}")
 
-        print(f"STRIPE INVOICE SENT | {customer_name} | {customer_email} | ${amount} | {invoice.id}")
+        print(f"STRIPE INVOICE SENT | {customer_name} | {customer_email} | ${amount} | {sent.id}")
         return {
             "ok": True,
-            "invoice_id": invoice.id,
-            "invoice_url": invoice.hosted_invoice_url or "",
-            "invoice_number": invoice.number or "",
+            "invoice_id": sent.id,
+            "invoice_url": sent.hosted_invoice_url or "",
+            "invoice_number": sent.number or "",
             "amount": amount,
         }
 
