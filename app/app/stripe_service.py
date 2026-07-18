@@ -421,14 +421,19 @@ def create_stripe_invoice(
         invoice = stripe.Invoice.create(**invoice_create_params, **stripe_kwargs)
 
         # Add invoice item directly to the invoice
-        stripe.InvoiceItem.create(
-            customer=customer.id,
-            amount=amount_cents,
-            currency="usd",
-            description=f"{business_name} - {service_description}",
-            invoice=invoice.id,
-            **stripe_kwargs
-        )
+        try:
+            invoice_item = stripe.InvoiceItem.create(
+                customer=customer.id,
+                amount=amount_cents,
+                currency="usd",
+                description=f"{business_name} - {service_description}",
+                invoice=invoice.id,
+                **stripe_kwargs
+            )
+            print(f"STRIPE | Invoice item created | amount_cents={amount_cents} | item_id={invoice_item.id} | invoice={invoice.id}")
+        except Exception as item_err:
+            print(f"STRIPE | Invoice item FAILED | {item_err}")
+            raise item_err
 
         if contractor_stripe_account_id:
             invoice_create_params["application_fee_amount"] = int(amount_cents * (application_fee_percent / 100))
