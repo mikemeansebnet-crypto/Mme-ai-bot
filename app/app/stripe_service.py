@@ -406,22 +406,27 @@ def create_stripe_invoice(
         except Exception as e:
             print(f"STRIPE | Pending cleanup error (non-fatal) | {e}")
 
-        # Create invoice item
+        # Create invoice first
+        invoice_create_params = {
+            "customer": customer.id,
+            "collection_method": "send_invoice",
+            "days_until_due": due_days,
+            "auto_advance": False,
+        }
+        if contractor_stripe_account_id:
+            invoice_create_params["application_fee_amount"] = int(amount_cents * (application_fee_percent / 100))
+            invoice_create_params["transfer_data"] = {"destination": contractor_stripe_account_id}
+        invoice = stripe.Invoice.create(**invoice_create_params, **stripe_kwargs)
+
+        # Add invoice item directly to the invoice
         stripe.InvoiceItem.create(
             customer=customer.id,
             amount=amount_cents,
             currency="usd",
             description=f"{business_name} - {service_description}",
+            invoice=invoice.id,
             **stripe_kwargs
         )
-
-        # Create invoice
-        invoice_create_params = {
-            "customer": customer.id,
-            "collection_method": "send_invoice",
-            "days_until_due": due_days,
-            "auto_advance": True,
-        }
 
         if contractor_stripe_account_id:
             invoice_create_params["application_fee_amount"] = int(amount_cents * (application_fee_percent / 100))
