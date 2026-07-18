@@ -1273,9 +1273,14 @@
             }).join('');
         }
 
+        let pendingInvoiceData = {};
+
+        function closeInvoiceDescModal() {
+            document.getElementById('invoiceDescModal').classList.remove('active');
+        }
+
         async function sendRecurringInvoice(recordId, name, email, phone, amount, service, paymentMethod) {
             let invoiceAmount = amount;
-            let invoiceService = service;
 
             if (!invoiceAmount || invoiceAmount <= 0) {
                 const input = prompt("Enter invoice amount for " + name + ":");
@@ -1287,9 +1292,33 @@
                 }
             }
 
-            
+            pendingInvoiceData = { recordId, name, email, phone, invoiceAmount, service, paymentMethod };
+            document.getElementById('invoiceDescCustomer').textContent = name;
+            document.getElementById('invoiceDescAmount').textContent = '$' + parseFloat(invoiceAmount).toLocaleString('en-US', {minimumFractionDigits:2});
+            document.getElementById('invoiceDescText').value = service || '';
+            document.getElementById('invoiceDescModal').classList.add('active');
+            setTimeout(function() {
+                document.getElementById('invoiceDescText').focus();
+            }, 100);
+        }
 
-            if (!confirm("Send Stripe invoice to " + name + " at " + email + " for $" + invoiceAmount + "? They will receive a PDF invoice by email with a 30-day payment link.")) return;
+        async function submitInvoiceDesc() {
+            const invoiceService = document.getElementById('invoiceDescText').value.trim();
+            if (!invoiceService) {
+                alert('Please enter a service description.');
+                return;
+            }
+
+            const { name, email, phone, invoiceAmount, paymentMethod } = pendingInvoiceData;
+
+            if (!confirm("Send invoice to " + name + " at " + email + " for $" + invoiceAmount + "?")) {
+                closeInvoiceDescModal();
+                return;
+            }
+
+            const btn = document.getElementById('invoiceDescBtn');
+            btn.textContent = 'Sending...';
+            btn.disabled = true;
 
             try {
                 const res = await fetch("/dashboard/action/send-recurring-invoice", {
@@ -1309,12 +1338,17 @@
                 });
                 const data = await res.json();
                 if (data.ok) {
+                    closeInvoiceDescModal();
                     alert("Invoice sent to " + email + "!\nInvoice #: " + data.invoice_number + "\nAmount: $" + invoiceAmount);
+                    loadRecurringCustomers();
                 } else {
                     alert("Error: " + (data.error || "Something went wrong"));
                 }
             } catch(e) {
                 alert("Request failed. Please try again.");
+            } finally {
+                btn.textContent = 'Send Invoice →';
+                btn.disabled = false;
             }
         }
 
