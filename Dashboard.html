@@ -2739,8 +2739,10 @@ async function submitCreateCampaign() {
         }
 
         function govPdfSelected(input) {
-            if (input.files && input.files[0]) {
-                document.getElementById('govPdfLabel').textContent = input.files[0].name;
+            if (input.files && input.files.length > 0) {
+                const count = input.files.length;
+                document.getElementById('govPdfLabel').textContent = 
+                    count === 1 ? input.files[0].name : count + ' PDFs selected';
             }
         }
 
