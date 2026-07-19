@@ -2638,6 +2638,7 @@ async function submitCreateCampaign() {
                 html += '<div style="flex:1">';
                 html += '<div style="font-size:14px;font-weight:600;color:white">' + (inv.name || 'Unknown') + '</div>';
                 html += '<div style="font-size:12px;color:#94a3b8">' + (inv.job_type || '').substring(0, 50) + '</div>';
+                html += '<div style="font-size:11px;color:#60a5fa;font-family:DM Mono,monospace">' + (inv.invoice_number || '') + '</div>';
                 html += '</div>';
                 html += '<div style="color:#22c55e;font-weight:700">$' + parseFloat(inv.amount || 0).toLocaleString() + '</div>';
                 html += '</div>';
