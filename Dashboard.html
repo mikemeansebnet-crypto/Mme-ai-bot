@@ -2720,15 +2720,18 @@ async function submitCreateCampaign() {
 
         // -- GOV BID MODE --
         let currentGovBid = {};
+        let govPdfFiles = [];
 
         function openGovBidUpload() {
             document.getElementById('govSolicitationNum').value = '';
             document.getElementById('govAgencyName').value = '';
             document.getElementById('govPropertyAddress').value = '';
-            document.getElementById('govPdfLabel').textContent = 'Tap to select IFB PDF';
+            document.getElementById('govPdfLabel').textContent = 'Tap to add IFB PDF files';
             document.getElementById('govPdfInput').value = '';
+            document.getElementById('govPdfList').innerHTML = '';
             document.getElementById('govBidAnalyzeBtn').textContent = 'Analyze IFB →';
             document.getElementById('govBidAnalyzeBtn').disabled = false;
+            govPdfFiles = [];
             document.getElementById('govBidModal').classList.add('active');
         }
 
