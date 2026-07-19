@@ -7052,7 +7052,7 @@ def setup():
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>ContractorOS - Setup</title>
+        <div class="logo">CrewCachePro</div>
         <style>
             * { box-sizing: border-box; margin: 0; padding: 0; }
             body {
@@ -7103,7 +7103,7 @@ def setup():
     </head>
     <body>
         <div class="card">
-            <div class="logo">ContractorOS</div>
+            <div class="logo">CrewCachePro</div>
             {% if error_message %}
                 <div class="error-box">{{ error_message }}</div>
             {% endif %}
@@ -7112,7 +7112,7 @@ def setup():
                 {% if google_connected %}
                     Your AI receptionist is active and ready to take calls.
                 {% else %}
-                    One step left — connect your Google Calendar to start receiving bookings automatically.
+                    One step left - connect your Google Calendar to start receiving bookings automatically.
                 {% endif %}
             </p>
             {% if google_connected %}
@@ -7156,7 +7156,7 @@ def setup():
 def photo_upload_page(lead_id):
     """
     Customer-facing photo upload page.
-    Uses plain HTML form — no JavaScript fetch needed.
+    Uses plain HTML form - no JavaScript fetch needed.
     Works on all browsers including iOS Safari.
     """
     html = """
