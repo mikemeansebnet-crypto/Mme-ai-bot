@@ -3440,9 +3440,10 @@ async function submitCreateCampaign() {
                 <label class="form-label">Upload IFB PDF *</label>
                 <label style="display:block;border:2px dashed #334155;border-radius:10px;padding:20px;text-align:center;cursor:pointer" for="govPdfInput">
                     <div style="font-size:24px;margin-bottom:8px">📄</div>
-                    <div style="font-size:13px;color:#94a3b8" id="govPdfLabel">Tap to select IFB PDF</div>
+                    <div style="font-size:13px;color:#94a3b8" id="govPdfLabel">Tap to add IFB PDF files</div>
                 </label>
                 <input type="file" id="govPdfInput" accept=".pdf" multiple style="display:none" onchange="govPdfSelected(this)">
+                <div id="govPdfList" style="margin-top:8px"></div>
             </div>
             <div class="modal-actions">
                 <button class="btn-cancel-modal" onclick="closeGovBidModal()">Cancel</button>
