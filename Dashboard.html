@@ -666,7 +666,10 @@
         <div class="section">
             <div class="section-header">
                 <div class="section-title">Unpaid Invoices</div>
-                <div class="section-count" id="invoicesCount">0</div>
+                <div style="display:flex;gap:8px;align-items:center">
+                    <div class="section-count" id="invoicesCount">0</div>
+                    <button onclick="openBulkPayModal()" style="background:#334155;border:1px solid #475569;color:var(--text);border:none;border-radius:8px;padding:4px 10px;font-size:11px;font-weight:600;cursor:pointer">Bulk Pay</button>
+                </div>
             </div>
             <div id="unpaidInvoices"><div class="loading">Loading...</div></div>
         </div>
@@ -2598,6 +2601,109 @@ async function submitCreateCampaign() {
             }
         }
 
+        // -- BULK MARK PAID --
+        let bulkPaySelected = new Set();
+        let bulkPayInvoices = [];
+
+        function openBulkPayModal() {
+            bulkPaySelected = new Set();
+            bulkPayInvoices = dashboardData.unpaid_invoices || [];
+            document.getElementById('bulkPayFilter').value = '';
+            renderBulkPayList(bulkPayInvoices);
+            document.getElementById('bulkPayModal').classList.add('active');
+        }
+
+        function closeBulkPayModal() {
+            document.getElementById('bulkPayModal').classList.remove('active');
+        }
+
+        function filterBulkPayInvoices(query) {
+            const filtered = bulkPayInvoices.filter(inv =>
+                (inv.name || '').toLowerCase().includes(query.toLowerCase())
+            );
+            renderBulkPayList(filtered);
+        }
+
+        function renderBulkPayList(invoices) {
+            if (!invoices.length) {
+                document.getElementById('bulkPayList').innerHTML = '<div class="empty-state">No invoices found</div>';
+                return;
+            }
+            let html = '';
+            for (let i = 0; i < invoices.length; i++) {
+                const inv = invoices[i];
+                const checked = bulkPaySelected.has(inv.record_id) ? 'checked' : '';
+                html += '<div style="display:flex;align-items:center;gap:12px;padding:10px;border-bottom:1px solid #334155">';
+                html += '<input type="checkbox" ' + checked + ' onchange="toggleBulkPay(\'' + inv.record_id + '\', ' + inv.amount + ', this.checked)" style="width:18px;height:18px;cursor:pointer">';
+                html += '<div style="flex:1">';
+                html += '<div style="font-size:14px;font-weight:600;color:white">' + (inv.name || 'Unknown') + '</div>';
+                html += '<div style="font-size:12px;color:#94a3b8">' + (inv.job_type || '').substring(0, 50) + '</div>';
+                html += '</div>';
+                html += '<div style="color:#22c55e;font-weight:700">$' + parseFloat(inv.amount || 0).toLocaleString() + '</div>';
+                html += '</div>';
+            }
+            document.getElementById('bulkPayList').innerHTML = html;
+            updateBulkPayTotal();
+        }
+
+        function toggleBulkPay(recordId, amount, checked) {
+            if (checked) {
+                bulkPaySelected.add(recordId);
+            } else {
+                bulkPaySelected.delete(recordId);
+            }
+            updateBulkPayTotal();
+        }
+
+        function updateBulkPayTotal() {
+            let total = 0;
+            for (const inv of bulkPayInvoices) {
+                if (bulkPaySelected.has(inv.record_id)) {
+                    total += parseFloat(inv.amount || 0);
+                }
+            }
+            document.getElementById('bulkPayTotal').textContent = 'Selected: $' + total.toLocaleString('en-US', {minimumFractionDigits:2});
+        }
+
+        async function submitBulkPay() {
+            if (bulkPaySelected.size === 0) {
+                alert('Please select at least one invoice.');
+                return;
+            }
+            if (!confirm('Mark ' + bulkPaySelected.size + ' invoice(s) as paid?')) return;
+
+            const btn = document.getElementById('bulkPayBtn');
+            btn.textContent = 'Marking paid...';
+            btn.disabled = true;
+
+            let succeeded = 0;
+            let failed = 0;
+
+            for (const recordId of bulkPaySelected) {
+                try {
+                    const res = await fetch('/dashboard/action/mark-paid', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-Dashboard-Token': getCookie('dashboard_token')
+                        },
+                        body: JSON.stringify({ record_id: recordId })
+                    });
+                    const data = await res.json();
+                    if (data.ok) succeeded++;
+                    else failed++;
+                } catch(e) {
+                    failed++;
+                }
+            }
+
+            btn.textContent = 'Mark Selected Paid';
+            btn.disabled = false;
+            closeBulkPayModal();
+            loadDashboard();
+            alert(succeeded + ' invoice(s) marked paid!' + (failed > 0 ? ' ' + failed + ' failed.' : ''));
+        }
+
         // Load on startup
         loadDashboard();
         // Auto-refresh every 5 minutes
@@ -3054,6 +3160,26 @@ async function submitCreateCampaign() {
             <div class="modal-actions">
                 <button class="btn-cancel-modal" onclick="closeInvoiceDescModal()">Cancel</button>
                 <button class="btn-book" id="invoiceDescBtn" onclick="submitInvoiceDesc()">Send Invoice →</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bulk Mark Paid Modal -->
+    <div class="modal-overlay" id="bulkPayModal">
+        <div class="booking-modal">
+            <div class="modal-title">✓ Bulk Mark Paid</div>
+            <div class="modal-date">Select invoices covered by this payment</div>
+            <div class="form-group">
+                <label class="form-label">Filter by Customer Name</label>
+                <input type="text" class="form-input" id="bulkPayFilter" 
+                    placeholder="e.g. St Johns" 
+                    oninput="filterBulkPayInvoices(this.value)">
+            </div>
+            <div id="bulkPayList" style="max-height:300px;overflow-y:auto;margin-bottom:14px"></div>
+            <div style="font-size:13px;color:#22c55e;font-weight:700;margin-bottom:14px" id="bulkPayTotal">Selected: $0.00</div>
+            <div class="modal-actions">
+                <button class="btn-cancel-modal" onclick="closeBulkPayModal()">Cancel</button>
+                <button class="btn-book" id="bulkPayBtn" onclick="submitBulkPay()">Mark Selected Paid</button>
             </div>
         </div>
     </div>
