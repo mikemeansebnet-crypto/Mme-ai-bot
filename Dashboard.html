@@ -2717,6 +2717,178 @@ async function submitCreateCampaign() {
             alert(succeeded + ' invoice(s) marked paid!' + (failed > 0 ? ' ' + failed + ' failed.' : ''));
         }
 
+        // -- GOV BID MODE --
+        let currentGovBid = {};
+
+        function openGovBidUpload() {
+            document.getElementById('govSolicitationNum').value = '';
+            document.getElementById('govAgencyName').value = '';
+            document.getElementById('govPropertyAddress').value = '';
+            document.getElementById('govPdfLabel').textContent = 'Tap to select IFB PDF';
+            document.getElementById('govPdfInput').value = '';
+            document.getElementById('govBidModal').classList.add('active');
+        }
+
+        function closeGovBidModal() {
+            document.getElementById('govBidModal').classList.remove('active');
+        }
+
+        function closeGovBidResultsModal() {
+            document.getElementById('govBidResultsModal').classList.remove('active');
+        }
+
+        function govPdfSelected(input) {
+            if (input.files && input.files[0]) {
+                document.getElementById('govPdfLabel').textContent = input.files[0].name;
+            }
+        }
+
+        async function submitGovBidAnalysis() {
+            const solicitationNum = document.getElementById('govSolicitationNum').value.trim();
+            const agencyName = document.getElementById('govAgencyName').value.trim();
+            const propertyAddress = document.getElementById('govPropertyAddress').value.trim();
+            const pdfInput = document.getElementById('govPdfInput');
+
+            if (!pdfInput.files || !pdfInput.files[0]) {
+                alert('Please select an IFB PDF file.');
+                return;
+            }
+
+            const btn = document.getElementById('govBidAnalyzeBtn');
+            btn.textContent = 'Analyzing...';
+            btn.disabled = true;
+
+            try {
+                const formData = new FormData();
+                formData.append('pdf', pdfInput.files[0]);
+                formData.append('solicitation_number', solicitationNum);
+                formData.append('agency_name', agencyName);
+                formData.append('property_address', propertyAddress);
+
+                const res = await fetch('/dashboard/govbid/analyze', {
+                    method: 'POST',
+                    headers: { 'X-Dashboard-Token': getCookie('dashboard_token') },
+                    body: formData
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    closeGovBidModal();
+                    currentGovBid = data;
+                    renderGovBidResults(data);
+                    document.getElementById('govBidResultsModal').classList.add('active');
+                    loadGovBids();
+                } else {
+                    alert('Error: ' + (data.error || 'Analysis failed'));
+                }
+            } catch(e) {
+                alert('Request failed. Please try again.');
+            } finally {
+                btn.textContent = 'Analyze IFB →';
+                btn.disabled = false;
+            }
+        }
+
+        function renderGovBidResults(data) {
+            document.getElementById('govResultsTitle').textContent =
+                (data.solicitation_number || '') + ' — ' + (data.agency_name || '');
+            document.getElementById('govScopeText').textContent = data.scope_summary || '';
+            document.getElementById('govRequirementsText').textContent = data.submission_requirements || '';
+
+            const lineItems = data.line_items || [];
+            let total = 0;
+            let html = '';
+            for (let i = 0; i < lineItems.length; i++) {
+                const item = lineItems[i];
+                const amt = parseFloat(item.unit_price || 0) * parseFloat(item.quantity || 1);
+                total += amt;
+                html += '<div style="background:#0f172a;border-radius:8px;padding:10px;margin-bottom:8px">';
+                html += '<div style="font-size:13px;font-weight:600;color:white;margin-bottom:4px">' + item.description + '</div>';
+                html += '<div style="display:flex;gap:8px;align-items:center">';
+                html += '<span style="font-size:12px;color:#94a3b8">' + item.quantity + ' ' + (item.unit || 'cycles') + ' x</span>';
+                html += '<input type="number" value="' + (item.unit_price || 0) + '" step="0.01" min="0" ';
+                html += 'onchange="updateGovBidItem(' + i + ', this.value)" ';
+                html += 'style="background:#1e293b;border:1px solid #334155;border-radius:6px;padding:4px 8px;color:#22c55e;font-size:14px;font-weight:700;width:100px">';
+                html += '<span style="font-size:12px;color:#94a3b8">per ' + (item.unit || 'cycle') + ' = <strong style="color:white">$' + amt.toLocaleString('en-US', {minimumFractionDigits:2}) + '</strong></span>';
+                html += '</div></div>';
+            }
+            document.getElementById('govLineItemsList').innerHTML = html;
+            document.getElementById('govBidTotal').textContent = '$' + total.toLocaleString('en-US', {minimumFractionDigits:2});
+
+            if (data.due_date) {
+                const due = new Date(data.due_date);
+                const daysLeft = Math.ceil((due - new Date()) / (1000 * 60 * 60 * 24));
+                const warning = daysLeft <= 3 ? '🔴 URGENT: ' : daysLeft <= 7 ? '🟡 ' : '🟢 ';
+                document.getElementById('govDueDateWarning').textContent =
+                    warning + 'Due: ' + due.toLocaleDateString('en-US', {weekday:'long', month:'long', day:'numeric', year:'numeric'}) + ' (' + daysLeft + ' days)';
+            }
+        }
+
+        function updateGovBidItem(index, value) {
+            if (!currentGovBid.line_items) return;
+            currentGovBid.line_items[index].unit_price = parseFloat(value) || 0;
+            let total = currentGovBid.line_items.reduce(function(sum, item) {
+                return sum + (parseFloat(item.unit_price || 0) * parseFloat(item.quantity || 1));
+            }, 0);
+            document.getElementById('govBidTotal').textContent = '$' + total.toLocaleString('en-US', {minimumFractionDigits:2});
+        }
+
+        async function generateGovBidPDF() {
+            alert('Bid PDF generation coming soon — for now review your line items and submit manually.');
+        }
+
+        async function loadGovBids() {
+            try {
+                const res = await fetch('/dashboard/govbids', {
+                    headers: { 'X-Dashboard-Token': getCookie('dashboard_token') }
+                });
+                const data = await res.json();
+                if (data.ok) renderGovBids(data.bids);
+            } catch(e) {
+                console.error('Gov bids load error:', e);
+            }
+        }
+
+        function renderGovBids(bids) {
+            document.getElementById('govBidsCount').textContent = bids.length;
+            const el = document.getElementById('govBidsSection');
+            if (!bids.length) {
+                el.innerHTML = '<div class="empty-state">No active bids — tap + Upload IFB to analyze a solicitation</div>';
+                return;
+            }
+            let html = '';
+            for (let i = 0; i < bids.length; i++) {
+                const b = bids[i];
+                const statusColor = {
+                    'Alert': '#f59e0b',
+                    'Reviewing': '#60a5fa',
+                    'Draft': '#94a3b8',
+                    'Submitted': '#22c55e',
+                    'Awarded': '#22c55e',
+                    'Not Awarded': '#ef4444'
+                }[b.status] || '#94a3b8';
+                html += '<div class="job-card">';
+                html += '<div style="display:flex;justify-content:space-between;align-items:flex-start">';
+                html += '<div>';
+                html += '<div class="job-name">' + (b.agency_name || 'Unknown Agency') + '</div>';
+                html += '<div class="job-type">' + (b.solicitation_number || '') + '</div>';
+                html += '<div class="job-address">' + (b.title || '') + '</div>';
+                html += '</div>';
+                html += '<span style="font-size:11px;color:' + statusColor + ';font-family:DM Mono,monospace;font-weight:700">' + (b.status || '') + '</span>';
+                html += '</div>';
+                if (b.bid_total) {
+                    html += '<div style="color:#22c55e;font-size:16px;font-weight:700;margin-top:8px">$' + parseFloat(b.bid_total).toLocaleString() + '</div>';
+                }
+                if (b.due_date) {
+                    const due = new Date(b.due_date);
+                    const daysLeft = Math.ceil((due - new Date()) / (1000 * 60 * 60 * 24));
+                    const urgency = daysLeft <= 3 ? '#ef4444' : daysLeft <= 7 ? '#f59e0b' : '#94a3b8';
+                    html += '<div style="font-size:12px;color:' + urgency + ';font-family:DM Mono,monospace;margin-top:4px">Due: ' + due.toLocaleDateString() + ' (' + daysLeft + 'd)</div>';
+                }
+                html += '</div>';
+            }
+            el.innerHTML = html;
+        }
+
         // Load on startup
         loadDashboard();
         // Auto-refresh every 5 minutes
@@ -3193,6 +3365,72 @@ async function submitCreateCampaign() {
             <div class="modal-actions">
                 <button class="btn-cancel-modal" onclick="closeBulkPayModal()">Cancel</button>
                 <button class="btn-book" id="bulkPayBtn" onclick="submitBulkPay()">Mark Selected Paid</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Gov Bid Upload Modal -->
+    <div class="modal-overlay" id="govBidModal">
+        <div class="booking-modal">
+            <div class="modal-title">🏛️ Analyze Government Bid</div>
+            <div class="modal-date">Upload IFB PDF — AI extracts scope, cycles, and requirements</div>
+            <div class="form-group">
+                <label class="form-label">Solicitation Number</label>
+                <input type="text" class="form-input" id="govSolicitationNum" placeholder="e.g. ITSLSC29SBR">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Agency Name</label>
+                <input type="text" class="form-input" id="govAgencyName" placeholder="e.g. SHA Maryland">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Property Address (if known)</label>
+                <input type="text" class="form-input" id="govPropertyAddress" placeholder="e.g. 5901 Baltimore National Pike">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Upload IFB PDF *</label>
+                <label style="display:block;border:2px dashed #334155;border-radius:10px;padding:20px;text-align:center;cursor:pointer" for="govPdfInput">
+                    <div style="font-size:24px;margin-bottom:8px">📄</div>
+                    <div style="font-size:13px;color:#94a3b8" id="govPdfLabel">Tap to select IFB PDF</div>
+                </label>
+                <input type="file" id="govPdfInput" accept=".pdf" style="display:none" onchange="govPdfSelected(this)">
+            </div>
+            <div class="modal-actions">
+                <button class="btn-cancel-modal" onclick="closeGovBidModal()">Cancel</button>
+                <button class="btn-book" id="govBidAnalyzeBtn" onclick="submitGovBidAnalysis()">Analyze IFB →</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Gov Bid Results Modal -->
+    <div class="modal-overlay" id="govBidResultsModal">
+        <div class="booking-modal" style="max-height:95vh;overflow-y:auto">
+            <div class="modal-title">📋 Bid Analysis</div>
+            <div class="modal-date" id="govResultsTitle"></div>
+
+            <div id="govScopeSection" style="margin-bottom:16px">
+                <div style="font-size:11px;color:#94a3b8;letter-spacing:1px;text-transform:uppercase;font-family:DM Mono,monospace;margin-bottom:6px">Scope Summary</div>
+                <div id="govScopeText" style="font-size:13px;color:#f1f5f9;background:#0f172a;border-radius:8px;padding:12px"></div>
+            </div>
+
+            <div id="govLineItemsSection" style="margin-bottom:16px">
+                <div style="font-size:11px;color:#94a3b8;letter-spacing:1px;text-transform:uppercase;font-family:DM Mono,monospace;margin-bottom:6px">Bid Line Items</div>
+                <div id="govLineItemsList"></div>
+                <div style="background:#0f172a;border-radius:8px;padding:12px;margin-top:8px;display:flex;justify-content:space-between">
+                    <span style="font-weight:700;color:white">TOTAL BID</span>
+                    <span style="font-size:18px;font-weight:700;color:#22c55e" id="govBidTotal">$0.00</span>
+                </div>
+            </div>
+
+            <div id="govRequirementsSection" style="margin-bottom:16px">
+                <div style="font-size:11px;color:#94a3b8;letter-spacing:1px;text-transform:uppercase;font-family:DM Mono,monospace;margin-bottom:6px">Submission Requirements</div>
+                <div id="govRequirementsText" style="font-size:13px;color:#f1f5f9;background:#0f172a;border-radius:8px;padding:12px"></div>
+            </div>
+
+            <div style="font-size:12px;color:#f59e0b;background:rgba(245,158,11,0.1);border-radius:8px;padding:10px;margin-bottom:16px" id="govDueDateWarning"></div>
+
+            <div class="modal-actions">
+                <button class="btn-cancel-modal" onclick="closeGovBidResultsModal()">Close</button>
+                <button class="btn-book" onclick="generateGovBidPDF()">Generate Bid PDF →</button>
             </div>
         </div>
     </div>
