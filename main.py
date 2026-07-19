@@ -6566,6 +6566,226 @@ def dashboard_add_job():
         print(f"DASHBOARD ADD JOB ERROR | {type(e).__name__} | {e}")
         return jsonify({"ok": False, "error": str(e)}), 500
 
+@app.route("/dashboard/govbids")
+@dashboard_auth_required
+def dashboard_govbids():
+    """Returns active government bids for this contractor."""
+    try:
+        twilio_number = request.twilio_number
+        AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
+        AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
+        resp = requests.get(
+            f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tbljKr4rK95G4Vjbm",
+            headers={"Authorization": f"Bearer {AIRTABLE_TOKEN}"}
+        )
+        all_records = resp.json().get("records", [])
+        import json as _json
+        bids = []
+        for r in all_records:
+            f = r.get("fields", {})
+            if f.get("Twilio Number", "") != twilio_number:
+                continue
+            status = f.get("Status", {})
+            if isinstance(status, dict):
+                status = status.get("name", "")
+            if status in ["Awarded", "Not Awarded"]:
+                continue
+            bids.append({
+                "record_id": r.get("id"),
+                "solicitation_number": f.get("Solicitation Number", ""),
+                "agency_name": f.get("Agency Name", ""),
+                "title": f.get("Title", ""),
+                "status": status,
+                "due_date": f.get("Due Date", ""),
+                "bid_total": f.get("Bid Total", 0),
+                "property_address": f.get("Property Address", ""),
+            })
+        return jsonify({"ok": True, "bids": bids})
+    except Exception as e:
+        print(f"GOVBIDS ERROR | {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route("/dashboard/govbid/analyze", methods=["POST"])
+@dashboard_auth_required
+def dashboard_govbid_analyze():
+    """
+    Analyzes an IFB PDF using Claude AI.
+    Extracts scope, line items, due date, and submission requirements.
+    """
+    try:
+        import anthropic
+        import base64
+        import json as _json
+        from datetime import datetime, timezone
+
+        twilio_number = request.twilio_number
+        solicitation_number = request.form.get("solicitation_number", "").strip()
+        agency_name = request.form.get("agency_name", "").strip()
+        property_address = request.form.get("property_address", "").strip()
+
+        pdf_file = request.files.get("pdf")
+        if not pdf_file:
+            return jsonify({"ok": False, "error": "No PDF uploaded"}), 400
+
+        pdf_bytes = pdf_file.read()
+        pdf_b64 = base64.standard_b64encode(pdf_bytes).decode("utf-8")
+        print(f"GOVBID ANALYZE | {solicitation_number} | {len(pdf_bytes)} bytes")
+
+        # Send to Claude for analysis
+        api_key = os.getenv("ANTHROPIC_API_KEY", "").strip()
+        client = anthropic.Anthropic(api_key=api_key)
+
+        response = client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=4000,
+            messages=[{
+                "role": "user",
+                "content": [
+                    {
+                        "type": "document",
+                        "source": {
+                            "type": "base64",
+                            "media_type": "application/pdf",
+                            "data": pdf_b64
+                        }
+                    },
+                    {
+                        "type": "text",
+                        "text": """You are an expert government contractor bid analyst. 
+Analyze this IFB (Invitation for Bid) or solicitation document carefully.
+
+Extract and return ONLY this JSON format with no other text:
+{
+  "title": "Full title of the solicitation",
+  "agency_name": "Contracting agency name",
+  "solicitation_number": "Solicitation/IFB number",
+  "due_date": "YYYY-MM-DDTHH:MM:SS format if found, else null",
+  "contract_value_est": 0.00,
+  "scope_summary": "2-3 paragraph plain English summary of exactly what work is required",
+  "trade_category": "Primary trade: Lawn/Grounds, Janitorial, Painting, Construction, Pressure Washing, Snow Removal, or General Contracting",
+  "property_address": "Full property address if mentioned",
+  "contract_duration": "e.g. 3 years, 1 year base + 2 option years",
+  "line_items": [
+    {
+      "description": "Exact line item description from the bid form",
+      "quantity": 0,
+      "unit": "unit of measure e.g. cycles, sq ft, acres, visits",
+      "unit_price": 0.00,
+      "total": 0.00
+    }
+  ],
+  "submission_requirements": "List all documents and forms required for submission",
+  "small_business_set_aside": true or false,
+  "performance_bond_required": true or false,
+  "insurance_requirements": "List all insurance requirements and minimums",
+  "important_notes": "Any critical notes, restrictions, or special requirements"
+}
+
+For line_items, extract the EXACT bid schedule from the document — every line item with its quantity and unit of measure.
+Set unit_price to your suggested competitive price based on the scope and typical contractor rates.
+If no due date found set to null."""
+                    }
+                ]
+            }]
+        )
+
+        raw = response.content[0].text.strip()
+        print(f"GOVBID | Claude response length: {len(raw)}")
+
+        # Clean and parse JSON
+        import re as re_lib
+        json_match = re_lib.search(r'\{.*\}', raw, re_lib.DOTALL)
+        if not json_match:
+            raise ValueError("No JSON in Claude response")
+
+        clean = json_match.group(0).encode('ascii', 'ignore').decode('ascii')
+        analysis = _json.loads(clean)
+
+        # Save to Airtable
+        AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
+        AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
+        at_headers = {"Authorization": f"Bearer {AIRTABLE_TOKEN}", "Content-Type": "application/json"}
+        now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+
+        airtable_fields = {
+            "fldicI3zyRmVKEzOB": solicitation_number or analysis.get("solicitation_number", ""),
+            "fld6sIHy886IIfVu7": agency_name or analysis.get("agency_name", ""),
+            "fldPk20NnXuNgSvZ0": analysis.get("title", ""),
+            "fldeqo6eJ2SoJaNxs": analysis.get("trade_category", ""),
+            "fldWLef4FXHYRWysB": property_address or analysis.get("property_address", ""),
+            "fldJqjOlmdINcnJUw": analysis.get("scope_summary", ""),
+            "fldH7G3moATEIC5KB": _json.dumps(analysis.get("line_items", [])),
+            "fldACWsbXF1Arbovz": analysis.get("submission_requirements", ""),
+            "fldHOIcdY5lcG13Sv": "Reviewing",
+            "fldpP0escz4OQ7KNR": twilio_number,
+            "fld3aNn1HFPcBpcIc": "Manual",
+        }
+
+        if analysis.get("due_date"):
+            airtable_fields["fld79BKxMzPs5wj6L"] = analysis["due_date"]
+
+        if analysis.get("contract_value_est"):
+            airtable_fields["fldvLjvcqsRzNI0kT"] = float(analysis["contract_value_est"])
+
+        resp = requests.post(
+            f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tbljKr4rK95G4Vjbm",
+            headers=at_headers,
+            json={"fields": airtable_fields}
+        )
+        record_id = resp.json().get("id", "")
+        print(f"GOVBID | Saved to Airtable | {record_id}")
+
+        # Run aerial quote if address available
+        address = property_address or analysis.get("property_address", "")
+        aerial_data = {}
+        if address:
+            try:
+                from app.app.aerial_service import run_aerial_quote
+                aerial_result = run_aerial_quote(
+                    address=address,
+                    job_description=analysis.get("trade_category", "grounds maintenance"),
+                    lead_id=record_id,
+                    customer_name=agency_name
+                )
+                if aerial_result.get("ok"):
+                    aerial_data = aerial_result
+                    requests.patch(
+                        f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tbljKr4rK95G4Vjbm/{record_id}",
+                        headers=at_headers,
+                        json={"fields": {
+                            "fldu7bQ59loiX6uHw": aerial_result.get("analysis", "")[:1000],
+                        }}
+                    )
+                    print(f"GOVBID | Aerial analysis complete | {aerial_result.get('square_footage')} sqft")
+            except Exception as e:
+                print(f"GOVBID | Aerial error (non-fatal) | {e}")
+
+        return jsonify({
+            "ok": True,
+            "record_id": record_id,
+            "solicitation_number": solicitation_number or analysis.get("solicitation_number", ""),
+            "agency_name": agency_name or analysis.get("agency_name", ""),
+            "title": analysis.get("title", ""),
+            "scope_summary": analysis.get("scope_summary", ""),
+            "line_items": analysis.get("line_items", []),
+            "submission_requirements": analysis.get("submission_requirements", ""),
+            "due_date": analysis.get("due_date", ""),
+            "contract_duration": analysis.get("contract_duration", ""),
+            "small_business_set_aside": analysis.get("small_business_set_aside", False),
+            "insurance_requirements": analysis.get("insurance_requirements", ""),
+            "important_notes": analysis.get("important_notes", ""),
+            "aerial_sq_footage": aerial_data.get("square_footage", 0),
+            "aerial_quote_range": aerial_data.get("quote_range", ""),
+        })
+
+    except Exception as e:
+        print(f"GOVBID ANALYZE ERROR | {type(e).__name__} | {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
 
 # ─────────────────────────────────────────────
 # Fallback
