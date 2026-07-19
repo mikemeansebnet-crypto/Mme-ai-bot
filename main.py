@@ -6710,7 +6710,7 @@ For quantity — if the IFB specifies a fixed quantity use it. If it is time and
 For example: if the contract is for handyman services at one facility, estimate 200-400 routine hours per year and 20-40 emergency hours per year.
 Set unit_price to your suggested competitive price based on scope, location, and typical contractor rates for the DC/MD/VA market.
 Never leave quantity as 0 — always provide a realistic estimate.
-If no due date found set to null.
+If no due date found set to null."""
                     }
                 ]
             }]
