@@ -2765,8 +2765,15 @@ async function submitCreateCampaign() {
 
             try {
                 const formData = new FormData();
-                for (let i = 0; i < pdfInput.files.length; i++) {
-                    formData.append('pdf_' + i, pdfInput.files[i]);
+                if (govPdfFiles.length === 0) {
+                    alert('Please add at least one PDF file.');
+                    btn.disabled = false;
+                    btn.textContent = 'Analyze IFB →';
+                    return;
+                }
+                for (let i = 0; i < govPdfFiles.length; i++) {
+                    formData.append('pdf_' + i, govPdfFiles[i]);
+                }
                 }
                 formData.append('solicitation_number', solicitationNum);
                 formData.append('agency_name', agencyName);
