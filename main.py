@@ -7002,6 +7002,13 @@ def dashboard_govbid_generate_pdf():
             story.append(Paragraph("IMPORTANT NOTES", heading_style))
             story.append(Paragraph(important_notes, normal_style))
 
+    except Exception as e:
+        print(f"GOVBID PDF ERROR | {type(e).__name__} | {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
 @app.route("/dashboard/govbid/delete", methods=["POST"])
 @dashboard_auth_required
 def dashboard_govbid_delete():
