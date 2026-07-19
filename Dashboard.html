@@ -2727,6 +2727,8 @@ async function submitCreateCampaign() {
             document.getElementById('govPropertyAddress').value = '';
             document.getElementById('govPdfLabel').textContent = 'Tap to select IFB PDF';
             document.getElementById('govPdfInput').value = '';
+            document.getElementById('govBidAnalyzeBtn').textContent = 'Analyze IFB →';
+            document.getElementById('govBidAnalyzeBtn').disabled = false;
             document.getElementById('govBidModal').classList.add('active');
         }
 
