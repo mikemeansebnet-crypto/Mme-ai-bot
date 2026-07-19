@@ -6693,7 +6693,7 @@ Extract and return ONLY this JSON format with no other text:
     {
       "description": "Exact line item description from the bid form",
       "quantity": 0,
-      "unit": "unit of measure e.g. cycles, sq ft, acres, visits",
+      "unit": "unit of measure e.g. hours, cycles, sq ft, acres, visits",
       "unit_price": 0.00,
       "total": 0.00
     }
@@ -6705,9 +6705,12 @@ Extract and return ONLY this JSON format with no other text:
   "important_notes": "Any critical notes, restrictions, or special requirements"
 }
 
-For line_items, extract the EXACT bid schedule from the document — every line item with its quantity and unit of measure.
-Set unit_price to your suggested competitive price based on the scope and typical contractor rates.
-If no due date found set to null."""
+For line_items extract the EXACT bid schedule from the MAIN IFB document — ignore addenda and affidavit attachments for pricing.
+For quantity — if the IFB specifies a fixed quantity use it. If it is time and materials or hourly, estimate a realistic annual quantity based on the scope described.
+For example: if the contract is for handyman services at one facility, estimate 200-400 routine hours per year and 20-40 emergency hours per year.
+Set unit_price to your suggested competitive price based on scope, location, and typical contractor rates for the DC/MD/VA market.
+Never leave quantity as 0 — always provide a realistic estimate.
+If no due date found set to null.
                     }
                 ]
             }]
