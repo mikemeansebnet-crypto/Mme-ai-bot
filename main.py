@@ -6624,13 +6624,33 @@ def dashboard_govbid_analyze():
         agency_name = request.form.get("agency_name", "").strip()
         property_address = request.form.get("property_address", "").strip()
 
-        pdf_file = request.files.get("pdf")
-        if not pdf_file:
+        pdf_files = request.files.getlist("pdfs")
+        if not pdf_files:
             return jsonify({"ok": False, "error": "No PDF uploaded"}), 400
 
-        pdf_bytes = pdf_file.read()
+        # Combine all PDFs into one for Claude analysis
+        from pypdf import PdfWriter, PdfReader
+        import io
+
+        combined_writer = PdfWriter()
+        total_bytes = 0
+        for pdf_file in pdf_files:
+            pdf_bytes = pdf_file.read()
+            total_bytes += len(pdf_bytes)
+            try:
+                reader = PdfReader(io.BytesIO(pdf_bytes))
+                for page in reader.pages:
+                    combined_writer.add_page(page)
+                print(f"GOVBID | Added {pdf_file.filename} | {len(pdf_bytes)} bytes | {len(reader.pages)} pages")
+            except Exception as e:
+                print(f"GOVBID | Error reading {pdf_file.filename} (skipping) | {e}")
+
+        combined_buffer = io.BytesIO()
+        combined_writer.write(combined_buffer)
+        combined_buffer.seek(0)
+        pdf_bytes = combined_buffer.read()
         pdf_b64 = base64.standard_b64encode(pdf_bytes).decode("utf-8")
-        print(f"GOVBID ANALYZE | {solicitation_number} | {len(pdf_bytes)} bytes")
+        print(f"GOVBID ANALYZE | {solicitation_number} | Combined {len(pdf_files)} PDFs | {len(pdf_bytes)} bytes")
 
         # Send to Claude for analysis
         api_key = os.getenv("ANTHROPIC_API_KEY", "").strip()
