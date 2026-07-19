@@ -2742,10 +2742,38 @@ async function submitCreateCampaign() {
 
         function govPdfSelected(input) {
             if (input.files && input.files.length > 0) {
-                const count = input.files.length;
-                document.getElementById('govPdfLabel').textContent = 
-                    count === 1 ? input.files[0].name : count + ' PDFs selected';
+                for (let i = 0; i < input.files.length; i++) {
+                    const exists = govPdfFiles.some(function(f) { return f.name === input.files[i].name; });
+                    if (!exists) {
+                        govPdfFiles.push(input.files[i]);
+                    }
+                }
+                input.value = '';
+                renderGovPdfList();
             }
+        }
+
+        function removeGovPdf(index) {
+            govPdfFiles.splice(index, 1);
+            renderGovPdfList();
+        }
+
+        function renderGovPdfList() {
+            const el = document.getElementById('govPdfList');
+            if (!govPdfFiles.length) {
+                el.innerHTML = '';
+                document.getElementById('govPdfLabel').textContent = 'Tap to add IFB PDF files';
+                return;
+            }
+            document.getElementById('govPdfLabel').textContent = 'Tap to add more PDFs';
+            let html = '';
+            for (let i = 0; i < govPdfFiles.length; i++) {
+                html += '<div style="display:flex;justify-content:space-between;align-items:center;background:#0f172a;border-radius:8px;padding:8px 12px;margin-bottom:6px">';
+                html += '<div style="font-size:12px;color:#94a3b8;font-family:DM Mono,monospace">📄 ' + govPdfFiles[i].name + '</div>';
+                html += '<button onclick="removeGovPdf(' + i + ')" style="background:none;border:none;color:#ef4444;font-size:12px;cursor:pointer">✕</button>';
+                html += '</div>';
+            }
+            el.innerHTML = html;
         }
 
         async function submitGovBidAnalysis() {
