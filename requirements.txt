@@ -41,3 +41,4 @@ reportlab
 apscheduler
 stripe
 google-genai
+pypdf
