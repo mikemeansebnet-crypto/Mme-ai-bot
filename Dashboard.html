@@ -1294,7 +1294,7 @@
 
             pendingInvoiceData = { recordId, name, email, phone, invoiceAmount, service, paymentMethod };
             document.getElementById('invoiceDescCustomer').textContent = name;
-            document.getElementById('invoiceDescAmount').textContent = '$' + parseFloat(invoiceAmount).toLocaleString('en-US', {minimumFractionDigits:2});
+            document.getElementById('invoiceDescAmountInput').value = invoiceAmount;
             document.getElementById('invoiceDescText').value = service || '';
             document.getElementById('invoiceDescModal').classList.add('active');
             setTimeout(function() {
@@ -1309,7 +1309,12 @@
                 return;
             }
 
-            const { name, email, phone, invoiceAmount, paymentMethod } = pendingInvoiceData;
+            const { name, email, phone, paymentMethod } = pendingInvoiceData;
+            const invoiceAmount = parseFloat(document.getElementById('invoiceDescAmountInput').value) || 0;
+            if (!invoiceAmount || invoiceAmount <= 0) {
+                alert('Please enter a valid amount.');
+                return;
+            }
 
             if (!confirm("Send invoice to " + name + " at " + email + " for $" + invoiceAmount + "?")) {
                 closeInvoiceDescModal();
