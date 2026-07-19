@@ -6811,6 +6811,197 @@ If no due date found set to null."""
         traceback.print_exc()
         return jsonify({"ok": False, "error": str(e)}), 500
 
+@app.route("/dashboard/govbid/generate-pdf", methods=["POST"])
+@dashboard_auth_required
+def dashboard_govbid_generate_pdf():
+    """Generates a government-formatted bid response PDF."""
+    try:
+        import json as _json
+        from reportlab.pdfgen import canvas
+        from reportlab.lib.pagesizes import letter
+        from reportlab.lib import colors
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib.units import inch
+        from datetime import date
+        import io
+
+        data = request.get_json(silent=True) or {}
+        record_id = data.get("record_id", "").strip()
+        line_items = data.get("line_items", [])
+        solicitation_number = data.get("solicitation_number", "").strip()
+        agency_name = data.get("agency_name", "").strip()
+        title = data.get("title", "").strip()
+        property_address = data.get("property_address", "").strip()
+        submission_requirements = data.get("submission_requirements", "").strip()
+        small_business = data.get("small_business_set_aside", False)
+        insurance_requirements = data.get("insurance_requirements", "").strip()
+        important_notes = data.get("important_notes", "").strip()
+
+        twilio_number = request.twilio_number
+        contractor = get_contractor_by_twilio_number(twilio_number) or {}
+        business_name = contractor.get("Business Name", "Your Business")
+        notify_email = contractor.get("Notify Email", "").strip()
+        notify_sms = contractor.get("Notify SMS", "").strip()
+
+        total = sum(
+            float(item.get("unit_price", 0)) * float(item.get("quantity", 1))
+            for item in line_items
+        )
+
+        # Generate PDF
+        buffer = io.BytesIO()
+        doc = SimpleDocTemplate(
+            buffer,
+            pagesize=letter,
+            rightMargin=0.75*inch,
+            leftMargin=0.75*inch,
+            topMargin=0.75*inch,
+            bottomMargin=0.75*inch
+        )
+
+        styles = getSampleStyleSheet()
+        title_style = ParagraphStyle("T", parent=styles["Title"], fontSize=16,
+            textColor=colors.HexColor("#1A4D2E"), spaceAfter=4)
+        heading_style = ParagraphStyle("H", parent=styles["Heading2"], fontSize=11,
+            textColor=colors.HexColor("#1A4D2E"), spaceBefore=12, spaceAfter=4)
+        normal_style = ParagraphStyle("N", parent=styles["Normal"], fontSize=10, leading=14)
+        small_style = ParagraphStyle("S", parent=styles["Normal"], fontSize=8,
+            textColor=colors.gray, leading=11)
+        bold_style = ParagraphStyle("B", parent=styles["Normal"], fontSize=10,
+            fontName="Helvetica-Bold", leading=14)
+
+        story = []
+
+        # Header
+        story.append(Paragraph("BID RESPONSE", title_style))
+        story.append(Paragraph(f"Solicitation: {solicitation_number}", bold_style))
+        story.append(Paragraph(title, normal_style))
+        story.append(Spacer(1, 8))
+
+        # Bidder info table
+        bidder_data = [
+            ["BIDDER INFORMATION", ""],
+            ["Business Name:", business_name],
+            ["Phone:", notify_sms],
+            ["Email:", notify_email],
+            ["Date:", date.today().strftime("%B %d, %Y")],
+        ]
+        bidder_table = Table(bidder_data, colWidths=[2.0*inch, 4.75*inch])
+        bidder_table.setStyle(TableStyle([
+            ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#1A4D2E")),
+            ("TEXTCOLOR", (0,0), (-1,0), colors.white),
+            ("FONTNAME", (0,0), (-1,0), "Helvetica-Bold"),
+            ("SPAN", (0,0), (-1,0)),
+            ("FONTNAME", (0,1), (0,-1), "Helvetica-Bold"),
+            ("FONTSIZE", (0,0), (-1,-1), 9),
+            ("GRID", (0,0), (-1,-1), 0.5, colors.HexColor("#dddddd")),
+            ("PADDING", (0,0), (-1,-1), 6),
+            ("BACKGROUND", (0,1), (-1,-1), colors.HexColor("#f9fafb")),
+        ]))
+        story.append(bidder_table)
+        story.append(Spacer(1, 10))
+
+        # Solicitation info
+        sol_data = [
+            ["SOLICITATION INFORMATION", ""],
+            ["Solicitation Number:", solicitation_number],
+            ["Agency:", agency_name],
+            ["Property Address:", property_address],
+            ["Small Business Reserve:", "Yes" if small_business else "No"],
+        ]
+        sol_table = Table(sol_data, colWidths=[2.0*inch, 4.75*inch])
+        sol_table.setStyle(TableStyle([
+            ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#1A4D2E")),
+            ("TEXTCOLOR", (0,0), (-1,0), colors.white),
+            ("FONTNAME", (0,0), (-1,0), "Helvetica-Bold"),
+            ("SPAN", (0,0), (-1,0)),
+            ("FONTNAME", (0,1), (0,-1), "Helvetica-Bold"),
+            ("FONTSIZE", (0,0), (-1,-1), 9),
+            ("GRID", (0,0), (-1,-1), 0.5, colors.HexColor("#dddddd")),
+            ("PADDING", (0,0), (-1,-1), 6),
+            ("BACKGROUND", (0,1), (-1,-1), colors.HexColor("#f9fafb")),
+        ]))
+        story.append(sol_table)
+        story.append(Spacer(1, 10))
+
+        # Bid price form
+        story.append(Paragraph("BID PRICE FORM", heading_style))
+        price_data = [["Description", "Qty", "Unit", "Unit Price", "Total"]]
+        for item in line_items:
+            qty = float(item.get("quantity", 1))
+            unit_price = float(item.get("unit_price", 0))
+            item_total = qty * unit_price
+            price_data.append([
+                Paragraph(item.get("description", ""), normal_style),
+                str(int(qty)) if qty == int(qty) else str(qty),
+                item.get("unit", ""),
+                f"${unit_price:,.2f}",
+                f"${item_total:,.2f}",
+            ])
+        price_data.append(["", "", "", "TOTAL BID:", f"${total:,.2f}"])
+
+        price_table = Table(price_data, colWidths=[3.0*inch, 0.6*inch, 0.7*inch, 1.0*inch, 1.45*inch])
+        price_table.setStyle(TableStyle([
+            ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#1A4D2E")),
+            ("TEXTCOLOR", (0,0), (-1,0), colors.white),
+            ("FONTNAME", (0,0), (-1,0), "Helvetica-Bold"),
+            ("FONTSIZE", (0,0), (-1,-1), 9),
+            ("GRID", (0,0), (-1,-2), 0.5, colors.HexColor("#dddddd")),
+            ("ROWBACKGROUNDS", (0,1), (-1,-2), [colors.white, colors.HexColor("#f9fafb")]),
+            ("PADDING", (0,0), (-1,-1), 6),
+            ("BACKGROUND", (0,-1), (-1,-1), colors.HexColor("#0f2a1a")),
+            ("TEXTCOLOR", (0,-1), (-1,-1), colors.HexColor("#22c55e")),
+            ("FONTNAME", (0,-1), (-1,-1), "Helvetica-Bold"),
+            ("FONTSIZE", (0,-1), (-1,-1), 11),
+            ("ALIGN", (1,0), (-1,-1), "CENTER"),
+            ("ALIGN", (3,0), (-1,-1), "RIGHT"),
+            ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
+        ]))
+        story.append(price_table)
+        story.append(Spacer(1, 12))
+
+        # Attachments checklist
+        story.append(Paragraph("ATTACHMENTS CHECKLIST", heading_style))
+        story.append(Paragraph(
+            "The following documents must be included with your bid submission:",
+            normal_style
+        ))
+        story.append(Spacer(1, 6))
+
+        reqs = submission_requirements.split(";") if submission_requirements else []
+        check_data = [["", "Required Document", "Status"]]
+        for req in reqs:
+            req = req.strip()
+            if req:
+                check_data.append(["☐", Paragraph(req, small_style), "Pending"])
+
+        if len(check_data) > 1:
+            check_table = Table(check_data, colWidths=[0.3*inch, 5.5*inch, 0.95*inch])
+            check_table.setStyle(TableStyle([
+                ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#334155")),
+                ("TEXTCOLOR", (0,0), (-1,0), colors.white),
+                ("FONTNAME", (0,0), (-1,0), "Helvetica-Bold"),
+                ("FONTSIZE", (0,0), (-1,-1), 8),
+                ("GRID", (0,0), (-1,-1), 0.5, colors.HexColor("#dddddd")),
+                ("ROWBACKGROUNDS", (0,1), (-1,-1), [colors.white, colors.HexColor("#f9fafb")]),
+                ("PADDING", (0,0), (-1,-1), 5),
+                ("VALIGN", (0,0), (-1,-1), "TOP"),
+            ]))
+            story.append(check_table)
+        story.append(Spacer(1, 12))
+
+        # Insurance requirements
+        if insurance_requirements:
+            story.append(Paragraph("INSURANCE REQUIREMENTS", heading_style))
+            story.append(Paragraph(insurance_requirements, normal_style))
+            story.append(Spacer(1, 8))
+
+        # Important notes
+        if important_notes:
+            story.append(Paragraph("IMPORTANT NOTES", heading_style))
+            story.append(Paragraph(important_notes, normal_style))
+
 @app.route("/dashboard/govbid/delete", methods=["POST"])
 @dashboard_auth_required
 def dashboard_govbid_delete():
