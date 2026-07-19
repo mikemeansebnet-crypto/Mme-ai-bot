@@ -6805,6 +6805,43 @@ If no due date found set to null."""
         traceback.print_exc()
         return jsonify({"ok": False, "error": str(e)}), 500
 
+@app.route("/dashboard/govbid/delete", methods=["POST"])
+@dashboard_auth_required
+def dashboard_govbid_delete():
+    try:
+        data = request.get_json(silent=True) or {}
+        record_id = data.get("record_id", "").strip()
+        AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
+        AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
+        requests.delete(
+            f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tbljKr4rK95G4Vjbm/{record_id}",
+            headers={"Authorization": f"Bearer {AIRTABLE_TOKEN}"}
+        )
+        return jsonify({"ok": True})
+    except Exception as e:
+        print(f"GOVBID DELETE ERROR | {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route("/dashboard/govbid/update-status", methods=["POST"])
+@dashboard_auth_required
+def dashboard_govbid_update_status():
+    try:
+        data = request.get_json(silent=True) or {}
+        record_id = data.get("record_id", "").strip()
+        status = data.get("status", "").strip()
+        AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
+        AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
+        requests.patch(
+            f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tbljKr4rK95G4Vjbm/{record_id}",
+            headers={"Authorization": f"Bearer {AIRTABLE_TOKEN}", "Content-Type": "application/json"},
+            json={"fields": {"fldHOIcdY5lcG13Sv": status}}
+        )
+        return jsonify({"ok": True})
+    except Exception as e:
+        print(f"GOVBID STATUS ERROR | {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
 
 
 # ─────────────────────────────────────────────
