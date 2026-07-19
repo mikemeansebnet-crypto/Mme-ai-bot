@@ -6624,7 +6624,10 @@ def dashboard_govbid_analyze():
         agency_name = request.form.get("agency_name", "").strip()
         property_address = request.form.get("property_address", "").strip()
 
-        pdf_files = request.files.getlist("pdfs")
+        pdf_files = []
+        for key in request.files:
+            if key.startswith("pdf_") or key == "pdfs":
+                pdf_files.append(request.files[key])
         if not pdf_files:
             return jsonify({"ok": False, "error": "No PDF uploaded"}), 400
 
