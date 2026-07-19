@@ -2766,7 +2766,7 @@ async function submitCreateCampaign() {
             try {
                 const formData = new FormData();
                 for (let i = 0; i < pdfInput.files.length; i++) {
-                    formData.append('pdfs', pdfInput.files[i]);
+                    formData.append('pdf_' + i, pdfInput.files[i]);
                 }
                 formData.append('solicitation_number', solicitationNum);
                 formData.append('agency_name', agencyName);
