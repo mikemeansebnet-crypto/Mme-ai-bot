@@ -7052,7 +7052,7 @@ def setup():
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>ContractorOS — Setup</title>
+        <title>ContractorOS - Setup</title>
         <style>
             * { box-sizing: border-box; margin: 0; padding: 0; }
             body {
