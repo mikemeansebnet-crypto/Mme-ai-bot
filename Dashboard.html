@@ -2870,7 +2870,62 @@ async function submitCreateCampaign() {
         }
 
         async function generateGovBidPDF() {
-            alert('Bid PDF generation coming soon — for now review your line items and submit manually.');
+            if (!currentGovBid.record_id) {
+                alert('No bid loaded. Please analyze an IFB first.');
+                return;
+            }
+            const btn = event.target;
+            btn.textContent = 'Generating PDF...';
+            btn.disabled = true;
+            try {
+                const res = await fetch('/dashboard/govbid/generate-pdf', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Dashboard-Token': getCookie('dashboard_token')
+                    },
+                    body: JSON.stringify({
+                        record_id: currentGovBid.record_id,
+                        line_items: currentGovBid.line_items,
+                        solicitation_number: currentGovBid.solicitation_number,
+                        agency_name: currentGovBid.agency_name,
+                        title: currentGovBid.title,
+                        property_address: currentGovBid.property_address || '',
+                        submission_requirements: currentGovBid.submission_requirements,
+                        small_business_set_aside: currentGovBid.small_business_set_aside,
+                        insurance_requirements: currentGovBid.insurance_requirements,
+                        important_notes: currentGovBid.important_notes,
+                    })
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    alert('Bid PDF generated! Total: $' + parseFloat(data.total).toLocaleString('en-US', {minimumFractionDigits:2}) + '\n\nPDF emailed to you. Review, sign, and submit to eMMA.');
+                    if (data.pdf_url) {
+                        window.open(data.pdf_url, '_blank');
+                    }
+                    closeGovBidResultsModal();
+                    loadGovBids();
+                } else {
+                    alert('Error: ' + (data.error || 'PDF generation failed'));
+                }
+            } catch(e) {
+                alert('Request failed. Please try again.');
+            } finally {
+                btn.textContent = 'Generate Bid PDF →';
+                btn.disabled = false;
+            }
+        }
+
+        async function loadGovBids() {
+            try {
+                const res = await fetch('/dashboard/govbids', {
+                    headers: { 'X-Dashboard-Token': getCookie('dashboard_token') }
+                });
+                const data = await res.json();
+                if (data.ok) renderGovBids(data.bids);
+            } catch(e) {
+                console.error('Gov bids load error:', e);
+            }
         }
 
         async function loadGovBids() {
