@@ -2752,10 +2752,9 @@ async function submitCreateCampaign() {
             const solicitationNum = document.getElementById('govSolicitationNum').value.trim();
             const agencyName = document.getElementById('govAgencyName').value.trim();
             const propertyAddress = document.getElementById('govPropertyAddress').value.trim();
-            const pdfInput = document.getElementById('govPdfInput');
 
-            if (!pdfInput.files || !pdfInput.files[0]) {
-                alert('Please select an IFB PDF file.');
+            if (govPdfFiles.length === 0) {
+                alert('Please add at least one PDF file.');
                 return;
             }
 
@@ -2765,15 +2764,8 @@ async function submitCreateCampaign() {
 
             try {
                 const formData = new FormData();
-                if (govPdfFiles.length === 0) {
-                    alert('Please add at least one PDF file.');
-                    btn.disabled = false;
-                    btn.textContent = 'Analyze IFB →';
-                    return;
-                }
                 for (let i = 0; i < govPdfFiles.length; i++) {
                     formData.append('pdf_' + i, govPdfFiles[i]);
-                }
                 }
                 formData.append('solicitation_number', solicitationNum);
                 formData.append('agency_name', agencyName);
