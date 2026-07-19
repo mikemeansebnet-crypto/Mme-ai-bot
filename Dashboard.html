@@ -3393,7 +3393,7 @@ async function submitCreateCampaign() {
                     <div style="font-size:24px;margin-bottom:8px">📄</div>
                     <div style="font-size:13px;color:#94a3b8" id="govPdfLabel">Tap to select IFB PDF</div>
                 </label>
-                <input type="file" id="govPdfInput" accept=".pdf" style="display:none" onchange="govPdfSelected(this)">
+                <input type="file" id="govPdfInput" accept=".pdf" multiple style="display:none" onchange="govPdfSelected(this)">
             </div>
             <div class="modal-actions">
                 <button class="btn-cancel-modal" onclick="closeGovBidModal()">Cancel</button>
