@@ -4060,7 +4060,8 @@ def dashboard_data():
                 "phone": f.get("Phone Number", ""),
                 "amount": f.get("Amount", 0),
                 "job_type": f.get("Notes", ""),
-                "days_outstanding": days_outstanding
+                "days_outstanding": days_outstanding,
+                "invoice_number": f.get("QB Invoice Number", "") or f.get("Invoice Number", "") or "",
             })
 
         recent_bookings = sorted(
