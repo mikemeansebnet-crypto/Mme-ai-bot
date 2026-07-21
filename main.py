@@ -4338,6 +4338,7 @@ def dashboard_quick_pay():
         amount = float(data.get("amount", 0))
         job_description = data.get("job_description", "Service").strip()
         payment_method = data.get("payment_method", "Stripe").strip()
+        customer_email = data.get("customer_email", "").strip()
         twilio_number = request.twilio_number
         contractor = get_contractor_by_twilio_number(twilio_number) or {}
         contractor_id = request.contractor_id
