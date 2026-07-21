@@ -2545,6 +2545,7 @@ async function submitCreateCampaign() {
             document.getElementById('qpPhone').value = '';
             document.getElementById('qpAmount').value = '';
             document.getElementById('qpJob').value = '';
+            document.getElementById('qpEmail').value = '';
             selectedQpMethod = '';
             document.querySelectorAll('.payment-method-btn').forEach(b => b.classList.remove('selected'));
             document.getElementById('quickPayModal').classList.add('active');
@@ -2565,6 +2566,7 @@ async function submitCreateCampaign() {
             const phone = document.getElementById('qpPhone').value.trim();
             const amount = parseFloat(document.getElementById('qpAmount').value);
             const job = document.getElementById('qpJob').value.trim();
+            const email = document.getElementById('qpEmail').value.trim();
 
             if (!name || !phone) {
                 alert('Please enter customer name and phone.');
