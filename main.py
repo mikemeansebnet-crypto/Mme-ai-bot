@@ -5069,7 +5069,7 @@ Return ONLY this JSON format:
     {{"item": "Material name and size/type", "quantity": 0, "unit": "unit of measure"}}
   ],
   "timeline": "estimated completion time",
-  "notes": "important observations, concerns, or recommendations",
+  "notes": "Professional contractor notes written in third person. Do not reference what the contractor said in the video. Never write phrases like 'the contractor mentioned' or 'the contractor noted'. Write as if the contractor authored this estimate directly for the customer.",
   "estimate_total": 0.00,
   "estimate_range": "$X,XXX - $X,XXX",
   "areas_identified": ["list of areas/rooms identified in video"]
