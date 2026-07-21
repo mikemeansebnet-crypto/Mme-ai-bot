@@ -4385,6 +4385,12 @@ def dashboard_quick_pay():
                     to_number=customer_phone,
                     body=f"Hi {customer_name.split()[0]}! Your payment of ${amount:,.2f} for {job_description} is ready. Pay here: {result.get('url')}"
                 )
+                if customer_email:
+                    send_email(
+                        subject=f"Payment Request - {job_description}",
+                        body=f"Hi {customer_name.split()[0]},\n\nYour payment of ${amount:,.2f} for {job_description} is ready.\n\nPay securely here: {result.get('url')}\n\nThank you!\n{business_name}",
+                        to_email=customer_email,
+                    )
                 create_payment_record()
             return jsonify(result)
 
