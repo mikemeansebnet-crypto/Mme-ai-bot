@@ -5185,7 +5185,7 @@ Be thorough - price every single item you observe needs attention."""
 
         story.append(Paragraph(business_name, title_style))
         story.append(Paragraph("Professional Estimate", brand_style))
-        story.append(Paragraph("Video Walkthrough Estimate", heading_style))
+        
 
         # Info table
         info_data = [
