@@ -4037,8 +4037,8 @@ def dashboard_data():
             status = f.get("Payment Status", "")
             if isinstance(status, dict):
                 status = status.get("name", "")
-            contractor_links = f.get("Contractor", [])
-            if contractor_record_id and contractor_record_id not in str(contractor_links):
+            contractor_links = str(f.get("Contractor", "")) + str(f.get("Contractors", "")) + str(f.get("Contractor (from Twilio)", ""))
+            if contractor_record_id and contractor_record_id not in contractor_links and twilio_number not in str(f.get("Contractor Twilio Number", "")) and twilio_number not in str(f.get("Twilio Number", "")):
                 continue
             if status == "Unpaid":
                 unpaid_records.append(r)
