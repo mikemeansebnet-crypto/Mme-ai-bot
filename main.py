@@ -6948,7 +6948,7 @@ def dashboard_govbid_generate_pdf():
             ])
         price_data.append(["", "", "", "TOTAL BID:", f"${total:,.2f}"])
 
-        price_table = Table(price_data, colWidths=[3.0*inch, 0.6*inch, 0.7*inch, 1.0*inch, 1.45*inch])
+        price_table = Table(price_data, colWidths=[3.5*inch, 0.5*inch, 0.6*inch, 0.9*inch, 1.25*inch])
         price_table.setStyle(TableStyle([
             ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#1A4D2E")),
             ("TEXTCOLOR", (0,0), (-1,0), colors.white),
