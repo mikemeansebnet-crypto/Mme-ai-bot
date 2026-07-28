@@ -106,14 +106,27 @@ def detect_image_type(base64_data: str) -> str:
         pass
     return "image/jpeg"
 
-def image_url_to_base64(url: str) -> str | None:
+def image_url_to_base64(url: str):
     try:
         response = requests.get(url, timeout=15)
         response.raise_for_status()
-        return base64.standard_b64encode(response.content).decode("utf-8")
+        content_type = response.headers.get("Content-Type", "image/jpeg").split(";")[0].strip()
+        # Normalize content type
+        if "png" in content_type:
+            content_type = "image/png"
+        elif "jpeg" in content_type or "jpg" in content_type:
+            content_type = "image/jpeg"
+        elif "webp" in content_type:
+            content_type = "image/webp"
+        elif "gif" in content_type:
+            content_type = "image/gif"
+        else:
+            content_type = "image/jpeg"
+        b64 = base64.standard_b64encode(response.content).decode("utf-8")
+        return b64, content_type
     except Exception as e:
         print("IMAGE DOWNLOAD ERROR |", url, "|", str(e))
-        return None
+        return None, "image/jpeg"
 
 
 # ─────────────────────────────────────────────
@@ -144,17 +157,17 @@ def analyze_photos_with_claude(
         # Build image content blocks
         content = []
         for i, url in enumerate(photo_urls[:5]):
-            b64 = image_url_to_base64(url)
+            b64, media_type = image_url_to_base64(url)
             if b64:
                 content.append({
                     "type": "image",
                     "source": {
                         "type": "base64",
-                        "media_type": detect_image_type(b64),
+                        "media_type": media_type,
                         "data": b64
                     }
                 })
-                print(f"CLAUDE VISION | Added photo {i+1} of {len(photo_urls)}")
+                print(f"CLAUDE VISION | Added photo {i+1} of {len(photo_urls)} | type={media_type}")
 
         if not content:
             return {"ok": False, "error": "could_not_load_photos"}
