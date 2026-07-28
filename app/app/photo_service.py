@@ -133,9 +133,9 @@ def analyze_photos_with_claude(
                     "type": "image",
                     "source": {
                         "type": "base64",
-                        "media_type": "image/jpeg",
-                        "data": b64,
-                    },
+                        "media_type": detect_image_type(image_data),
+                        "data": image_data
+                    }
                 })
                 print(f"CLAUDE VISION | Added photo {i+1} of {len(photo_urls)}")
 
