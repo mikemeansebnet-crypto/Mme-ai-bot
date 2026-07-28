@@ -6876,7 +6876,7 @@ def dashboard_govbid_generate_pdf():
             textColor=colors.HexColor("#1A4D2E"), spaceAfter=4)
         heading_style = ParagraphStyle("H", parent=styles["Heading2"], fontSize=11,
             textColor=colors.HexColor("#1A4D2E"), spaceBefore=12, spaceAfter=4)
-        normal_style = ParagraphStyle("N", parent=styles["Normal"], fontSize=10, leading=14)
+        normal_style = ParagraphStyle("N", parent=styles["Normal"], fontSize=9, leading=12)
         small_style = ParagraphStyle("S", parent=styles["Normal"], fontSize=8,
             textColor=colors.gray, leading=11)
         bold_style = ParagraphStyle("B", parent=styles["Normal"], fontSize=10,
