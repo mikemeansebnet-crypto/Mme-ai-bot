@@ -111,7 +111,6 @@ def image_url_to_base64(url: str):
         response = requests.get(url, timeout=15)
         response.raise_for_status()
         b64 = base64.standard_b64encode(response.content).decode("utf-8")
-        # Detect from actual bytes not Content-Type header
         media_type = detect_image_type(b64)
         print(f"IMAGE TYPE DETECTED | {media_type} | {url[-30:]}")
         return b64, media_type
