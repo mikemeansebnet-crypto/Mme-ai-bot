@@ -89,6 +89,23 @@ def upload_photo(file_data: bytes, lead_id: str, photo_index: int) -> dict:
 # Download image and convert to base64
 # ─────────────────────────────────────────────
 
+def detect_image_type(base64_data: str) -> str:
+    """Detects image type from base64 data."""
+    try:
+        import base64 as b64
+        raw = b64.b64decode(base64_data[:20])
+        if raw[:8] == b'\x89PNG\r\n\x1a\n':
+            return "image/png"
+        elif raw[:3] == b'\xff\xd8\xff':
+            return "image/jpeg"
+        elif raw[:4] == b'GIF8':
+            return "image/gif"
+        elif raw[:4] == b'RIFF':
+            return "image/webp"
+    except Exception:
+        pass
+    return "image/jpeg"
+
 def image_url_to_base64(url: str) -> str | None:
     try:
         response = requests.get(url, timeout=15)
