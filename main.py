@@ -1495,7 +1495,6 @@ Respond ONLY in this exact JSON format with no other text:
                     estimate_data = _json.loads(clean)
                     analysis = {"ok": True, **estimate_data}
                 else:
-                    else:
                     analysis = {"ok": False, "error": "no_json"}
             except Exception as claude_err:
                 print(f"CLAUDE VISION ERROR | {claude_err}")
