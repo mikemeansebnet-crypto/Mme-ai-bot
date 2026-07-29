@@ -1459,10 +1459,17 @@ def handle_contractor_photo_estimate(request, contractor, from_number, to_number
 Analyze these job site photos carefully.
 Job described as: "{incoming_msg or 'general contractor work'}"
 Contractor notes take priority over what you see in photos.
+
+PRICING RULES — always follow these exactly:
+- Labor rate: $85/hour for Washington DC jobs, $75/hour for Maryland suburban jobs
+- Materials: price at current retail cost plus 15% markup
+- Material procurement: add 1.5x the material cost to cover pickup time, fuel, and sourcing
+- Minimum job charge: $150
+- Always price for the DC/MD metro market rates
+
 Base pricing on current US contractor rates for the region.
 Break down every phase of work into separate line items.
 Respond ONLY in this exact JSON format with no other text:
-{{
   "job_summary": "Brief description of what you see",
   "line_items": [
     {{"description": "Phase name", "detail": "Specific scope and location", "qty": "1", "unit": "Job", "amount": 350.00}}
