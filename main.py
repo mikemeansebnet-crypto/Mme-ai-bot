@@ -1561,27 +1561,27 @@ Respond ONLY in this exact JSON format with no other text:
                 subtotal = 0.0
                 line_items = estimate_data.get("line_items", [])
                 for i, item in enumerate(line_items):
+                    if y < 100:
+                        c.showPage()
+                        y = height - 60
                     amt = float(item.get("amount", 0))
                     subtotal += amt
-
                     if i % 2 == 0:
                         c.setFillColor(colors.HexColor('#E8F5ED'))
                         c.rect(40, y - 6, width - 80, 20, fill=1, stroke=0)
-
-                c.setFillColor(colors.HexColor('#333333'))
-                c.setFont("Helvetica-Bold", 10)
-                c.drawString(48, y + 4, item.get("description", "")[:45])
-                c.setFont("Helvetica", 10)
-                c.drawRightString(width - 160, y + 4, str(item.get("qty", "1")))
-                c.drawRightString(width - 100, y + 4, str(item.get("unit", ""))[:10])
-                c.drawRightString(width - 44, y + 4, f"${amt:,.2f}")
-
-                y -= 16
-                c.setFont("Helvetica", 8)
-                c.setFillColor(colors.HexColor('#666666'))
-                detail = item.get("detail", "")[:80]
-                c.drawString(48, y, detail)
-                y -= 16
+                    c.setFillColor(colors.HexColor('#333333'))
+                    c.setFont("Helvetica-Bold", 10)
+                    c.drawString(48, y + 4, item.get("description", "")[:45])
+                    c.setFont("Helvetica", 10)
+                    c.drawRightString(width - 160, y + 4, str(item.get("qty", "1")))
+                    c.drawRightString(width - 100, y + 4, str(item.get("unit", ""))[:10])
+                    c.drawRightString(width - 44, y + 4, f"${amt:,.2f}")
+                    y -= 16
+                    c.setFont("Helvetica", 8)
+                    c.setFillColor(colors.HexColor('#666666'))
+                    detail = item.get("detail", "")[:80]
+                    c.drawString(48, y, detail)
+                    y -= 16
 
                 y -= 8
                 c.setStrokeColor(colors.HexColor('#CCCCCC'))
