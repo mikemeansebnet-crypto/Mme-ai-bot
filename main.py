@@ -1426,98 +1426,72 @@ def handle_contractor_photo_estimate(request, contractor, from_number, to_number
                     cloudinary_urls.append(result["url"])
                     print(f"CLOUDINARY SAVED | photo {i+1} | {result['url']}")
 
-            # ── Step 3: Send photos to Claude Vision for analysis ──────────────
-            try:
-                claude_client = get_claude_client()
+            # ── Step 3: Analyze with Claude Vision directly from raw bytes ──────
+            import anthropic as _anthropic
+            import base64 as _base64
+            import json as _json
+            import re as _re
 
-                image_blocks = []
-                for photo_data in photo_urls[:25]:
-                    b64 = base64.standard_b64encode(photo_data).decode("utf-8")
-                    image_blocks.append({
-                        "type": "image",
-                        "source": {
+            _client = _anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY", ""))
+            image_content = []
+            for idx, photo_bytes in enumerate(photo_urls):
+                # Detect type from raw bytes
+                if photo_bytes[:8] == b'\x89PNG\r\n\x1a\n':
+                    img_type = "image/png"
+                elif photo_bytes[:3] == b'\xff\xd8\xff':
+                    img_type = "image/jpeg"
+                else:
+                    img_type = "image/jpeg"
+                b64 = _base64.standard_b64encode(photo_bytes).decode("utf-8")
+                image_content.append({
+                    "type": "image",
+                    "source": {
                         "type": "base64",
                         "media_type": img_type,
-                        "data": base64.b64encode(photo_bytes).decode("utf-8")
+                        "data": b64
                     }
                 })
+                print(f"CLAUDE IMAGE | {idx+1} | type={img_type}")
 
-                image_blocks.append({
-                    "type": "text",
-                    "text": (
-                        f"You are an expert contractor estimator for {business_name}. "
-                        f"The contractor's description of the job: '{incoming_msg}'. "
-                        "Analyze these job site photos carefully along with the description. "
-                        "Identify the scope of work and provide a detailed estimate breakdown. "
-                        "IMPORTANT: Always provide realistic contractor pricing for each line item. "
-                        "Base all pricing on current regional US contractor labor and material rates. "
-                        "Use the job location if mentioned in the description to determine local market rates. "
-                        "For example: DC/MD/VA metro area rates are higher than rural markets. "
-                        "California (especially LA/SF Bay Area) rates are among the highest in the US. "
-                        "Texas, Florida, and Southeast rates are typically moderate. "
-                        "Midwest and rural rates are generally lower. "
-                        "If no location is mentioned, use national average contractor rates. "
-                        "Never use 0 as an amount. "
-                        "Break down every phase of work into separate line items — do NOT combine multiple tasks into one line. "
-                        "Each line item should represent one distinct phase or task. "
-                        "For drywall/repair work include separate line items for: protection, demo/removal, materials installation, finishing coats, sanding, priming, cleanup. "
-                        "For painting include: prep, primer, paint coats, trim, cleanup. "
-                        "For lawn/landscaping include: equipment, labor per area, disposal, materials. "
-                        "Every line item must have a realistic individual price — the total must equal the sum of all line items. "
-                        "A customer should be able to read the line items and understand exactly what they are paying for at each phase. "
-                        "Also include a separate materials list with specific quantities and units. "
-                        "If a photo is unclear, use the contractor's text description to guide your estimate. "
-                        "Respond ONLY in this exact JSON format with no other text:\n"
-                        "{\n"
-                        '  "job_summary": "Brief description of what you see",\n'
-                        '  "line_items": [\n'
-                        '    {"description": "Phase name", "detail": "Specific scope and location", "qty": "1", "unit": "Job", "amount": 350.00},\n'
-                        '    {"description": "Phase name", "detail": "Specific scope and location", "qty": "1", "unit": "Job", "amount": 1450.00}\n'
-                        "  ],\n"
-                        '  "materials": [\n'
-                        '    {"item": "Material name and size/type", "quantity": 0, "unit": "unit of measure"},\n'
-                        '    {"item": "Material name and size/type", "quantity": 0, "unit": "unit of measure"}\n'
-                        "  ],\n"
-                        '  "notes": "Any important notes, exclusions, or contingencies"\n'
-                        "}"
-                    )
-                })
+            image_content.append({
+                "type": "text",
+                "text": f"""You are an expert contractor estimator for {business_name}.
+Analyze these job site photos carefully.
+Job described as: "{incoming_msg or 'general contractor work'}"
+Contractor notes take priority over what you see in photos.
+Base pricing on current US contractor rates for the region.
+Break down every phase of work into separate line items.
+Respond ONLY in this exact JSON format with no other text:
+{{
+  "job_summary": "Brief description of what you see",
+  "line_items": [
+    {{"description": "Phase name", "detail": "Specific scope and location", "qty": "1", "unit": "Job", "amount": 350.00}}
+  ],
+  "materials": [
+    {{"item": "Material name and size/type", "quantity": 0, "unit": "unit of measure"}}
+  ],
+  "notes": "Professional contractor notes written in third person"
+}}"""
+            })
 
-                vision_response = claude_client.messages.create(
+            try:
+                _response = _client.messages.create(
                     model="claude-sonnet-4-6",
                     max_tokens=4000,
-                    messages=[{"role": "user", "content": image_blocks}]
+                    messages=[{"role": "user", "content": image_content}]
                 )
-
-                raw = vision_response.content[0].text.strip()
-                print("CLAUDE VISION RESPONSE |", raw[:200])
-
-                json_match = re.search(r"\{.*\}", raw, re.DOTALL)
-                if not json_match:
-                    raise ValueError("No JSON in Claude response")
-                
-                clean_json = json_match.group(0)
-                # Log the problem area
-                print(f"JSON LENGTH | {len(clean_json)}")
-                print(f"CHAR 4650-4690 | {repr(clean_json[4650:4690])}")
-                
-                try:
-                    estimate_data = json.loads(clean_json)
-                except json.JSONDecodeError as je:
-                    print(f"JSON ERROR DETAIL | {je}")
-                    # Remove all non-ASCII characters and try again
-                    clean_json = clean_json.encode('ascii', 'ignore').decode('ascii')
-                    estimate_data = json.loads(clean_json)
-
-            except Exception as e:
-                print("CLAUDE VISION ERROR |", e)
-                tc = Client(twilio_account_sid, twilio_auth_token)
-                tc.messages.create(
-                    body="Photos received but estimate generation failed. Please try again.",
-                    from_=to_number,
-                    to=from_number
-                )
-                return
+                raw = _response.content[0].text.strip()
+                print(f"CLAUDE VISION RESPONSE | {raw[:200]}")
+                json_match = _re.search(r"[{].*[}]", raw, _re.DOTALL)
+                if json_match:
+                    clean = json_match.group(0).encode('ascii', 'ignore').decode('ascii')
+                    estimate_data = _json.loads(clean)
+                    analysis = {"ok": True, **estimate_data}
+                else:
+                    analysis = {"ok": False, "error": "no_json"}
+            except Exception as claude_err:
+                print(f"CLAUDE VISION ERROR | {claude_err}")
+                analysis = {"ok": False, "error": str(claude_err)}
 
             # ── Step 4: Generate PDF estimate ──────────────────────────────────
             try:
