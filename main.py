@@ -4506,6 +4506,314 @@ def dashboard_edit_regular_client():
         print(f"EDIT REGULAR CLIENT ERROR | {e}")
         return jsonify({"ok": False, "error": str(e)}), 500
 
+
+@app.route("/dashboard/estimates")
+@dashboard_auth_required
+def dashboard_estimates():
+    """Returns draft estimates pending contractor review."""
+    try:
+        twilio_number = request.twilio_number
+        AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
+        AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
+        resp = requests.get(
+            f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tblYw9uFZEWsMRKpZ",
+            headers={"Authorization": f"Bearer {AIRTABLE_TOKEN}"}
+        )
+        all_records = resp.json().get("records", [])
+        import json as _json
+        estimates = []
+        for r in all_records:
+            f = r.get("fields", {})
+            if f.get("Twilio Number", "") != twilio_number:
+                continue
+            status = f.get("Status", {})
+            if isinstance(status, dict):
+                status = status.get("name", "")
+            if status != "Draft":
+                continue
+            try:
+                line_items = _json.loads(f.get("Line Items JSON", "[]") or "[]")
+            except Exception:
+                line_items = []
+            try:
+                materials = _json.loads(f.get("Materials JSON", "[]") or "[]")
+            except Exception:
+                materials = []
+            estimates.append({
+                "record_id": r.get("id"),
+                "estimate_id": f.get("Estimate ID", ""),
+                "job_summary": f.get("Job Summary", ""),
+                "line_items": line_items,
+                "materials": materials,
+                "notes": f.get("Notes", ""),
+                "subtotal": f.get("Subtotal", 0),
+                "customer_phone": f.get("Customer Phone", ""),
+                "customer_name": f.get("Customer Name", ""),
+            })
+        return jsonify({"ok": True, "estimates": estimates})
+    except Exception as e:
+        print(f"ESTIMATES ERROR | {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route("/dashboard/action/send-estimate", methods=["POST"])
+@dashboard_auth_required
+def dashboard_send_estimate():
+    """Regenerates PDF with edited numbers and sends to customer."""
+    try:
+        import json as _json
+        from reportlab.pdfgen import canvas
+        from reportlab.lib.pagesizes import letter
+        from reportlab.lib import colors
+        import io
+        from datetime import date, datetime, timezone
+
+        data = request.get_json(silent=True) or {}
+        record_id = data.get("record_id", "").strip()
+        line_items = data.get("line_items", [])
+        materials = data.get("materials", [])
+        notes = data.get("notes", "")
+        job_summary = data.get("job_summary", "").strip()
+        customer_phone = data.get("customer_phone", "").strip()
+        customer_name = data.get("customer_name", "").strip()
+        twilio_number = request.twilio_number
+        contractor = get_contractor_by_twilio_number(twilio_number) or {}
+        business_name = contractor.get("Business Name", "Your Business")
+        notify_email = contractor.get("Notify Email", "").strip()
+
+        subtotal = sum(float(i.get("amount", 0)) for i in line_items)
+        estimate_id = f"EST-{int(datetime.now(timezone.utc).timestamp())}"
+
+        AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
+        AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
+        at_headers = {"Authorization": f"Bearer {AIRTABLE_TOKEN}", "Content-Type": "application/json"}
+
+        # Generate PDF
+        pdf_buffer = io.BytesIO()
+        c = canvas.Canvas(pdf_buffer, pagesize=letter)
+        width, height = letter
+        y = height - 60
+
+        # Header
+        c.setFillColor(colors.HexColor('#1A4D2E'))
+        c.rect(0, height - 80, width, 80, fill=1, stroke=0)
+        c.setFillColor(colors.white)
+        c.setFont("Helvetica-Bold", 20)
+        c.drawString(40, height - 50, business_name)
+        c.setFont("Helvetica-Bold", 26)
+        c.setFillColor(colors.HexColor('#F4A828'))
+        c.drawRightString(width - 40, height - 52, "ESTIMATE")
+
+        y = height - 110
+        c.setFillColor(colors.HexColor('#333333'))
+        c.setFont("Helvetica", 10)
+        c.drawString(40, y, f"Date: {date.today().strftime('%B %d, %Y')}")
+        c.drawRightString(width - 40, y, f"Estimate ID: {estimate_id}")
+        if customer_name:
+            y -= 16
+            c.drawString(40, y, f"Prepared for: {customer_name}")
+        y -= 20
+
+        c.setStrokeColor(colors.HexColor('#2E7D4F'))
+        c.setLineWidth(1.5)
+        c.line(40, y, width - 40, y)
+        y -= 20
+
+        # Job Summary
+        c.setFont("Helvetica-Bold", 10)
+        c.setFillColor(colors.HexColor('#2E7D4F'))
+        c.drawString(40, y, "JOB SUMMARY")
+        y -= 16
+        c.setFont("Helvetica", 9)
+        c.setFillColor(colors.HexColor('#333333'))
+        words = job_summary.split()
+        line = ""
+        for word in words:
+            test = f"{line} {word}".strip()
+            if c.stringWidth(test, "Helvetica", 9) < width - 80:
+                line = test
+            else:
+                c.drawString(40, y, line)
+                y -= 13
+                line = word
+        if line:
+            c.drawString(40, y, line)
+        y -= 24
+
+        # Line items table header
+        c.setFillColor(colors.HexColor('#1A4D2E'))
+        c.rect(40, y - 4, width - 80, 22, fill=1, stroke=0)
+        c.setFillColor(colors.white)
+        c.setFont("Helvetica-Bold", 9)
+        c.drawString(48, y + 4, "DESCRIPTION")
+        c.drawRightString(width - 160, y + 4, "QTY")
+        c.drawRightString(width - 100, y + 4, "UNIT")
+        c.drawRightString(width - 44, y + 4, "AMOUNT")
+        y -= 26
+
+        # Line items
+        for i, item in enumerate(line_items):
+            if y < 100:
+                c.showPage()
+                y = height - 60
+            amt = float(item.get("amount", 0))
+            if i % 2 == 0:
+                c.setFillColor(colors.HexColor('#E8F5ED'))
+                c.rect(40, y - 6, width - 80, 20, fill=1, stroke=0)
+            c.setFillColor(colors.HexColor('#333333'))
+            c.setFont("Helvetica-Bold", 9)
+            c.drawString(48, y + 4, str(item.get("description", ""))[:50])
+            c.setFont("Helvetica", 9)
+            c.drawRightString(width - 160, y + 4, str(item.get("qty", "1")))
+            c.drawRightString(width - 100, y + 4, str(item.get("unit", ""))[:10])
+            c.drawRightString(width - 44, y + 4, f"${amt:,.2f}")
+            y -= 16
+            if item.get("detail"):
+                c.setFont("Helvetica", 8)
+                c.setFillColor(colors.HexColor('#666666'))
+                c.drawString(48, y, str(item.get("detail", ""))[:80])
+                y -= 14
+
+        y -= 8
+        c.setStrokeColor(colors.HexColor('#CCCCCC'))
+        c.line(40, y, width - 40, y)
+        y -= 18
+
+        # Total
+        c.setFillColor(colors.HexColor('#1A4D2E'))
+        c.rect(40, y - 6, width - 80, 26, fill=1, stroke=0)
+        c.setFillColor(colors.HexColor('#F4A828'))
+        c.setFont("Helvetica-Bold", 14)
+        c.drawRightString(width - 44, y + 6, f"${subtotal:,.2f}")
+        c.setFillColor(colors.white)
+        c.setFont("Helvetica-Bold", 11)
+        c.drawString(48, y + 6, "TOTAL ESTIMATE")
+        y -= 40
+
+        # Materials
+        if materials:
+            if y < 150:
+                c.showPage()
+                y = height - 60
+            c.setFillColor(colors.HexColor('#1A4D2E'))
+            c.rect(40, y - 4, width - 80, 22, fill=1, stroke=0)
+            c.setFillColor(colors.white)
+            c.setFont("Helvetica-Bold", 9)
+            c.drawString(48, y + 4, "ESTIMATED MATERIALS LIST")
+            c.drawRightString(width - 160, y + 4, "QTY")
+            c.drawRightString(width - 44, y + 4, "UNIT")
+            y -= 26
+            for i, mat in enumerate(materials):
+                if y < 80:
+                    c.showPage()
+                    y = height - 60
+                if i % 2 == 0:
+                    c.setFillColor(colors.HexColor('#E8F5ED'))
+                    c.rect(40, y - 6, width - 80, 20, fill=1, stroke=0)
+                c.setFillColor(colors.HexColor('#333333'))
+                c.setFont("Helvetica", 9)
+                c.drawString(48, y + 4, str(mat.get("item", ""))[:55])
+                c.drawRightString(width - 160, y + 4, str(mat.get("quantity", "")))
+                c.drawRightString(width - 44, y + 4, str(mat.get("unit", ""))[:15])
+                y -= 20
+            y -= 8
+
+        # Notes
+        if notes:
+            if y < 100:
+                c.showPage()
+                y = height - 60
+            c.setFont("Helvetica-Bold", 9)
+            c.setFillColor(colors.HexColor('#2E7D4F'))
+            c.drawString(40, y, "NOTES")
+            y -= 14
+            c.setFont("Helvetica", 8)
+            c.setFillColor(colors.HexColor('#333333'))
+            words = notes.split()
+            line = ""
+            for word in words:
+                test = f"{line} {word}".strip()
+                if c.stringWidth(test, "Helvetica", 8) < width - 80:
+                    line = test
+                else:
+                    c.drawString(40, y, line)
+                    y -= 12
+                    line = word
+            if line:
+                c.drawString(40, y, line)
+            y -= 20
+
+        c.setFont("Helvetica", 8)
+        c.setFillColor(colors.HexColor('#888888'))
+        c.drawString(40, y, "Material quantities are estimates. Verify before purchasing.")
+
+        # Footer
+        c.setFillColor(colors.HexColor('#1A4D2E'))
+        c.rect(0, 0, width, 36, fill=1, stroke=0)
+        c.setFillColor(colors.white)
+        c.setFont("Helvetica", 9)
+        c.drawCentredString(width / 2, 13, f"{business_name}  |  Professional Contractor Services")
+        c.save()
+
+        pdf_buffer.seek(0)
+        pdf_bytes = pdf_buffer.read()
+
+        # Upload to Cloudinary
+        pdf_temp_path = f"/tmp/estimate_{estimate_id}.pdf"
+        with open(pdf_temp_path, "wb") as f:
+            f.write(pdf_bytes)
+
+        pdf_url = None
+        try:
+            import cloudinary.uploader
+            result = cloudinary.uploader.upload(
+                pdf_bytes,
+                public_id=f"contractoros/estimates/{estimate_id}",
+                resource_type="raw",
+                format="pdf",
+                overwrite=True,
+            )
+            raw_url = result.get("secure_url", "")
+            pdf_url = raw_url.replace("/upload/", "/upload/fl_attachment/")
+        except Exception as e:
+            print(f"ESTIMATE PDF CLOUDINARY ERROR | {e}")
+
+        # Email to contractor
+        try:
+            if notify_email:
+                send_email(
+                    subject=f"Estimate Sent - {customer_name or customer_phone} | ${subtotal:,.2f}",
+                    body=f"Estimate sent to {customer_name or customer_phone}.\nTotal: ${subtotal:,.2f}\nPDF: {pdf_url}",
+                    to_email=notify_email,
+                    attachment_path=pdf_temp_path,
+                )
+        except Exception as e:
+            print(f"ESTIMATE EMAIL ERROR | {e}")
+
+        # Send PDF link to customer via SMS
+        if customer_phone and pdf_url:
+            first_name = customer_name.split()[0] if customer_name else "there"
+            send_fallback_sms(
+                to_number=customer_phone,
+                body=f"Hi {first_name}! Your estimate from {business_name} is ready. Total: ${subtotal:,.2f}. View here: {pdf_url}"
+            )
+
+        # Mark estimate as Sent in Airtable
+        if record_id:
+            requests.patch(
+                f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tblYw9uFZEWsMRKpZ/{record_id}",
+                headers=at_headers,
+                json={"fields": {"fldFspibSfYfRiRf3": "Sent"}}
+            )
+
+        return jsonify({"ok": True, "pdf_url": pdf_url, "subtotal": subtotal})
+
+    except Exception as e:
+        print(f"SEND ESTIMATE ERROR | {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"ok": False, "error": str(e)}), 500
+
 @app.route("/onesignal/register", methods=["POST"])
 @dashboard_auth_required
 def onesignal_register():
