@@ -1495,10 +1495,41 @@ Respond ONLY in this exact JSON format with no other text:
                     estimate_data = _json.loads(clean)
                     analysis = {"ok": True, **estimate_data}
                 else:
+                    else:
                     analysis = {"ok": False, "error": "no_json"}
             except Exception as claude_err:
                 print(f"CLAUDE VISION ERROR | {claude_err}")
                 analysis = {"ok": False, "error": str(claude_err)}
+
+            # Save draft estimate to Photo Estimates table for dashboard review
+            if analysis.get("ok"):
+                try:
+                    import json as _json2
+                    from datetime import datetime, timezone
+                    AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
+                    AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
+                    now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+                    subtotal = sum(float(i.get("amount", 0)) for i in analysis.get("line_items", []))
+                    requests.post(
+                        f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tblYw9uFZEWsMRKpZ",
+                        headers={"Authorization": f"Bearer {AIRTABLE_TOKEN}", "Content-Type": "application/json"},
+                        json={"fields": {
+                            "fld48yNQM7O496fWb": estimate_id,
+                            "fldrgr8Zh5LH4LAQc": analysis.get("job_summary", ""),
+                            "fldUTc0peJ8RkhiSj": _json2.dumps(analysis.get("line_items", [])),
+                            "fldLw4ctjNja0UfiD": _json2.dumps(analysis.get("materials", [])),
+                            "fldu3LXTWHrantoEQ": analysis.get("notes", ""),
+                            "fld37bvXWydEljUXz": subtotal,
+                            "fldFspibSfYfRiRf3": "Draft",
+                            "fldWiBT0qbVIxGehV": to_number,
+                            "fld4vDP0ETt7HlMeb": from_number,
+                            "fldbQ3u7PP92b5iiF": "Photo Estimate",
+                            "fld9nJMXjv1vHNTe1": now_iso,
+                        }}
+                    )
+                    print(f"ESTIMATE SAVED | {estimate_id} | ${subtotal}")
+                except Exception as e:
+                    print(f"ESTIMATE SAVE ERROR (non-fatal) | {e}")
 
             # ── Step 4: Generate PDF estimate ──────────────────────────────────
             try:
