@@ -3038,6 +3038,11 @@ async function submitCreateCampaign() {
 
         // -- PENDING ESTIMATES --
         let currentEstimate = {};
+        let pendingEstimatesList = [];
+
+        function openEstimate(index) {
+            openEditEstimateModal(pendingEstimatesList[index]);
+        }
 
         async function loadPendingEstimates() {
             try {
@@ -3052,6 +3057,7 @@ async function submitCreateCampaign() {
         }
 
         function renderPendingEstimates(estimates) {
+            pendingEstimatesList = estimates;
             document.getElementById('estimatesCount').textContent = estimates.length;
             const el = document.getElementById('pendingEstimates');
             if (!estimates.length) {
@@ -3067,7 +3073,7 @@ async function submitCreateCampaign() {
                 html += '<div class="job-type">' + (e.job_summary || '').substring(0, 80) + '...</div>';
                 html += '<div style="color:#22c55e;font-size:18px;font-weight:700;margin-top:8px">' + total + '</div>';
                 html += '<div class="job-actions" style="margin-top:10px">';
-                html += '<button onclick=\'openEditEstimateModal(' + JSON.stringify(e) + ')\' class="action-btn" style="background:var(--gradient);color:white">✏️ Review & Edit</button>';
+                html += '<button onclick="openEstimate(' + i + ')" class="action-btn" style="background:var(--gradient);color:white">Review & Edit</button>';
                 html += '</div></div>';
             }
             el.innerHTML = html;
@@ -3151,7 +3157,7 @@ async function submitCreateCampaign() {
                 if (data.ok) {
                     closeEditEstimateModal();
                     loadPendingEstimates();
-                    alert('Estimate sent to ' + (customerName || customerPhone) + '!\nTotal: $' + parseFloat(data.subtotal).toLocaleString('en-US', {minimumFractionDigits:2}));
+                    alert('Estimate sent!\nTotal: $' + parseFloat(data.subtotal).toLocaleString('en-US', {minimumFractionDigits:2}));
                 } else {
                     alert('Error: ' + (data.error || 'Something went wrong'));
                 }
