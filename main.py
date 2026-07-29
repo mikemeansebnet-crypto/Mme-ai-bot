@@ -1390,23 +1390,21 @@ def handle_contractor_photo_estimate(request, contractor, from_number, to_number
         with app.app_context():
             # ── Step 1: Download photos from Twilio MMS ────────────────────────
             photo_urls = []
+            detected_types = []
             for i, media_url in enumerate(media_urls_raw):
                 try:
                     r = requests.get(media_url, auth=(twilio_account_sid, twilio_auth_token), timeout=15)
                     r.raise_for_status()
-                    # Detect actual image type from bytes
                     img_bytes = r.content
                     if img_bytes[:8] == b'\x89PNG\r\n\x1a\n':
                         img_type = "image/png"
                     elif img_bytes[:3] == b'\xff\xd8\xff':
                         img_type = "image/jpeg"
-                    elif img_bytes[:4] == b'RIFF':
-                        img_type = "image/webp"
                     else:
                         img_type = "image/jpeg"
-                    photo_urls.append((img_bytes, img_type))
-                    print(f"PHOTO DOWNLOADED | {i+1} of {len(media_urls_raw)} | {len(r.content)} bytes | type={img_type}")
-                    print(f"PHOTO DOWNLOADED | {i+1} of {len(media_urls_raw)} | {len(r.content)} bytes")
+                    photo_urls.append(img_bytes)
+                    detected_types.append(img_type)
+                    print(f"PHOTO DOWNLOADED | {i+1} of {len(media_urls_raw)} | {len(img_bytes)} bytes | type={img_type}")
                 except Exception as e:
                     print(f"PHOTO DOWNLOAD ERROR | {i} |", e)
 
