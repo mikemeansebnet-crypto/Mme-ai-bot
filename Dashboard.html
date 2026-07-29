@@ -693,6 +693,15 @@
             </div>
             <div id="govBidsSection"><div class="loading">Loading...</div></div>
         </div>
+
+        <!-- Pending Estimates -->
+        <div class="section">
+            <div class="section-header">
+                <div class="section-title">📋 Pending Estimates</div>
+                <div class="section-count" id="estimatesCount">0</div>
+            </div>
+            <div id="pendingEstimates"><div class="loading">Loading...</div></div>
+        </div>
     
 
         <!-- Messages Inbox -->
@@ -3026,6 +3035,133 @@ async function submitCreateCampaign() {
             }
         }
 
+        // -- PENDING ESTIMATES --
+        let currentEstimate = {};
+
+        async function loadPendingEstimates() {
+            try {
+                const res = await fetch('/dashboard/estimates', {
+                    headers: { 'X-Dashboard-Token': getCookie('dashboard_token') }
+                });
+                const data = await res.json();
+                if (data.ok) renderPendingEstimates(data.estimates);
+            } catch(e) {
+                console.error('Estimates load error:', e);
+            }
+        }
+
+        function renderPendingEstimates(estimates) {
+            document.getElementById('estimatesCount').textContent = estimates.length;
+            const el = document.getElementById('pendingEstimates');
+            if (!estimates.length) {
+                el.innerHTML = '<div class="empty-state">No pending estimates</div>';
+                return;
+            }
+            let html = '';
+            for (let i = 0; i < estimates.length; i++) {
+                const e = estimates[i];
+                const total = parseFloat(e.subtotal || 0).toLocaleString('en-US', {style:'currency', currency:'USD'});
+                html += '<div class="job-card">';
+                html += '<div class="job-name">Draft Estimate</div>';
+                html += '<div class="job-type">' + (e.job_summary || '').substring(0, 80) + '...</div>';
+                html += '<div style="color:#22c55e;font-size:18px;font-weight:700;margin-top:8px">' + total + '</div>';
+                html += '<div class="job-actions" style="margin-top:10px">';
+                html += '<button onclick=\'openEditEstimateModal(' + JSON.stringify(e) + ')\' class="action-btn" style="background:var(--gradient);color:white">✏️ Review & Edit</button>';
+                html += '</div></div>';
+            }
+            el.innerHTML = html;
+        }
+
+        function openEditEstimateModal(estimate) {
+            currentEstimate = estimate;
+            document.getElementById('editEstimateSummary').textContent = 'Review and edit before sending';
+            document.getElementById('editEstimateJobSummary').value = estimate.job_summary || '';
+            document.getElementById('editCustomerPhone').value = estimate.customer_phone || '';
+            document.getElementById('editCustomerName').value = estimate.customer_name || '';
+            document.getElementById('editEstimateNotes').value = estimate.notes || '';
+            renderEditLineItems(estimate.line_items || []);
+            document.getElementById('editEstimateModal').classList.add('active');
+        }
+
+        function closeEditEstimateModal() {
+            document.getElementById('editEstimateModal').classList.remove('active');
+        }
+
+        function renderEditLineItems(lineItems) {
+            let total = 0;
+            let html = '';
+            for (let i = 0; i < lineItems.length; i++) {
+                const item = lineItems[i];
+                const amt = parseFloat(item.amount || 0);
+                total += amt;
+                html += '<div style="background:#0f172a;border-radius:8px;padding:10px;margin-bottom:8px">';
+                html += '<div style="font-size:13px;font-weight:600;color:white;margin-bottom:4px">' + (item.description || '') + '</div>';
+                html += '<div style="font-size:11px;color:#94a3b8;margin-bottom:6px">' + (item.detail || '') + '</div>';
+                html += '<div style="display:flex;gap:8px;align-items:center">';
+                html += '<input type="number" value="' + amt + '" step="0.01" min="0" ';
+                html += 'onchange="updateLineItemAmount(' + i + ', this.value)" ';
+                html += 'style="background:#1e293b;border:1px solid #334155;border-radius:6px;padding:6px 10px;color:#22c55e;font-size:14px;font-weight:700;width:120px">';
+                html += '<span style="font-size:11px;color:#64748b">' + (item.unit || 'Job') + '</span>';
+                html += '</div></div>';
+            }
+            document.getElementById('editLineItems').innerHTML = html;
+            document.getElementById('editEstimateTotal').textContent = '$' + total.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+        }
+
+        function updateLineItemAmount(index, value) {
+            if (!currentEstimate.line_items) return;
+            currentEstimate.line_items[index].amount = parseFloat(value) || 0;
+            let total = currentEstimate.line_items.reduce(function(sum, item) {
+                return sum + parseFloat(item.amount || 0);
+            }, 0);
+            document.getElementById('editEstimateTotal').textContent = '$' + total.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+        }
+
+        async function submitSendEstimate() {
+            const customerPhone = document.getElementById('editCustomerPhone').value.trim();
+            const customerName = document.getElementById('editCustomerName').value.trim();
+            const notes = document.getElementById('editEstimateNotes').value.trim();
+            const jobSummary = document.getElementById('editEstimateJobSummary').value.trim();
+            if (!customerPhone) {
+                alert('Please enter customer phone number.');
+                return;
+            }
+            const btn = document.getElementById('sendEstimateBtn');
+            btn.textContent = 'Generating & Sending...';
+            btn.disabled = true;
+            try {
+                const res = await fetch('/dashboard/action/send-estimate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Dashboard-Token': getCookie('dashboard_token')
+                    },
+                    body: JSON.stringify({
+                        record_id: currentEstimate.record_id,
+                        line_items: currentEstimate.line_items,
+                        materials: currentEstimate.materials || [],
+                        notes: notes,
+                        job_summary: jobSummary,
+                        customer_phone: customerPhone,
+                        customer_name: customerName,
+                    })
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    closeEditEstimateModal();
+                    loadPendingEstimates();
+                    alert('Estimate sent to ' + (customerName || customerPhone) + '!\nTotal: $' + parseFloat(data.subtotal).toLocaleString('en-US', {minimumFractionDigits:2}));
+                } else {
+                    alert('Error: ' + (data.error || 'Something went wrong'));
+                }
+            } catch(e) {
+                alert('Send failed. Please try again.');
+            } finally {
+                btn.textContent = 'Send to Customer →';
+                btn.disabled = false;
+            }
+        }
+
         // Load on startup
         loadDashboard();
         // Auto-refresh every 5 minutes
@@ -3576,6 +3712,46 @@ async function submitCreateCampaign() {
             </div>
         </div>
     </div>
+
+    <!-- Edit Estimate Modal -->
+    <div class="modal-overlay" id="editEstimateModal">
+        <div class="booking-modal" style="max-height:95vh;overflow-y:auto">
+            <div class="modal-title">📋 Review & Edit Estimate</div>
+            <div class="modal-date" id="editEstimateSummary"></div>
+            <div class="form-group">
+                <label class="form-label">Job Summary</label>
+                <textarea class="form-input" id="editEstimateJobSummary" rows="3" style="resize:none;font-size:13px"></textarea>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Line Items — tap amount to edit</label>
+                <div id="editLineItems"></div>
+            </div>
+            <div style="background:#0f172a;border-radius:10px;padding:12px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center">
+                <span style="font-weight:700;color:white">TOTAL</span>
+                <span style="font-size:20px;font-weight:700;color:#22c55e" id="editEstimateTotal">$0.00</span>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Send to Customer Phone</label>
+                <input type="tel" class="form-input" id="editCustomerPhone" placeholder="+12025551234">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Customer Name</label>
+                <input type="text" class="form-input" id="editCustomerName" placeholder="John Smith">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Notes</label>
+                <textarea class="form-input" id="editEstimateNotes" rows="3" style="resize:none;font-size:12px"></textarea>
+            </div>
+            <div class="modal-actions">
+                <button class="btn-cancel-modal" onclick="closeEditEstimateModal()">Cancel</button>
+                <button class="btn-book" id="sendEstimateBtn" onclick="submitSendEstimate()">Send to Customer →</button>
+            </div>
+        </div>
+    </div>
+    
+    
+
+            
 
     
 
