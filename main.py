@@ -5361,18 +5361,22 @@ def dashboard_walkthrough():
         try:
             import subprocess
             compressed_path = tmp_path.replace(suffix, "_compressed.mp4")
-            subprocess.run([
+            result = subprocess.run([
                 "ffmpeg", "-i", tmp_path,
                 "-vf", "scale=1280:-2",
                 "-crf", "28",
                 "-preset", "fast",
                 "-y", compressed_path
-            ], capture_output=True, timeout=60)
-            if os.path.exists(compressed_path):
+            ], capture_output=True, timeout=120)
+            if os.path.exists(compressed_path) and os.path.getsize(compressed_path) > 0:
+                original_size = os.path.getsize(tmp_path)
+                compressed_size = os.path.getsize(compressed_path)
+                print(f"WALKTHROUGH | Video compressed | {original_size} -> {compressed_size} bytes")
                 os.remove(tmp_path)
                 tmp_path = compressed_path
                 suffix = ".mp4"
-                print(f"WALKTHROUGH | Video compressed | {os.path.getsize(tmp_path)} bytes")
+            else:
+                print(f"WALKTHROUGH | ffmpeg failed | returncode={result.returncode} | {result.stderr[:200]}")
         except Exception as e:
             print(f"WALKTHROUGH | ffmpeg compression skipped | {e}")
 
