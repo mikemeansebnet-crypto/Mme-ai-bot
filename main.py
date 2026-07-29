@@ -5364,7 +5364,7 @@ def dashboard_walkthrough():
             subprocess.run([
                 "ffmpeg", "-i", tmp_path,
                 "-vf", "scale=1280:-2",
-                "-cfs", "28",
+                "-crf", "28",
                 "-preset", "fast",
                 "-y", compressed_path
             ], capture_output=True, timeout=60)
