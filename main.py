@@ -1439,8 +1439,8 @@ def handle_contractor_photo_estimate(request, contractor, from_number, to_number
                         "type": "image",
                         "source": {
                         "type": "base64",
-                        "media_type": "image/jpeg",
-                        "data": b64
+                        "media_type": img_type,
+                        "data": base64.b64encode(photo_bytes).decode("utf-8")
                     }
                 })
 
