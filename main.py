@@ -4790,13 +4790,25 @@ def dashboard_send_estimate():
         except Exception as e:
             print(f"ESTIMATE EMAIL ERROR | {e}")
 
-        # Send PDF link to customer via SMS
-        if customer_phone and pdf_url:
-            first_name = customer_name.split()[0] if customer_name else "there"
-            send_fallback_sms(
-                to_number=customer_phone,
-                body=f"Hi {first_name}! Your estimate from {business_name} is ready. Total: ${subtotal:,.2f}. View here: {pdf_url}"
-            )
+        # Send estimate approval link to customer
+        if customer_phone:
+            try:
+                create_estimate_approval(
+                    customer_name=customer_name,
+                    customer_phone=customer_phone,
+                    customer_email="",
+                    service_address="",
+                    project_type=job_summary[:50] if job_summary else "Service Estimate",
+                    quote_low=subtotal * 0.9,
+                    quote_high=subtotal * 1.1,
+                    materials=materials,
+                    notes=notes,
+                    twilio_number=twilio_number,
+                    pdf_url=pdf_url or "",
+                )
+                print(f"SEND ESTIMATE | Approval link sent | {customer_phone}")
+            except Exception as e:
+                print(f"SEND ESTIMATE | Approval error (non-fatal) | {e}")
 
         # Mark estimate as Sent in Airtable
         if record_id:
