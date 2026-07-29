@@ -152,7 +152,7 @@
                     <div class="label">Property Address</div>
                     <div class="value">${d.address || ''}</div>
                     <div class="label">Estimated Price Range</div>
-                    <div class="quote-range">$${Number(d.quote_low).toLocaleString()} - $${Number(d.quote_high).toLocaleString()}</div>
+                    <div class="quote-range">$${Number(d.quote_low).toLocaleString('en-US', {minimumFractionDigits:0, maximumFractionDigits:0})} - $${Number(d.quote_high).toLocaleString('en-US', {minimumFractionDigits:0, maximumFractionDigits:0})}</div>
                     ${d.notes ? `<div class="label">Notes</div><div class="value">${d.notes}</div>` : ''}
                 </div>
                 ${materials.length ? `<div class="card">${materialsHtml}</div>` : ''}
