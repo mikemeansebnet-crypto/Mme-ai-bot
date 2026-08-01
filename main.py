@@ -4425,9 +4425,9 @@ def dashboard_quick_pay():
                 print(f"QUICK PAY | Airtable record error (non-fatal) | {e}")
 
         if payment_method == "Stripe":
-            from app.app.stripe_service import create_payment_link
+            from app.app.stripe_service import create_payment_link as _create_pl
             business_name = (contractor.get("Business Name") or "Your Contractor").strip()
-            result = create_payment_link(
+            result = _create_pl(
                 customer_name=customer_name,
                 amount=amount,
                 job_description=job_description,
