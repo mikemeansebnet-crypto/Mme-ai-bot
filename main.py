@@ -4419,7 +4419,7 @@ def dashboard_quick_pay():
                         "fldYNu0gpLuiCsF6Z": today,
                         "fldxdSy7mICyTo50P": [contractor_id],
                         "fldaCWyCkNXGPTpjj": [contractor_id],
-                        "fldBaA2QIYLIIG9kJ": [contractor_id],
+                    
                     }}
                 )
                 print(f"QUICK PAY | Airtable record created | {customer_name} | ${amount}")
