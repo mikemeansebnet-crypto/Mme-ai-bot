@@ -4417,6 +4417,7 @@ def dashboard_quick_pay():
                         "fldUFO1PfTeiLA3UR": payment_method,
                         "fldYNu0gpLuiCsF6Z": today,
                         "fldxdSy7mICyTo50P": [contractor_id],
+                        "fldaCWyCkNXGPTpjj": [contractor_id],
                     }}
                 )
                 print(f"QUICK PAY | Airtable record created | {customer_name} | ${amount}")
