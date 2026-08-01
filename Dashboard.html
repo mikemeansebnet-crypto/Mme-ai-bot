@@ -1293,6 +1293,8 @@
                             class="action-btn" style="background:#22c55e;color:#000;flex:1">
                             📤 Send Invoice
                         </button>
+                        <button onclick="openEditRecurringModal('${c.record_id}', '${c.name.replace(/'/g,'')}', '${c.email}', '${c.phone}', '${c.service.replace(/'/g,'')}', ${c.amount}, '${c.payment_method}')"
+                            class="action-btn" style="background:#334155;color:white;font-size:11px">✏️ Edit</button>
                     </div>
                     ${c.notes ? `<div class="job-type" style="margin-top:6px;color:#444">${c.notes}</div>` : ''}
                 </div>`;
