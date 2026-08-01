@@ -4426,12 +4426,15 @@ def dashboard_quick_pay():
 
         if payment_method == "Stripe":
             from app.app.stripe_service import create_payment_link
+            business_name = (contractor.get("Business Name") or "Your Contractor").strip()
             result = create_payment_link(
                 customer_name=customer_name,
                 amount=amount,
                 job_description=job_description,
-                contractor=contractor
+                record_id="",
+                business_name=business_name
             )
+            
             if result.get("ok"):
                 send_fallback_sms(
                     to_number=customer_phone,
