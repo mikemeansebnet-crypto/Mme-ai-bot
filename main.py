@@ -5692,13 +5692,52 @@ Be thorough - price every single item you observe needs attention."""
                 f"PDF attached — review, adjust if needed, and send to customer.\n"
                 f"Video recording: {video_url}"
             )
-            send_email(
-                subject=f"🎥 Video Estimate — {customer_name} | {estimate_data.get('estimate_range', '')}",
-                body=email_body,
-                to_email=notify_email,
-                attachment_path=pdf_path,
+
+        # Save draft estimate to Photo Estimates table for dashboard editing
+        try:
+            import json as _json3
+            from datetime import datetime, timezone
+            AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
+            AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
+            now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+            wt_line_items = []
+            for li in estimate_data.get("line_items", []):
+                wt_line_items.append({
+                    "description": li.get("description", ""),
+                    "detail": li.get("detail", ""),
+                    "qty": str(li.get("qty", "1")),
+                    "unit": li.get("unit", "Job"),
+                    "amount": float(li.get("total", 0) or li.get("labor", 0) or 0),
+                })
+            wt_subtotal = sum(float(i.get("amount", 0)) for i in wt_line_items)
+            requests.post(
+                f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tblYw9uFZEWsMRKpZ",
+                headers={"Authorization": f"Bearer {AIRTABLE_TOKEN}", "Content-Type": "application/json"},
+                json={"fields": {
+                    "fld48yNQM7O496fWb": f"wt_{int(datetime.now(timezone.utc).timestamp())}",
+                    "fldrgr8Zh5LH4LAQc": estimate_data.get("project_summary", ""),
+                    "fldUTc0peJ8RkhiSj": _json3.dumps(wt_line_items),
+                    "fldLw4ctjNja0UfiD": _json3.dumps(estimate_data.get("materials", [])),
+                    "fldu3LXTWHrantoEQ": estimate_data.get("notes", ""),
+                    "fld37bvXWydEljUXz": wt_subtotal,
+                    "fldFspibSfYfRiRf3": "Draft",
+                    "fldWiBT0qbVIxGehV": twilio_number,
+                    "fld4vDP0ETt7HlMeb": request.form.get("customer_phone", ""),
+                    "fldbQ3u7PP92b5iiF": "Walkthrough",
+                    "fld9nJMXjv1vHNTe1": now_iso,
+                }}
             )
-            print(f"WALKTHROUGH | Email sent | {notify_email}")
+            print(f"WALKTHROUGH | Draft saved to Pending Estimates")
+        except Exception as e:
+            print(f"WALKTHROUGH | Draft save error (non-fatal) | {e}")
+
+        send_email(
+            subject=f"Video Estimate — {customer_name} | {estimate_data.get('estimate_range', '')}",
+            body=email_body,
+            to_email=notify_email,
+            attachment_path=pdf_path,
+        )
+        print(f"WALKTHROUGH | Email sent | {notify_email}")
 
         # Send estimate approval link to customer if phone available
         customer_phone = request.form.get("customer_phone", "").strip()
