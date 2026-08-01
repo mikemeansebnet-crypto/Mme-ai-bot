@@ -3171,6 +3171,58 @@ async function submitCreateCampaign() {
             }
         }
 
+        let editRecurringRecordId = '';
+
+        function openEditRecurringModal(recordId, name, email, phone, service, amount, paymentMethod) {
+            editRecurringRecordId = recordId;
+            document.getElementById('editRecurringName').textContent = name;
+            document.getElementById('editRrEmail').value = email || '';
+            document.getElementById('editRrService').value = service || '';
+            document.getElementById('editRrAmount').value = amount || 0;
+            document.getElementById('editRrPaymentMethod').value = paymentMethod || 'Stripe';
+            document.getElementById('editRecurringModal').classList.add('active');
+        }
+
+        function closeEditRecurringModal() {
+            document.getElementById('editRecurringModal').classList.remove('active');
+        }
+
+        async function submitEditRecurring() {
+            const email = document.getElementById('editRrEmail').value.trim();
+            const service = document.getElementById('editRrService').value.trim();
+            const amount = parseFloat(document.getElementById('editRrAmount').value) || 0;
+            const paymentMethod = document.getElementById('editRrPaymentMethod').value;
+            const btn = document.getElementById('editRecurringBtn');
+            btn.textContent = 'Saving...';
+            btn.disabled = true;
+            try {
+                const res = await fetch('/dashboard/action/edit-recurring-customer', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Dashboard-Token': getCookie('dashboard_token')
+                    },
+                    body: JSON.stringify({
+                        record_id: editRecurringRecordId,
+                        email, service, amount, payment_method: paymentMethod
+                    })
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    closeEditRecurringModal();
+                    loadRecurringCustomers();
+                    alert('Updated!');
+                } else {
+                    alert('Error: ' + (data.error || 'Something went wrong'));
+                }
+            } catch(e) {
+                alert('Request failed. Please try again.');
+            } finally {
+                btn.textContent = 'Save Changes';
+                btn.disabled = false;
+            }
+        }
+
         // Load on startup
         loadDashboard();
         // Auto-refresh every 5 minutes
@@ -3754,6 +3806,41 @@ async function submitCreateCampaign() {
             <div class="modal-actions">
                 <button class="btn-cancel-modal" onclick="closeEditEstimateModal()">Cancel</button>
                 <button class="btn-book" id="sendEstimateBtn" onclick="submitSendEstimate()">Send to Customer →</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Recurring Customer Modal -->
+    <div class="modal-overlay" id="editRecurringModal">
+        <div class="booking-modal">
+            <div class="modal-title">Edit Recurring Client</div>
+            <div class="modal-date" id="editRecurringName"></div>
+            <div class="form-group">
+                <label class="form-label">Email</label>
+                <input type="email" class="form-input" id="editRrEmail" placeholder="billing@client.com">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Service Description</label>
+                <input type="text" class="form-input" id="editRrService" placeholder="Monthly grounds maintenance">
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Amount ($)</label>
+                    <input type="number" class="form-input" id="editRrAmount" step="0.01" min="0">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Payment Method</label>
+                    <select class="form-input" id="editRrPaymentMethod">
+                        <option>Stripe</option>
+                        <option>Zelle</option>
+                        <option>EFT</option>
+                        <option>Check</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn-cancel-modal" onclick="closeEditRecurringModal()">Cancel</button>
+                <button class="btn-book" id="editRecurringBtn" onclick="submitEditRecurring()">Save Changes</button>
             </div>
         </div>
     </div>
