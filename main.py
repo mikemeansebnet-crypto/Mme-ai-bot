@@ -4428,7 +4428,6 @@ def dashboard_quick_pay():
             from app.app.stripe_service import create_payment_link
             result = create_payment_link(
                 customer_name=customer_name,
-                customer_phone=customer_phone,
                 amount=amount,
                 job_description=job_description,
                 contractor=contractor
