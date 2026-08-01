@@ -4394,6 +4394,7 @@ def dashboard_quick_pay():
         twilio_number = request.twilio_number
         contractor = get_contractor_by_twilio_number(twilio_number) or {}
         contractor_id = request.contractor_id
+        business_name = (contractor.get("Business Name") or "Your Contractor").strip()
 
         if not customer_name or not customer_phone or not amount:
             return jsonify({"ok": False, "error": "Missing required fields"}), 400
@@ -4418,6 +4419,7 @@ def dashboard_quick_pay():
                         "fldYNu0gpLuiCsF6Z": today,
                         "fldxdSy7mICyTo50P": [contractor_id],
                         "fldaCWyCkNXGPTpjj": [contractor_id],
+                        "fldBaA2QIYLIIG9kJ": [contractor_id],
                     }}
                 )
                 print(f"QUICK PAY | Airtable record created | {customer_name} | ${amount}")
@@ -4426,7 +4428,6 @@ def dashboard_quick_pay():
 
         if payment_method == "Stripe":
             from app.app.stripe_service import create_payment_link as _create_pl
-            business_name = (contractor.get("Business Name") or "Your Contractor").strip()
             result = _create_pl(
                 customer_name=customer_name,
                 amount=amount,
@@ -4434,7 +4435,6 @@ def dashboard_quick_pay():
                 record_id="",
                 business_name=business_name
             )
-            
             if result.get("ok"):
                 send_fallback_sms(
                     to_number=customer_phone,
@@ -4463,7 +4463,6 @@ def dashboard_quick_pay():
             return jsonify({"ok": True})
 
         elif payment_method == "Check":
-            business_name = (contractor.get("Business Name") or "").strip()
             msg = f"Hi {customer_name.split()[0]}! Please make your check for ${amount:,.2f} payable to {business_name} for {job_description}. Thank you!"
             send_fallback_sms(to_number=customer_phone, body=msg)
             create_payment_record()
