@@ -4192,6 +4192,33 @@ def dashboard_add_recurring_customer():
         print(f"ADD RECURRING CUSTOMER ERROR | {e}")
         return jsonify({"ok": False, "error": str(e)}), 500
 
+@app.route("/dashboard/action/edit-recurring-customer", methods=["POST"])
+@dashboard_auth_required
+def dashboard_edit_recurring_customer():
+    try:
+        data = request.get_json(silent=True) or {}
+        record_id = data.get("record_id", "").strip()
+        AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
+        AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
+        headers = {"Authorization": f"Bearer {AIRTABLE_TOKEN}", "Content-Type": "application/json"}
+        resp = requests.patch(
+            f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tblxGfrifBiGRk80M/{record_id}",
+            headers=headers,
+            json={"fields": {
+                "fldwF0Y5Lq8ByKbci": data.get("email", ""),
+                "fldfMjtIpd4ezOhSZ": data.get("service", ""),
+                "fldAOGM6qhA7TVqRB": float(data.get("amount", 0)),
+                "fldklqdfKIJFIDEv7": data.get("payment_method", "Stripe"),
+            }}
+        )
+        if resp.status_code == 200:
+            return jsonify({"ok": True})
+        else:
+            return jsonify({"ok": False, "error": resp.text}), 500
+    except Exception as e:
+        print(f"EDIT RECURRING ERROR | {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
 @app.route("/dashboard/inbox")
 @dashboard_auth_required
 def dashboard_inbox():
