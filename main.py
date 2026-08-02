@@ -4406,7 +4406,7 @@ def dashboard_quick_pay():
 
         def create_payment_record():
             try:
-                requests.post(
+                resp = requests.post(
                     f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/Payments",
                     headers=at_headers,
                     json={"fields": {
@@ -4419,12 +4419,12 @@ def dashboard_quick_pay():
                         "fldYNu0gpLuiCsF6Z": today,
                         "fldxdSy7mICyTo50P": [contractor_id],
                         "fldaCWyCkNXGPTpjj": [contractor_id],
-                    
                     }}
                 )
-                print(f"QUICK PAY | Airtable record created | {customer_name} | ${amount}")
+                print(f"QUICK PAY | Airtable response | {resp.status_code} | {resp.text[:200]}")
+                print(f"QUICK PAY | contractor_id={contractor_id} | twilio={twilio_number}")
             except Exception as e:
-                print(f"QUICK PAY | Airtable record error (non-fatal) | {e}")
+                print(f"QUICK PAY | Airtable error | {e}")
 
         if payment_method == "Stripe":
             from app.app.stripe_service import create_payment_link as _create_pl
