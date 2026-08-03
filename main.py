@@ -7331,6 +7331,7 @@ def dashboard_govbid_generate_pdf():
             ["Small Business Reserve:", "Yes" if small_business else "No"],
         ]
         bidder_table = Table(bidder_data, colWidths=[1.75*inch, 5.0*inch])
+        sol_table = Table(sol_data, colWidths=[1.75*inch, 5.0*inch])
         sol_table.setStyle(TableStyle([
             ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#1A4D2E")),
             ("TEXTCOLOR", (0,0), (-1,0), colors.white),
