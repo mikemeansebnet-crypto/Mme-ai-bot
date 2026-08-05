@@ -1469,6 +1469,7 @@ PRICING RULES — always follow these exactly:
 
 Base pricing on current US contractor rates for the region.
 Break down every phase of work into separate line items.
+CRITICAL: amount is always a flat TOTAL DOLLAR AMOUNT for that line item. Never use "Hours" as a unit. Always use "Job" or "Lot" as the unit. Never calculate hours times rate — just give the total dollar amount directly.
 Respond ONLY in this exact JSON format with no other text:
   "job_summary": "Brief description of what you see",
   "line_items": [
