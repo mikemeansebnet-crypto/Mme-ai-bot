@@ -3226,6 +3226,51 @@ async function submitCreateCampaign() {
             }
         }
 
+        async function submitSaveDraft() {
+            const customerPhone = document.getElementById('editCustomerPhone').value.trim();
+            const customerName = document.getElementById('editCustomerName').value.trim();
+            const customerEmail = document.getElementById('editCustomerEmail').value.trim();
+            const notes = document.getElementById('editEstimateNotes').value.trim();
+            const jobSummary = document.getElementById('editEstimateJobSummary').value.trim();
+
+            const btn = document.getElementById('saveDraftBtn');
+            btn.textContent = 'Saving...';
+            btn.disabled = true;
+
+            try {
+                const res = await fetch('/dashboard/action/update-estimate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Dashboard-Token': getCookie('dashboard_token')
+                    },
+                    body: JSON.stringify({
+                        record_id: currentEstimate.record_id,
+                        line_items: currentEstimate.line_items,
+                        materials: currentEstimate.materials || [],
+                        notes: notes,
+                        job_summary: jobSummary,
+                        customer_phone: customerPhone,
+                        customer_name: customerName,
+                        customer_email: customerEmail,
+                    })
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    closeEditEstimateModal();
+                    loadPendingEstimates();
+                    alert('Draft saved! Come back anytime to finish and send.');
+                } else {
+                    alert('Error: ' + (data.error || 'Something went wrong'));
+                }
+            } catch(e) {
+                alert('Save failed. Please try again.');
+            } finally {
+                btn.textContent = 'Save Draft';
+                btn.disabled = false;
+            }
+        }
+
         // Load on startup
         loadDashboard();
         // Auto-refresh every 5 minutes
@@ -3812,6 +3857,7 @@ async function submitCreateCampaign() {
             </div>
             <div class="modal-actions">
                 <button class="btn-cancel-modal" onclick="closeEditEstimateModal()">Cancel</button>
+                <button class="btn-book" id="saveDraftBtn" onclick="submitSaveDraft()" style="background:#334155;margin-right:8px">Save Draft</button>
                 <button class="btn-book" id="sendEstimateBtn" onclick="submitSendEstimate()">Send to Customer →</button>
             </div>
         </div>
