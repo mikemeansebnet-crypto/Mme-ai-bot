@@ -3145,6 +3145,7 @@ async function submitCreateCampaign() {
                         'Content-Type': 'application/json',
                         'X-Dashboard-Token': getCookie('dashboard_token')
                     },
+                    const customerEmail = document.getElementById('editCustomerEmail').value.trim();
                     body: JSON.stringify({
                         record_id: currentEstimate.record_id,
                         line_items: currentEstimate.line_items,
@@ -3153,6 +3154,7 @@ async function submitCreateCampaign() {
                         job_summary: jobSummary,
                         customer_phone: customerPhone,
                         customer_name: customerName,
+                        customer_email: customerEmail,
                     })
                 });
                 const data = await res.json();
