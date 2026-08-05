@@ -4428,11 +4428,12 @@ def dashboard_quick_pay():
 
         if payment_method == "Stripe":
             from app.app.stripe_service import create_payment_link as _create_pl
+            airtable_record_id = create_payment_record()
             result = _create_pl(
                 customer_name=customer_name,
                 amount=amount,
                 job_description=job_description,
-                record_id="",
+                record_id=airtable_record_id,
                 business_name=business_name
             )
             if result.get("ok"):
@@ -4446,7 +4447,6 @@ def dashboard_quick_pay():
                         body=f"Hi {customer_name.split()[0]},\n\nYour payment of ${amount:,.2f} for {job_description} is ready.\n\nPay securely here: {result.get('url')}\n\nThank you!\n{business_name}",
                         to_email=customer_email,
                     )
-                create_payment_record()
             return jsonify(result)
 
         elif payment_method == "Zelle":
