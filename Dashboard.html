@@ -3139,13 +3139,14 @@ async function submitCreateCampaign() {
             btn.textContent = 'Generating & Sending...';
             btn.disabled = true;
             try {
+                const customerEmail = document.getElementById('editCustomerEmail').value.trim();
                 const res = await fetch('/dashboard/action/send-estimate', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'X-Dashboard-Token': getCookie('dashboard_token')
                     },
-                    const customerEmail = document.getElementById('editCustomerEmail').value.trim();
+                    
                     body: JSON.stringify({
                         record_id: currentEstimate.record_id,
                         line_items: currentEstimate.line_items,
