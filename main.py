@@ -4855,6 +4855,44 @@ def dashboard_send_estimate():
         traceback.print_exc()
         return jsonify({"ok": False, "error": str(e)}), 500
 
+@app.route("/dashboard/action/update-estimate", methods=["POST"])
+@dashboard_auth_required
+def dashboard_update_estimate():
+    """Updates estimate line items and saves draft."""
+    try:
+        import json as _json
+        data = request.get_json(silent=True) or {}
+        record_id = data.get("record_id", "").strip()
+        line_items = data.get("line_items", [])
+        notes = data.get("notes", "")
+        job_summary = data.get("job_summary", "").strip()
+        customer_name = data.get("customer_name", "").strip()
+        customer_phone = data.get("customer_phone", "").strip()
+
+        AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
+        AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
+        at_headers = {"Authorization": f"Bearer {AIRTABLE_TOKEN}", "Content-Type": "application/json"}
+
+        subtotal = sum(float(i.get("amount", 0)) for i in line_items)
+
+        requests.patch(
+            f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tblYw9uFZEWsMRKpZ/{record_id}",
+            headers=at_headers,
+            json={"fields": {
+                "fldUTc0peJ8RkhiSj": _json.dumps(line_items),
+                "fldu3LXTWHrantoEQ": notes,
+                "fld37bvXWydEljUXz": subtotal,
+                "fldrgr8Zh5LH4LAQc": job_summary,
+                "fld4NlXbQaivMuLZr": customer_name,
+                "fld4vDP0ETt7HlMeb": customer_phone,
+            }}
+        )
+        print(f"ESTIMATE DRAFT SAVED | {record_id} | ${subtotal}")
+        return jsonify({"ok": True, "subtotal": subtotal})
+    except Exception as e:
+        print(f"UPDATE ESTIMATE ERROR | {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
 @app.route("/onesignal/register", methods=["POST"])
 @dashboard_auth_required
 def onesignal_register():
