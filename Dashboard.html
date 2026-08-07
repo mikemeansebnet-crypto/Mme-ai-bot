@@ -1363,6 +1363,7 @@
                     body: JSON.stringify({
                         customer_name: name,
                         customer_email: email,
+                        cc_email: pendingInvoiceData.cc_email || '',
                         customer_phone: phone,
                         amount: invoiceAmount,
                         service: invoiceService,
