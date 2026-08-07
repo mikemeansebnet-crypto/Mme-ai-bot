@@ -6695,6 +6695,7 @@ def dashboard_send_recurring_invoice():
         data = request.get_json(silent=True) or {}
         customer_name = (data.get("customer_name") or "").strip()
         customer_email = (data.get("customer_email") or "").strip()
+        cc_email = (data.get("cc_email") or "").strip()
         customer_phone = (data.get("customer_phone") or "").strip()
         amount = float(data.get("amount") or 0)
         service = (data.get("service") or "Lawn Service").strip()
