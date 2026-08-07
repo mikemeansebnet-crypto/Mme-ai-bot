@@ -6727,6 +6727,22 @@ def dashboard_send_recurring_invoice():
         if not result.get("ok"):
             return jsonify({"ok": False, "error": result.get("error")}), 500
 
+
+        # Send CC email notification if provided
+        if cc_email:
+            try:
+                send_email(
+                    subject=f"Invoice from {business_name} - ${amount:,.2f}",
+                    body=f"Hi,\n\nAn invoice of ${amount:,.2f} for {service} has been sent to {customer_email}.\n\nInvoice #: {result.get('invoice_number', '')}\n\nThank you!\n{business_name}",
+                    to_email=cc_email,
+                )
+                print(f"RECURRING INVOICE | CC email sent | {cc_email}")
+            except Exception as e:
+                print(f"RECURRING INVOICE | CC email error | {e}")
+
+        # Create payment record in Airtable
+        AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
+
         # Create payment record in Airtable
         AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
         AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
