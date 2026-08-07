@@ -5884,6 +5884,7 @@ def dashboard_recurring():
                 "record_id": r.get("id", ""),
                 "name": f.get("Name", "") or f.get("Customer Name", ""),
                 "email": f.get("Email", ""),
+                "cc_email": f.get("CC Email", ""),
                 "phone": f.get("Phone", ""),
                 "service": f.get("Service", "") or f.get("Service Description", ""),
                 "amount": float(r.get("cellValuesByFieldId", {}).get("fldAOGM6qhA7TVqRB", 0) or 0),
