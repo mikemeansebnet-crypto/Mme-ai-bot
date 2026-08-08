@@ -702,6 +702,21 @@
             </div>
             <div id="pendingEstimates"><div class="loading">Loading...</div></div>
         </div>
+
+        <!-- Property Notes -->
+        <div class="section">
+            <div class="section-header">
+                <div class="section-title">🔑 Property Notes</div>
+                <div style="display:flex;gap:8px;align-items:center">
+                    <div class="section-count" id="propertyNotesCount">0</div>
+                    <button onclick="openAddPropertyModal()" style="background:var(--gradient);color:white;border:none;border-radius:8px;padding:4px 10px;font-size:11px;font-weight:600;cursor:pointer">+ Add</button>
+                </div>
+            </div>
+            <div class="form-group" style="margin-bottom:8px">
+                <input type="text" class="form-input" id="propertySearch" placeholder="🔍 Search by address or customer..." oninput="filterPropertyNotes(this.value)" style="font-size:13px">
+            </div>
+            <div id="propertyNotesList"><div class="loading">Loading...</div></div>
+        </div>
     
 
         <!-- Messages Inbox -->
@@ -3272,6 +3287,145 @@ async function submitCreateCampaign() {
             }
         }
 
+        // -- PROPERTY NOTES --
+        let allPropertyNotes = [];
+        let editingPropertyId = '';
+
+        async function loadPropertyNotes() {
+            try {
+                const res = await fetch('/dashboard/property-notes', {
+                    headers: { 'X-Dashboard-Token': getCookie('dashboard_token') }
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    allPropertyNotes = data.properties;
+                    renderPropertyNotes(data.properties);
+                }
+            } catch(e) {
+                console.error('Property notes load error:', e);
+            }
+        }
+
+        function filterPropertyNotes(query) {
+            const filtered = allPropertyNotes.filter(p =>
+                (p.address || '').toLowerCase().includes(query.toLowerCase()) ||
+                (p.customer || '').toLowerCase().includes(query.toLowerCase())
+            );
+            renderPropertyNotes(filtered);
+        }
+
+        function renderPropertyNotes(properties) {
+            document.getElementById('propertyNotesCount').textContent = properties.length;
+            const el = document.getElementById('propertyNotesList');
+            if (!properties.length) {
+                el.innerHTML = '<div class="empty-state">No properties yet — tap + Add to get started</div>';
+                return;
+            }
+            let html = '';
+            for (let i = 0; i < properties.length; i++) {
+                const p = properties[i];
+                html += '<div class="job-card" style="margin-bottom:10px">';
+                html += '<div style="display:flex;justify-content:space-between;align-items:flex-start">';
+                html += '<div>';
+                html += '<div class="job-name">' + (p.address || 'Unknown Address') + '</div>';
+                if (p.customer) html += '<div class="job-type">' + p.customer + '</div>';
+                html += '</div>';
+                html += '<button onclick="openEditPropertyModal(\'' + i + '\')" style="background:none;border:none;color:#60a5fa;font-size:12px;cursor:pointer">✏️ Edit</button>';
+                html += '</div>';
+
+                if (p.access_code) html += '<div style="margin-top:8px;background:#0f172a;border-radius:6px;padding:8px 12px"><span style="font-size:11px;color:#94a3b8">Access Code</span><div style="font-size:18px;font-weight:700;color:#22c55e;font-family:DM Mono,monospace">' + p.access_code + '</div></div>';
+                if (p.gate_code) html += '<div style="margin-top:6px;background:#0f172a;border-radius:6px;padding:8px 12px"><span style="font-size:11px;color:#94a3b8">Gate Code</span><div style="font-size:18px;font-weight:700;color:#f59e0b;font-family:DM Mono,monospace">' + p.gate_code + '</div></div>';
+                if (p.lockbox) html += '<div style="margin-top:6px;font-size:12px;color:#94a3b8">📦 Lockbox: ' + p.lockbox + '</div>';
+                if (p.contact_name) html += '<div style="margin-top:4px;font-size:12px;color:#94a3b8">👤 ' + p.contact_name + (p.contact_phone ? ' · ' + p.contact_phone : '') + '</div>';
+                if (p.manager) html += '<div style="margin-top:4px;font-size:12px;color:#94a3b8">🏢 ' + p.manager + '</div>';
+                if (p.instructions) html += '<div style="margin-top:8px;font-size:12px;color:#f59e0b;background:rgba(245,158,11,0.1);border-radius:6px;padding:8px">⚠️ ' + p.instructions + '</div>';
+                html += '</div>';
+            }
+            el.innerHTML = html;
+        }
+
+        function openAddPropertyModal() {
+            editingPropertyId = '';
+            document.getElementById('propertyNotesModalTitle').textContent = '🔑 Add Property';
+            document.getElementById('pnAddress').value = '';
+            document.getElementById('pnCustomer').value = '';
+            document.getElementById('pnAccessCode').value = '';
+            document.getElementById('pnGateCode').value = '';
+            document.getElementById('pnLockbox').value = '';
+            document.getElementById('pnContactName').value = '';
+            document.getElementById('pnContactPhone').value = '';
+            document.getElementById('pnManager').value = '';
+            document.getElementById('pnInstructions').value = '';
+            document.getElementById('propertyNotesBtn').textContent = 'Save Property';
+            document.getElementById('propertyNotesModal').classList.add('active');
+        }
+
+        function openEditPropertyModal(index) {
+            const p = allPropertyNotes[index];
+            editingPropertyId = p.record_id;
+            document.getElementById('propertyNotesModalTitle').textContent = '✏️ Edit Property';
+            document.getElementById('pnAddress').value = p.address || '';
+            document.getElementById('pnCustomer').value = p.customer || '';
+            document.getElementById('pnAccessCode').value = p.access_code || '';
+            document.getElementById('pnGateCode').value = p.gate_code || '';
+            document.getElementById('pnLockbox').value = p.lockbox || '';
+            document.getElementById('pnContactName').value = p.contact_name || '';
+            document.getElementById('pnContactPhone').value = p.contact_phone || '';
+            document.getElementById('pnManager').value = p.manager || '';
+            document.getElementById('pnInstructions').value = p.instructions || '';
+            document.getElementById('propertyNotesBtn').textContent = 'Save Changes';
+            document.getElementById('propertyNotesModal').classList.add('active');
+        }
+
+        function closePropertyNotesModal() {
+            document.getElementById('propertyNotesModal').classList.remove('active');
+        }
+
+        async function submitPropertyNote() {
+            const address = document.getElementById('pnAddress').value.trim();
+            if (!address) {
+                alert('Please enter a property address.');
+                return;
+            }
+            const btn = document.getElementById('propertyNotesBtn');
+            btn.textContent = 'Saving...';
+            btn.disabled = true;
+            try {
+                const url = editingPropertyId ? '/dashboard/property-notes/update' : '/dashboard/property-notes/add';
+                const res = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Dashboard-Token': getCookie('dashboard_token')
+                    },
+                    body: JSON.stringify({
+                        record_id: editingPropertyId,
+                        address: address,
+                        customer: document.getElementById('pnCustomer').value.trim(),
+                        access_code: document.getElementById('pnAccessCode').value.trim(),
+                        gate_code: document.getElementById('pnGateCode').value.trim(),
+                        lockbox: document.getElementById('pnLockbox').value.trim(),
+                        contact_name: document.getElementById('pnContactName').value.trim(),
+                        contact_phone: document.getElementById('pnContactPhone').value.trim(),
+                        manager: document.getElementById('pnManager').value.trim(),
+                        instructions: document.getElementById('pnInstructions').value.trim(),
+                    })
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    closePropertyNotesModal();
+                    loadPropertyNotes();
+                } else {
+                    alert('Error: ' + (data.error || 'Something went wrong'));
+                }
+            } catch(e) {
+                alert('Save failed. Please try again.');
+            } finally {
+                btn.textContent = editingPropertyId ? 'Save Changes' : 'Save Property';
+                btn.disabled = false;
+            }
+        }
+
         // Load on startup
         loadDashboard();
         // Auto-refresh every 5 minutes
@@ -3898,7 +4052,54 @@ async function submitCreateCampaign() {
             </div>
         </div>
     </div>
-    
+
+
+    <!-- Add/Edit Property Notes Modal -->
+    <div class="modal-overlay" id="propertyNotesModal">
+        <div class="booking-modal" style="max-height:95vh;overflow-y:auto">
+            <div class="modal-title" id="propertyNotesModalTitle">🔑 Add Property</div>
+            <div class="form-group">
+                <label class="form-label">Property Address *</label>
+                <input type="text" class="form-input" id="pnAddress" placeholder="123 Main St NW Washington DC">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Customer / Owner Name</label>
+                <input type="text" class="form-input" id="pnCustomer" placeholder="Home Sweet City">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Access Code</label>
+                <input type="text" class="form-input" id="pnAccessCode" placeholder="1234#">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Gate Code</label>
+                <input type="text" class="form-input" id="pnGateCode" placeholder="5678*">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Lockbox Location</label>
+                <input type="text" class="form-input" id="pnLockbox" placeholder="e.g. Front door left side">
+            </div>
+            <div class="form-group">
+                <label class="form-label">On-site Contact Name</label>
+                <input type="text" class="form-input" id="pnContactName" placeholder="John Smith">
+            </div>
+            <div class="form-group">
+                <label class="form-label">On-site Contact Phone</label>
+                <input type="tel" class="form-input" id="pnContactPhone" placeholder="+12025551234">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Property Manager</label>
+                <input type="text" class="form-input" id="pnManager" placeholder="e.g. Home Sweet City - Tamar Shaw">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Special Instructions</label>
+                <textarea class="form-input" id="pnInstructions" rows="4" placeholder="Dog in backyard, park on street, call before entering..." style="resize:none;font-size:13px"></textarea>
+            </div>
+            <div class="modal-actions">
+                <button class="btn-cancel-modal" onclick="closePropertyNotesModal()">Cancel</button>
+                <button class="btn-book" id="propertyNotesBtn" onclick="submitPropertyNote()">Save Property</button>
+            </div>
+        </div>
+    </div>
     
 
             
