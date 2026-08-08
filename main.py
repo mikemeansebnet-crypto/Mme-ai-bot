@@ -4893,6 +4893,103 @@ def dashboard_update_estimate():
         print(f"UPDATE ESTIMATE ERROR | {e}")
         return jsonify({"ok": False, "error": str(e)}), 500
 
+@app.route("/dashboard/property-notes")
+@dashboard_auth_required
+def dashboard_property_notes():
+    """Returns property notes for this contractor."""
+    try:
+        twilio_number = request.twilio_number
+        AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
+        AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
+        resp = requests.get(
+            f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tblMTq8xTil5CxN18",
+            headers={"Authorization": f"Bearer {AIRTABLE_TOKEN}"}
+        )
+        all_records = resp.json().get("records", [])
+        properties = []
+        for r in all_records:
+            f = r.get("fields", {})
+            if f.get("Twilio Number", "") != twilio_number:
+                continue
+            properties.append({
+                "record_id": r.get("id"),
+                "address": f.get("Property Address", ""),
+                "customer": f.get("Customer Name", ""),
+                "access_code": f.get("Access Code", ""),
+                "gate_code": f.get("Gate Code", ""),
+                "lockbox": f.get("Lockbox Location", ""),
+                "contact_name": f.get("On-site Contact Name", ""),
+                "contact_phone": f.get("On-site Contact Phone", ""),
+                "manager": f.get("Property Manager", ""),
+                "instructions": f.get("Special Instructions", ""),
+            })
+        return jsonify({"ok": True, "properties": properties})
+    except Exception as e:
+        print(f"PROPERTY NOTES ERROR | {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route("/dashboard/property-notes/add", methods=["POST"])
+@dashboard_auth_required
+def dashboard_property_notes_add():
+    try:
+        data = request.get_json(silent=True) or {}
+        twilio_number = request.twilio_number
+        AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
+        AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
+        at_headers = {"Authorization": f"Bearer {AIRTABLE_TOKEN}", "Content-Type": "application/json"}
+        resp = requests.post(
+            f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tblMTq8xTil5CxN18",
+            headers=at_headers,
+            json={"fields": {
+                "fldfiFWtr5zCbnHYR": data.get("address", ""),
+                "fldkvgj0tYPDIUwui": data.get("customer", ""),
+                "fldxOTk2GiTdnTjN9": data.get("access_code", ""),
+                "fldjQc9rT1goTZxZm": data.get("gate_code", ""),
+                "fldfw47gFrxhzUAhF": data.get("lockbox", ""),
+                "fld6fn6x3HL26yIS7": data.get("contact_name", ""),
+                "fldxQKrQkDh9ySHcc": data.get("contact_phone", ""),
+                "fldLJpCz32wQ8IWhS": data.get("manager", ""),
+                "fld7AWs7DCeaI5Jpf": data.get("instructions", ""),
+                "fld2TwThiY39oCWjk": twilio_number,
+                "fldeW094wGwxdeJAy": True,
+            }}
+        )
+        return jsonify({"ok": resp.status_code in [200, 201]})
+    except Exception as e:
+        print(f"PROPERTY NOTES ADD ERROR | {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route("/dashboard/property-notes/update", methods=["POST"])
+@dashboard_auth_required
+def dashboard_property_notes_update():
+    try:
+        data = request.get_json(silent=True) or {}
+        record_id = data.get("record_id", "").strip()
+        AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
+        AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
+        at_headers = {"Authorization": f"Bearer {AIRTABLE_TOKEN}", "Content-Type": "application/json"}
+        requests.patch(
+            f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tblMTq8xTil5CxN18/{record_id}",
+            headers=at_headers,
+            json={"fields": {
+                "fldfiFWtr5zCbnHYR": data.get("address", ""),
+                "fldkvgj0tYPDIUwui": data.get("customer", ""),
+                "fldxOTk2GiTdnTjN9": data.get("access_code", ""),
+                "fldjQc9rT1goTZxZm": data.get("gate_code", ""),
+                "fldfw47gFrxhzUAhF": data.get("lockbox", ""),
+                "fld6fn6x3HL26yIS7": data.get("contact_name", ""),
+                "fldxQKrQkDh9ySHcc": data.get("contact_phone", ""),
+                "fldLJpCz32wQ8IWhS": data.get("manager", ""),
+                "fld7AWs7DCeaI5Jpf": data.get("instructions", ""),
+            }}
+        )
+        return jsonify({"ok": True})
+    except Exception as e:
+        print(f"PROPERTY NOTES UPDATE ERROR | {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
 @app.route("/onesignal/register", methods=["POST"])
 @dashboard_auth_required
 def onesignal_register():
