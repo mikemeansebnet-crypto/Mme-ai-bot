@@ -1307,7 +1307,7 @@
             document.getElementById('invoiceDescModal').classList.remove('active');
         }
 
-        async function sendRecurringInvoice(recordId, name, email, phone, amount, service, paymentMethod) {
+        async function sendRecurringInvoice(recordId, name, email, phone, amount, service, paymentMethod, ccEmail) {
             let invoiceAmount = amount;
 
             if (!invoiceAmount || invoiceAmount <= 0) {
@@ -1320,7 +1320,7 @@
                 }
             }
 
-            pendingInvoiceData = { recordId, name, email, phone, invoiceAmount, service, paymentMethod };
+            pendingInvoiceData = { recordId, name, email, phone, invoiceAmount, service, paymentMethod, cc_email: ccEmail };
             document.getElementById('invoiceDescCustomer').textContent = name;
             document.getElementById('invoiceDescAmountInput').value = invoiceAmount;
             document.getElementById('invoiceDescText').value = service || '';
