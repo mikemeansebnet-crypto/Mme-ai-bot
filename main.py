@@ -7302,8 +7302,18 @@ If no due date found set to null."""
         if not json_match:
             raise ValueError("No JSON in Claude response")
 
-        clean = json_match.group(0).encode('ascii', 'ignore').decode('ascii')
-        analysis = _json.loads(clean)
+        raw_json = json_match.group(0)
+                # Clean special characters
+                clean = raw_json.encode('ascii', 'ignore').decode('ascii')
+                # Remove any control characters
+                import re as _re2
+                clean = _re2.sub(r'[\x00-\x1f\x7f-\x9f]', ' ', clean)
+                try:
+                    analysis = _json.loads(clean)
+                except _json.JSONDecodeError:
+                    # Try stripping trailing incomplete content
+                    clean = clean[:clean.rfind('}') + 1]
+                    analysis = _json.loads(clean)
 
         # Save to Airtable
         AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
