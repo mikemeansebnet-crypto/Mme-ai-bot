@@ -2073,22 +2073,26 @@ def sms():
         print(f"INBOX INBOUND SAVE ERROR | {e}")
 
     # Check if this is from a property manager
+    contractor = {}
+    is_property_manager = False
+    try:
         contractor = get_contractor_by_twilio_number(to_number) or {}
         pm_phones_raw = (contractor.get("Property Manager Phones") or "").strip()
         pm_phones = [p.strip() for p in pm_phones_raw.split(",") if p.strip()]
         is_property_manager = from_number in pm_phones
-        print(f"PM CHECK | from={from_number} | pm_phones={pm_phones} | is_pm={is_property_manager}")
+    except Exception as e:
+        print(f"PM LOOKUP ERROR | {e}")
 
-        if is_property_manager and incoming_msg:
-            try:
-                import anthropic as _anth
-                _pm_client = _anth.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY", ""))
-                _pm_response = _pm_client.messages.create(
-                    model="claude-sonnet-4-6",
-                    max_tokens=1000,
-                    messages=[{
-                        "role": "user",
-                        "content": f"""Extract property management details from this text message. Return ONLY JSON with no other text:
+    if is_property_manager and incoming_msg:
+        try:
+            import anthropic as _anth
+            _pm_client = _anth.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY", ""))
+            _pm_response = _pm_client.messages.create(
+                model="claude-sonnet-4-6",
+                max_tokens=1000,
+                messages=[{
+                    "role": "user",
+                    "content": f"""Extract property management details from this text message. Return ONLY JSON with no other text:
 {{
   "has_property_details": true or false,
   "address": "full property address or null",
@@ -2109,25 +2113,26 @@ Message: "{incoming_msg}"
 
 Only set has_property_details to true if there is an actual property address or access code in the message.
 Only set has_schedule to true if there is a specific date or time mentioned."""
-                    }]
-                )
-                import json as _pmjson
-                import re as _pmre
-                _pm_raw = _pm_response.content[0].text.strip()
-                _pm_match = _pmre.search(r'\{.*\}', _pm_raw, _pmre.DOTALL)
-                if _pm_match:
-                    _pm_data = _pmjson.loads(_pm_match.group(0))
-                    AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
-                    AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
-                    at_headers = {"Authorization": f"Bearer {AIRTABLE_TOKEN}", "Content-Type": "application/json"}
-                    twilio_number = to_number
+                }]
+            )
+            import json as _pmjson
+            import re as _pmre
+            _pm_raw = _pm_response.content[0].text.strip()
+            _pm_match = _pmre.search(r'\{.*\}', _pm_raw, _pmre.DOTALL)
+            if _pm_match:
+                _pm_data = _pmjson.loads(_pm_match.group(0))
+                AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
+                AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
+                at_headers = {"Authorization": f"Bearer {AIRTABLE_TOKEN}", "Content-Type": "application/json"}
+                twilio_number = to_number
 
-                    # Save property details if found
-                    if _pm_data.get("has_property_details") and _pm_data.get("address"):
-                        requests.post(
-                            f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tblMTq8xTil5CxN18",
-                            headers=at_headers,
-                            json={"fields": {
+                # Save property details if found
+                if _pm_data.get("has_property_details") and _pm_data.get("address"):
+                    _pm_save_resp = requests.post(
+                        f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tblMTq8xTil5CxN18",
+                        headers=at_headers,
+                        json={
+                            "fields": {
                                 "fldfiFWtr5zCbnHYR": _pm_data.get("address", ""),
                                 "fldkvgj0tYPDIUwui": "Home Sweet City",
                                 "fldxOTk2GiTdnTjN9": _pm_data.get("access_code") or "",
@@ -2139,26 +2144,32 @@ Only set has_schedule to true if there is a specific date or time mentioned."""
                                 "fld7AWs7DCeaI5Jpf": _pm_data.get("instructions") or "",
                                 "fld2TwThiY39oCWjk": twilio_number,
                                 "fldeW094wGwxdeJAy": True,
-                            }}
-                        )
+                            },
+                            "typecast": True,
+                        },
+                    )
+                    if _pm_save_resp.status_code >= 300:
+                        print(f"PM AUTO-SAVE FAILED | {_pm_save_resp.status_code} | {_pm_save_resp.text}")
+                    else:
                         print(f"PM AUTO-SAVE | Property saved | {_pm_data.get('address')}")
 
-                    # Create booking if schedule found
-                    if _pm_data.get("has_schedule") and _pm_data.get("requested_date"):
-                        from datetime import datetime
-                        appt_str = _pm_data.get("requested_date", "")
-                        appt_time = _pm_data.get("requested_time") or "09:00"
-                        try:
-                            appt_dt = datetime.strptime(f"{appt_str} {appt_time}", "%Y-%m-%d %H:%M")
-                            appt_iso = appt_dt.isoformat()
-                        except Exception:
-                            appt_iso = None
+                # Create booking if schedule found
+                if _pm_data.get("has_schedule") and _pm_data.get("requested_date"):
+                    from datetime import datetime
+                    appt_str = _pm_data.get("requested_date", "")
+                    appt_time = _pm_data.get("requested_time") or "09:00"
+                    try:
+                        appt_dt = datetime.strptime(f"{appt_str} {appt_time}", "%Y-%m-%d %H:%M")
+                        appt_iso = appt_dt.isoformat()
+                    except Exception:
+                        appt_iso = None
 
-                        if appt_iso:
-                            requests.post(
-                                f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tbl6YL7BYY2vawIF1",
-                                headers=at_headers,
-                                json={"fields": {
+                    if appt_iso:
+                        _pm_book_resp = requests.post(
+                            f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tbl6YL7BYY2vawIF1",
+                            headers=at_headers,
+                            json={
+                                "fields": {
                                     "Client Name": "Home Sweet City",
                                     "Call Back Number": from_number,
                                     "Service Address": _pm_data.get("address") or "",
@@ -2167,26 +2178,31 @@ Only set has_schedule to true if there is a specific date or time mentioned."""
                                     "Lead Status": "Booked",
                                     "Appointment Date and Time": appt_iso,
                                     "Twilio Number": twilio_number,
-                                }}
-                            )
+                                },
+                                "typecast": True,
+                            },
+                        )
+                        if _pm_book_resp.status_code >= 300:
+                            print(f"PM AUTO-BOOK FAILED | {_pm_book_resp.status_code} | {_pm_book_resp.text}")
+                        else:
                             print(f"PM AUTO-BOOK | Appointment created | {appt_iso} | {_pm_data.get('address')}")
 
-                    # Send confirmation back
-                    if _pm_data.get("has_property_details") or _pm_data.get("has_schedule"):
-                        confirm_parts = []
-                        if _pm_data.get("has_property_details"):
-                            confirm_parts.append(f"property at {_pm_data.get('address')} saved")
-                        if _pm_data.get("has_schedule"):
-                            confirm_parts.append(f"scheduled for {_pm_data.get('requested_date')} at {_pm_data.get('requested_time') or '9:00 AM'}")
-                        confirm_msg = "Got it! " + " and ".join(confirm_parts) + ". I'll be there."
-                        time.sleep(random.uniform(2.5, 5.0))
-                        return Response(
-                            f"<Response><Message>{confirm_msg}</Message></Response>",
-                            mimetype="text/xml"
-                        )
+                # Send confirmation back
+                if _pm_data.get("has_property_details") or _pm_data.get("has_schedule"):
+                    confirm_parts = []
+                    if _pm_data.get("has_property_details"):
+                        confirm_parts.append(f"property at {_pm_data.get('address')} saved")
+                    if _pm_data.get("has_schedule"):
+                        confirm_parts.append(f"scheduled for {_pm_data.get('requested_date')} at {_pm_data.get('requested_time') or '9:00 AM'}")
+                    confirm_msg = "Got it! " + " and ".join(confirm_parts) + ". I'll be there."
+                    time.sleep(random.uniform(2.5, 5.0))
+                    return Response(
+                        f"<Response><Message>{confirm_msg}</Message></Response>",
+                        mimetype="text/xml"
+                    )
 
-            except Exception as pm_err:
-                print(f"PM EXTRACTION ERROR | {pm_err}")
+        except Exception as pm_err:
+            print(f"PM EXTRACTION ERROR | {pm_err}")
 
     # Handle opt-out keywords immediately
     if incoming_msg.lower() in ["stop", "unsubscribe", "quit", "end"]:
