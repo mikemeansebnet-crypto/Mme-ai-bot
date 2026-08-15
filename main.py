@@ -4191,15 +4191,26 @@ def dashboard_data():
             status = f.get("Payment Status", "")
             if isinstance(status, dict):
                 status = status.get("name", "")
-            # Filter by Twilio Number — most reliable field across all payment types
+
+            # Match contractor by linked-record ID (same logic as /dashboard/revenue)
+            contractor_links = f.get("Contractor", [])
+            contractor_ids = [
+                c.get("id", "") if isinstance(c, dict) else str(c)
+                for c in contractor_links
+            ]
             record_twilio = str(f.get("Contractor Twilio Number", "") or "")
             record_twilio2 = str(f.get("Twilio Number", "") or "")
-            contractor_str = str(f.get("Contractor", "") or "")
-            
-            if twilio_number not in record_twilio and twilio_number not in record_twilio2 and contractor_record_id not in contractor_str:
+
+            matches_contractor = (
+                (contractor_record_id and contractor_record_id in contractor_ids)
+                or (twilio_number and twilio_number in record_twilio)
+                or (twilio_number and twilio_number in record_twilio2)
+            )
+            if not matches_contractor:
                 continue
             if status == "Unpaid":
                 unpaid_records.append(r)
+
         unpaid_invoices = []
         for r in unpaid_records:
             f = r.get("fields", {})
