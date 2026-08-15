@@ -6956,7 +6956,6 @@ def dashboard_send_recurring_invoice():
         if not result.get("ok"):
             return jsonify({"ok": False, "error": result.get("error")}), 500
 
-
         # Send CC email notification if provided
         if cc_email:
             try:
@@ -6971,30 +6970,44 @@ def dashboard_send_recurring_invoice():
 
         # Create payment record in Airtable
         AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
-
-        # Create payment record in Airtable
-        AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
         AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
         at_headers = {
             "Authorization": f"Bearer {AIRTABLE_TOKEN}",
             "Content-Type": "application/json"
         }
         today = datetime.now().strftime("%Y-%m-%d")
-        requests.post(
+
+        contractor_id = getattr(request, "contractor_id", None)
+        linked_contractor = [contractor_id] if contractor_id else []
+
+        payments_resp = requests.post(
             f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/Payments",
             headers=at_headers,
-            json={"fields": {
-                "fldAZ5Qr0NCU11J0A": customer_name,
-                "fld8bUzdzFeeXLrlD": customer_phone,
-                "fld596bZM5ZCI7ga8": amount,
-                "fldeROEzoyhWKJ36y": service,
-                "fldWg6gGv6dKFb853": "Unpaid",
-                "fldUFO1PfTeiLA3UR": "Stripe",
-                "fldYNu0gpLuiCsF6Z": today,
-                "fldxdSy7mICyTo50P": [request.contractor_id],
-                "fldngufZKDk8G0bZ2": result.get("invoice_number", ""),
-            }}
+            json={
+                "fields": {
+                    "fldAZ5Qr0NCU11J0A": customer_name,
+                    "fld8bUzdzFeeXLrlD": customer_phone,
+                    "fld596bZM5ZCI7ga8": amount,
+                    "fldeROEzoyhWKJ36y": service,
+                    "fldWg6gGv6dKFb853": "Unpaid",
+                    "fldUFO1PfTeiLA3UR": "Stripe",
+                    "fldYNu0gpLuiCsF6Z": today,
+                    "fldxdSy7mICyTo50P": linked_contractor,
+                    "fldngufZKDk8G0bZ2": result.get("invoice_number", ""),
+                },
+                "typecast": True,
+            },
         )
+
+        if payments_resp.status_code >= 300:
+            print(f"RECURRING INVOICE | AIRTABLE WRITE FAILED | {payments_resp.status_code} | {payments_resp.text}")
+            return jsonify({
+                "ok": True,
+                "message": f"Invoice sent to {customer_email} for ${amount:,.2f}, but it did NOT save to the dashboard — check Render logs for the Airtable error.",
+                "invoice_number": result.get("invoice_number", ""),
+                "invoice_url": result.get("invoice_url", ""),
+                "dashboard_sync_failed": True,
+            })
 
         print(f"RECURRING INVOICE | {customer_name} | ${amount} | {result.get('invoice_number')}")
         return jsonify({
