@@ -2077,6 +2077,7 @@ def sms():
         pm_phones_raw = (contractor.get("Property Manager Phones") or "").strip()
         pm_phones = [p.strip() for p in pm_phones_raw.split(",") if p.strip()]
         is_property_manager = from_number in pm_phones
+        print(f"PM CHECK | from={from_number} | pm_phones={pm_phones} | is_pm={is_property_manager}")
 
         if is_property_manager and incoming_msg:
             try:
