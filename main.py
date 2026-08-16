@@ -4183,8 +4183,16 @@ def dashboard_data():
             })
 
         payments_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/Payments"
-        unpaid_resp = req.get(payments_url, headers=headers)
-        all_payment_records = unpaid_resp.json().get("records", [])
+        all_payment_records = []
+        params = {"pageSize": 100}
+        while True:
+            unpaid_resp = req.get(payments_url, headers=headers, params=params)
+            data = unpaid_resp.json()
+            all_payment_records.extend(data.get("records", []))
+            offset = data.get("offset")
+            if not offset:
+                break
+            params["offset"] = offset
         unpaid_records = []
         for r in all_payment_records:
             f = r.get("fields", {})
