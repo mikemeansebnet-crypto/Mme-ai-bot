@@ -4206,6 +4206,9 @@ def dashboard_data():
                 or (twilio_number and twilio_number in record_twilio)
                 or (twilio_number and twilio_number in record_twilio2)
             )
+
+            print(f"DASH DEBUG | record={r.get('id')} | status={status} | contractor_ids={contractor_ids} | my_id={contractor_record_id} | matches={matches_contractor}")
+
             if not matches_contractor:
                 continue
             if status == "Unpaid":
