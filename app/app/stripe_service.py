@@ -207,6 +207,34 @@ def update_airtable_paid(record_id: str) -> None:
     except Exception as e:
         print(f"AIRTABLE UPDATE ERROR | {e}")
 
+def _mark_paid_by_amount_email(amount: float, email: str):
+    """Fallback — finds unpaid Airtable record by amount and marks paid."""
+    try:
+        import os
+        import requests as _req
+        AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
+        AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
+        headers = {"Authorization": f"Bearer {AIRTABLE_TOKEN}"}
+        resp = _req.get(
+            f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/Payments",
+            headers=headers
+        )
+        records = resp.json().get("records", [])
+        for r in records:
+            f = r.get("fields", {})
+            status = f.get("Payment Status", "")
+            if isinstance(status, dict):
+                status = status.get("name", "")
+            rec_amount = float(f.get("Amount", 0) or 0)
+            rec_phone = f.get("Phone Number", "") or f.get("Customer Phone", "")
+            if status == "Unpaid" and abs(rec_amount - amount) < 0.01:
+                update_airtable_paid(r["id"])
+                print(f"PAYMENT CONFIRMED | Matched by amount | ${amount} | record {r['id']}")
+                return
+        print(f"PAYMENT CONFIRMED | No match found | ${amount} | {email}")
+    except Exception as e:
+        print(f"PAYMENT FALLBACK ERROR | {e}")
+
 
 def handle_stripe_event(event: dict) -> dict:
     """
@@ -230,8 +258,14 @@ def handle_stripe_event(event: dict) -> dict:
                 update_airtable_paid(record_id)
                 print(f"PAYMENT CONFIRMED | checkout.session.completed | Record: {record_id}")
             else:
-                print(f"PAYMENT CONFIRMED | checkout.session.completed | No record_id in metadata")
-
+                # Fallback — match by amount and email
+                try:
+                    amount = obj.get("amount_total", 0) / 100
+                    email = obj.get("customer_details", {}).get("email", "")
+                    print(f"PAYMENT CONFIRMED | No record_id | Trying fallback | ${amount} | {email}")
+                    _mark_paid_by_amount_email(amount, email)
+                except Exception as e:
+                    print(f"PAYMENT CONFIRMED | Fallback error | {e}")
         elif event_type == "payment_intent.succeeded":
             record_id = get_record_id(obj)
             if record_id:
