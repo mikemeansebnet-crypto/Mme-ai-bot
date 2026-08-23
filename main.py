@@ -4114,6 +4114,7 @@ def dashboard_data():
         contractor = get_contractor_by_twilio_number(twilio_number) or {}
         business_name = contractor.get("Business Name", "")
         cal_booking_url = contractor.get("CAL Booking URL", "")
+        subscription_tier = contractor.get("Subscription Tier", "Pro")
 
         leads_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tbl6YL7BYY2vawIF1"
 
@@ -4255,6 +4256,7 @@ def dashboard_data():
             "business_name": business_name,
             "cal_booking_url": cal_booking_url,
             "twilio_number": twilio_number,
+            "subscription_tier": subscription_tier,
             "today_jobs": today_jobs,
             "tomorrow_jobs": tomorrow_jobs,
             "all_jobs": all_jobs,
