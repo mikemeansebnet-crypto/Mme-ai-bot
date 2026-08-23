@@ -2066,7 +2066,7 @@ async function submitCreateCampaign() {
 
         function applyTierGating() {
             const tier = dashboardData.subscription_tier || 'Pro';
-            alert('TIER IS: ' + tier);
+            alert('TIER IS: "' + tier + '" | LENGTH: ' + tier.length + ' | MATCHES: ' + (tier === 'Walkthrough'));
             const isWalkthroughOnly = tier === 'Walkthrough';
 
             // Section IDs to hide for Walkthrough-only contractors
