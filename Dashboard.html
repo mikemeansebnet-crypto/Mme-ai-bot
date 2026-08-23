@@ -2064,6 +2064,33 @@ async function submitCreateCampaign() {
             }
         }
 
+        function applyTierGating() {
+            const tier = dashboardData.subscription_tier || 'Pro';
+            const isWalkthroughOnly = tier === 'Walkthrough';
+
+            // Section IDs to hide for Walkthrough-only contractors
+            const hideForWalkthrough = [
+                'inboxThreads',        // Messages inbox (needs Twilio)
+                'seasonalCampaigns',   // SMS campaigns (needs Twilio)
+                'recurringCustomers',  // full recurring invoicing suite
+                'regularClients',
+                'govBidsSection',
+                'propertyNotesList'
+            ];
+
+            hideForWalkthrough.forEach(function(id) {
+                const el = document.getElementById(id);
+                if (!el) return;
+                // walk up to the containing .section div so the header hides too
+                const section = el.closest('.section');
+                if (section) section.style.display = isWalkthroughOnly ? 'none' : '';
+            });
+
+            // Also hide header buttons that assume Twilio/full platform
+            const headerButtonsToHide = ['voiceBtn']; // Voice input relies on booking/SMS flow
+            // (Video/Walkthrough button and Pending Estimates stay visible — that's the core feature)
+        }
+
         async function loadDashboard() {
             try {
                 const token = getCookie('dashboard_token');
@@ -2085,6 +2112,7 @@ async function submitCreateCampaign() {
                 loadRevenue();
                 loadRegularClients();
                 loadSeasonalCampaigns();
+                applyTierGating();
                 setTimeout(registerOneSignal, 3000);  // ← delay 3 seconds, never blocks
             } catch(e) {
                 console.error('Dashboard load error:', e);
