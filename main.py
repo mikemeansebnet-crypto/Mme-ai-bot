@@ -6114,9 +6114,7 @@ def dashboard_recurring():
         AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
         AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
         headers = {"Authorization": f"Bearer {AIRTABLE_TOKEN}"}
-
         twilio_number = request.twilio_number
-
         url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tblxGfrifBiGRk80M"
         resp = req.get(url, headers=headers)
         all_records = resp.json().get("records", [])
@@ -6125,7 +6123,6 @@ def dashboard_recurring():
             if r.get("fields", {}).get("Twilio Number", "") == twilio_number
             and r.get("fields", {}).get("Active", False)
         ]
-        records = resp.json().get("records", [])
         customers = []
         for r in records:
             f = r.get("fields", {})
@@ -6140,7 +6137,7 @@ def dashboard_recurring():
                 "cc_email": f.get("CC Email", ""),
                 "phone": f.get("Phone", ""),
                 "service": f.get("Service", "") or f.get("Service Description", ""),
-                "amount": float(r.get("cellValuesByFieldId", {}).get("fldAOGM6qhA7TVqRB", 0) or 0),
+                "amount": float(f.get("Amount", 0) or 0),
                 "payment_method": payment_method,
                 "notes": f.get("Notes", ""),
             })
