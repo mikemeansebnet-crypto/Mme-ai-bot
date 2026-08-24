@@ -235,6 +235,33 @@ def _mark_paid_by_amount_email(amount: float, email: str):
     except Exception as e:
         print(f"PAYMENT FALLBACK ERROR | {e}")
 
+def _mark_paid_by_invoice_number(invoice_number: str, amount: float):
+    """Finds Airtable payment record by invoice number and marks paid."""
+    try:
+        import os
+        import requests as _req
+        AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
+        AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
+        headers = {"Authorization": f"Bearer {AIRTABLE_TOKEN}"}
+        resp = _req.get(
+            f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/Payments",
+            headers=headers
+        )
+        records = resp.json().get("records", [])
+        for r in records:
+            f = r.get("fields", {})
+            rec_invoice = f.get("QB Invoice Number", "") or f.get("Invoice Number", "")
+            status = f.get("Payment Status", "")
+            if isinstance(status, dict):
+                status = status.get("name", "")
+            if rec_invoice == invoice_number and status == "Unpaid":
+                update_airtable_paid(r["id"])
+                print(f"PAYMENT CONFIRMED | Matched by invoice# {invoice_number} | ${amount}")
+                return
+        print(f"PAYMENT CONFIRMED | No match for invoice# {invoice_number} | ${amount}")
+    except Exception as e:
+        print(f"INVOICE MATCH ERROR | {e}")
+
 
 def handle_stripe_event(event: dict) -> dict:
     """
@@ -282,6 +309,19 @@ def handle_stripe_event(event: dict) -> dict:
             else:
                 print(f"PAYMENT CONFIRMED | payment_link.completed | No record_id in metadata")
 
+        elif event_type == "invoice.paid":
+            record_id = get_record_id(obj)
+            if record_id:
+                update_airtable_paid(record_id)
+                print(f"PAYMENT CONFIRMED | invoice.paid | Record: {record_id}")
+            else:
+                try:
+                    invoice_number = obj.get("number", "")
+                    amount = obj.get("amount_paid", 0) / 100
+                    print(f"PAYMENT CONFIRMED | invoice.paid | Trying invoice# {invoice_number} | ${amount}")
+                    _mark_paid_by_invoice_number(invoice_number, amount)
+                except Exception as e:
+                    print(f"PAYMENT CONFIRMED | invoice.paid fallback error | {e}")
         else:
             print(f"STRIPE EVENT UNHANDLED | {event_type}")
 
