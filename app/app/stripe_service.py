@@ -289,8 +289,10 @@ def handle_stripe_event(event: dict) -> dict:
             else:
                 # Fallback — match by amount and email
                 try:
-                    amount = obj.get("amount_total", 0) / 100
-                    email = obj.get("customer_details", {}).get("email", "")
+                    obj_dict = obj.to_dict() if hasattr(obj, 'to_dict') else dict(obj)
+                    amount = obj_dict.get("amount_total", 0) / 100
+                    customer_details = obj_dict.get("customer_details") or {}
+                    email = customer_details.get("email", "") if isinstance(customer_details, dict) else ""
                     print(f"PAYMENT CONFIRMED | No record_id | Trying fallback | ${amount} | {email}")
                     _mark_paid_by_amount_email(amount, email)
                 except Exception as e:
