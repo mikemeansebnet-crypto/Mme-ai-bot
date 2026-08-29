@@ -220,16 +220,18 @@ def _mark_paid_by_amount_email(amount: float, email: str):
             headers=headers
         )
         records = resp.json().get("records", [])
+        print(f"PAYMENT MATCH | Looking for ${amount} | {len(records)} records total")
         for r in records:
             f = r.get("fields", {})
             status = f.get("Payment Status", "")
             if isinstance(status, dict):
                 status = status.get("name", "")
             rec_amount = float(f.get("Amount", 0) or 0)
-            rec_phone = f.get("Phone Number", "") or f.get("Customer Phone", "")
+            rec_name = f.get("Customer Name", "") or f.get("Client Name", "")
+            print(f"PAYMENT MATCH | Checking {rec_name} | ${rec_amount} | {status}")
             if status == "Unpaid" and abs(rec_amount - amount) < 0.01:
                 update_airtable_paid(r["id"])
-                print(f"PAYMENT CONFIRMED | Matched by amount | ${amount} | record {r['id']}")
+                print(f"PAYMENT CONFIRMED | Matched by amount | ${amount} | {rec_name}")
                 return
         print(f"PAYMENT CONFIRMED | No match found | ${amount} | {email}")
     except Exception as e:
