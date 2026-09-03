@@ -4586,7 +4586,7 @@ def dashboard_quick_pay():
                         "fld596bZM5ZCI7ga8": amount,
                         "fldeROEzoyhWKJ36y": job_description,
                         "fldWg6gGv6dKFb853": "Unpaid",
-                        "fldUFO1PfTeiLA3UR": payment_method,
+                        "fldUFO1PfTeiLA3UR": str(payment_method).strip('"').strip("'").strip(),
                         "fldYNu0gpLuiCsF6Z": today,
                         "fldxdSy7mICyTo50P": [contractor_id],
                     }}
