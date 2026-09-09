@@ -5160,6 +5160,80 @@ def dashboard_property_notes_update():
         print(f"PROPERTY NOTES UPDATE ERROR | {e}")
         return jsonify({"ok": False, "error": str(e)}), 500
 
+@app.route("/dashboard/schedule-blocks")
+@dashboard_auth_required
+def dashboard_schedule_blocks():
+    try:
+        twilio_number = request.twilio_number
+        AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
+        AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
+        resp = requests.get(
+            f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tblrDUMODlVF4ymG6",
+            headers={"Authorization": f"Bearer {AIRTABLE_TOKEN}"}
+        )
+        records = resp.json().get("records", [])
+        blocks = []
+        for r in records:
+            f = r.get("fields", {})
+            if f.get("Twilio Number", "") != twilio_number:
+                continue
+            if not f.get("Active", False):
+                continue
+            blocks.append({
+                "record_id": r.get("id"),
+                "start_date": f.get("Start Date", ""),
+                "end_date": f.get("End Date", ""),
+                "reason": f.get("Reason", ""),
+            })
+        return jsonify({"ok": True, "blocks": blocks})
+    except Exception as e:
+        print(f"SCHEDULE BLOCKS ERROR | {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route("/dashboard/schedule-blocks/add", methods=["POST"])
+@dashboard_auth_required
+def dashboard_schedule_blocks_add():
+    try:
+        data = request.get_json(silent=True) or {}
+        twilio_number = request.twilio_number
+        AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
+        AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
+        at_headers = {"Authorization": f"Bearer {AIRTABLE_TOKEN}", "Content-Type": "application/json"}
+        resp = requests.post(
+            f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tblrDUMODlVF4ymG6",
+            headers=at_headers,
+            json={"fields": {
+                "fldIbZc9ejPGhfsCl": data.get("start_date", ""),
+                "fldljv0vHbgc0x46j": data.get("end_date", ""),
+                "fld1UWJ2smeJGB6hz": data.get("reason", ""),
+                "fldbeAilju0tHgJm7": twilio_number,
+                "fldsA8ktAM3XYmjso": True,
+            }}
+        )
+        return jsonify({"ok": resp.status_code in [200, 201]})
+    except Exception as e:
+        print(f"SCHEDULE BLOCKS ADD ERROR | {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route("/dashboard/schedule-blocks/delete", methods=["POST"])
+@dashboard_auth_required
+def dashboard_schedule_blocks_delete():
+    try:
+        data = request.get_json(silent=True) or {}
+        record_id = data.get("record_id", "").strip()
+        AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
+        AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
+        resp = requests.delete(
+            f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tblrDUMODlVF4ymG6/{record_id}",
+            headers={"Authorization": f"Bearer {AIRTABLE_TOKEN}"}
+        )
+        return jsonify({"ok": resp.status_code == 200})
+    except Exception as e:
+        print(f"SCHEDULE BLOCKS DELETE ERROR | {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
 @app.route("/onesignal/register", methods=["POST"])
 @dashboard_auth_required
 def onesignal_register():
