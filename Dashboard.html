@@ -3458,6 +3458,106 @@ async function submitCreateCampaign() {
             }
         }
 
+                async function openScheduleBlockModal() {
+            // Set default dates to today
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('blockStartDate').value = today;
+            document.getElementById('blockEndDate').value = today;
+            document.getElementById('blockReason').value = '';
+            // Load existing blocks
+            await loadActiveBlocks();
+            document.getElementById('scheduleBlockModal').classList.add('active');
+        }
+
+        function closeScheduleBlockModal() {
+            document.getElementById('scheduleBlockModal').classList.remove('active');
+        }
+
+        async function loadActiveBlocks() {
+            try {
+                const res = await fetch('/dashboard/schedule-blocks', {
+                    headers: { 'X-Dashboard-Token': getCookie('dashboard_token') }
+                });
+                const data = await res.json();
+                if (data.ok && data.blocks.length) {
+                    let html = '<div style="font-size:12px;color:#94a3b8;margin-bottom:6px">Active blocks:</div>';
+                    data.blocks.forEach(b => {
+                        html += `<div style="display:flex;justify-content:space-between;align-items:center;background:#0f172a;border-radius:6px;padding:8px 10px;margin-bottom:6px">`;
+                        html += `<div style="font-size:12px;color:white">${b.start_date} → ${b.end_date}${b.reason ? ' · ' + b.reason : ''}</div>`;
+                        html += `<button onclick="deleteScheduleBlock('${b.record_id}')" style="background:#ef4444;color:white;border:none;border-radius:4px;padding:2px 8px;font-size:11px;cursor:pointer">Remove</button>`;
+                        html += `</div>`;
+                    });
+                    document.getElementById('activeBlocksList').innerHTML = html;
+                } else {
+                    document.getElementById('activeBlocksList').innerHTML = '<div style="font-size:12px;color:#64748b">No active blocks</div>';
+                }
+            } catch(e) {
+                console.error('Schedule blocks load error:', e);
+            }
+        }
+
+        async function submitScheduleBlock() {
+            const startDate = document.getElementById('blockStartDate').value;
+            const endDate = document.getElementById('blockEndDate').value;
+            const reason = document.getElementById('blockReason').value.trim();
+            if (!startDate || !endDate) {
+                alert('Please select start and end dates.');
+                return;
+            }
+            if (endDate < startDate) {
+                alert('End date must be after start date.');
+                return;
+            }
+            const btn = document.getElementById('scheduleBlockBtn');
+            btn.textContent = 'Blocking...';
+            btn.disabled = true;
+            try {
+                const res = await fetch('/dashboard/schedule-blocks/add', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Dashboard-Token': getCookie('dashboard_token')
+                    },
+                    body: JSON.stringify({ start_date: startDate, end_date: endDate, reason: reason })
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    await loadActiveBlocks();
+                    document.getElementById('blockReason').value = '';
+                    alert(`Dates blocked: ${startDate} to ${endDate}`);
+                } else {
+                    alert('Error: ' + (data.error || 'Something went wrong'));
+                }
+            } catch(e) {
+                alert('Request failed. Please try again.');
+            } finally {
+                btn.textContent = 'Block Dates';
+                btn.disabled = false;
+            }
+        }
+
+        async function deleteScheduleBlock(recordId) {
+            if (!confirm('Remove this date block?')) return;
+            try {
+                const res = await fetch('/dashboard/schedule-blocks/delete', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Dashboard-Token': getCookie('dashboard_token')
+                    },
+                    body: JSON.stringify({ record_id: recordId })
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    await loadActiveBlocks();
+                } else {
+                    alert('Error removing block');
+                }
+            } catch(e) {
+                alert('Request failed.');
+            }
+        }
+
         // Load on startup
         loadDashboard();
         // Auto-refresh every 5 minutes
@@ -4129,6 +4229,31 @@ async function submitCreateCampaign() {
             <div class="modal-actions">
                 <button class="btn-cancel-modal" onclick="closePropertyNotesModal()">Cancel</button>
                 <button class="btn-book" id="propertyNotesBtn" onclick="submitPropertyNote()">Save Property</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Schedule Block Modal -->
+    <div class="modal-overlay" id="scheduleBlockModal">
+        <div class="booking-modal">
+            <div class="modal-title">🚫 Block Schedule</div>
+            <div class="modal-date">Set dates you are unavailable for bookings</div>
+            <div class="form-group">
+                <label class="form-label">Start Date *</label>
+                <input type="date" class="form-input" id="blockStartDate">
+            </div>
+            <div class="form-group">
+                <label class="form-label">End Date *</label>
+                <input type="date" class="form-input" id="blockEndDate">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Reason (optional)</label>
+                <input type="text" class="form-input" id="blockReason" placeholder="Vacation, personal, etc.">
+            </div>
+            <div id="activeBlocksList" style="margin-bottom:12px"></div>
+            <div class="modal-actions">
+                <button class="btn-cancel-modal" onclick="closeScheduleBlockModal()">Cancel</button>
+                <button class="btn-book" id="scheduleBlockBtn" onclick="submitScheduleBlock()">Block Dates</button>
             </div>
         </div>
     </div>
