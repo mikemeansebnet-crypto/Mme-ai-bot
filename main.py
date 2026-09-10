@@ -5252,6 +5252,8 @@ def dashboard_customer_history():
         payments = []
         for r in all_records:
             f = r.get("fields", {})
+            rec_name = (f.get("Customer Name", "") or f.get("Customer Name ", "") or "").strip().lower()
+            print(f"HISTORY DEBUG | rec_name={rec_name} | search={customer_name.lower()} | name_match={bool(rec_name) and (customer_name.lower() in rec_name or rec_name in customer_name.lower())}")
             # Filter by contractor
             contractor_str = str(f.get("Contractor", "") or "")
             record_twilio = str(f.get("Contractor Twilio Number", "") or "")
