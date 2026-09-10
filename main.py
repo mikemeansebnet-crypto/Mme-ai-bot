@@ -5255,12 +5255,16 @@ def dashboard_customer_history():
             # Filter by contractor
             contractor_str = str(f.get("Contractor", "") or "")
             record_twilio = str(f.get("Contractor Twilio Number", "") or "")
-            if contractor_record_id not in contractor_str and twilio_number not in record_twilio:
+            record_twilio2 = str(f.get("Twilio Number", "") or "")
+            if contractor_record_id not in contractor_str and twilio_number not in record_twilio and twilio_number not in record_twilio2:
                 continue
             # Filter by customer name or phone
             rec_name = (f.get("Customer Name", "") or f.get("Customer Name ", "") or "").strip().lower()
             rec_phone = (f.get("Phone Number", "") or f.get("Customer Phone", "") or "").strip()
-            if customer_name.lower() not in rec_name and customer_phone not in rec_phone:
+            # Match if customer name contains search term or vice versa
+            name_match = customer_name.lower() in rec_name or rec_name in customer_name.lower()
+            phone_match = customer_phone.strip() in rec_phone.strip() or rec_phone.strip() in customer_phone.strip()
+            if not name_match and not phone_match:
                 continue
             status = f.get("Payment Status", "")
             if isinstance(status, dict):
