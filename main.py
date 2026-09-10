@@ -5234,6 +5234,53 @@ def dashboard_schedule_blocks_delete():
         print(f"SCHEDULE BLOCKS DELETE ERROR | {e}")
         return jsonify({"ok": False, "error": str(e)}), 500
 
+@app.route("/dashboard/customer-history")
+@dashboard_auth_required
+def dashboard_customer_history():
+    try:
+        customer_name = request.args.get("name", "").strip()
+        customer_phone = request.args.get("phone", "").strip()
+        twilio_number = request.twilio_number
+        contractor_record_id = request.contractor_id
+        AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
+        AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
+        resp = requests.get(
+            f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/Payments",
+            headers={"Authorization": f"Bearer {AIRTABLE_TOKEN}"}
+        )
+        all_records = resp.json().get("records", [])
+        payments = []
+        for r in all_records:
+            f = r.get("fields", {})
+            # Filter by contractor
+            contractor_str = str(f.get("Contractor", "") or "")
+            record_twilio = str(f.get("Contractor Twilio Number", "") or "")
+            if contractor_record_id not in contractor_str and twilio_number not in record_twilio:
+                continue
+            # Filter by customer name or phone
+            rec_name = (f.get("Customer Name", "") or f.get("Customer Name ", "") or "").strip().lower()
+            rec_phone = (f.get("Phone Number", "") or f.get("Customer Phone", "") or "").strip()
+            if customer_name.lower() not in rec_name and customer_phone not in rec_phone:
+                continue
+            status = f.get("Payment Status", "")
+            if isinstance(status, dict):
+                status = status.get("name", "")
+            amount = float(f.get("Amount", 0) or 0)
+            payments.append({
+                "record_id": r.get("id"),
+                "amount": amount,
+                "status": status,
+                "job_type": f.get("Job Description", "") or f.get("Service Description", ""),
+                "date": f.get("Payment Date", "") or f.get("Date", ""),
+                "method": f.get("Payment Method", ""),
+            })
+        # Sort by date newest first
+        payments.sort(key=lambda x: x.get("date", ""), reverse=True)
+        return jsonify({"ok": True, "payments": payments})
+    except Exception as e:
+        print(f"CUSTOMER HISTORY ERROR | {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
 @app.route("/onesignal/register", methods=["POST"])
 @dashboard_auth_required
 def onesignal_register():
