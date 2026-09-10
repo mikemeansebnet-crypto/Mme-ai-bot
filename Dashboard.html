@@ -943,6 +943,7 @@
                     <div class="job-actions">
                         <button onclick="if(confirm('Mark $${inv.amount} from ${customerName} as paid?')) dashboardAction('/dashboard/action/mark-paid', {record_id:'${recordId}'}, 'Invoice marked paid!')" class="action-btn" style="background:#22c55e;color:#000;flex:1">✓ Mark Paid</button>
                         <button onclick="dashboardAction('/dashboard/action/send-reminder', {customer_name:'${customerName}', customer_phone:'${customerPhone}', amount:'${inv.amount}', job_type:'${inv.job_type||''}'}, 'Reminder sent!')" class="action-btn btn-sms">💬 Send Reminder</button>
+                        <button onclick="openCustomerHistory('${customerName}', '${customerPhone}')" class="action-btn" style="background:#334155;color:white;font-size:11px">📋 History</button>
                     </div>
                 </div>`;
             }).join('');
@@ -3558,6 +3559,56 @@ async function submitCreateCampaign() {
             }
         }
 
+        async function openCustomerHistory(customerName, customerPhone) {
+            document.getElementById('customerHistoryTitle').textContent = customerName + ' — Payment History';
+            document.getElementById('customerHistoryList').innerHTML = '<div class="loading">Loading...</div>';
+            document.getElementById('customerTotalPaid').textContent = '$0.00';
+            document.getElementById('customerTotalOutstanding').textContent = '';
+            document.getElementById('customerHistoryModal').classList.add('active');
+            try {
+                const res = await fetch('/dashboard/customer-history?name=' + encodeURIComponent(customerName) + '&phone=' + encodeURIComponent(customerPhone), {
+                    headers: { 'X-Dashboard-Token': getCookie('dashboard_token') }
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    let totalPaid = 0;
+                    let totalOutstanding = 0;
+                    let html = '';
+                    if (!data.payments.length) {
+                        html = '<div class="empty-state">No payment history found</div>';
+                    } else {
+                        data.payments.forEach(p => {
+                            const isPaid = p.status === 'Paid';
+                            const amount = parseFloat(p.amount || 0);
+                            if (isPaid) totalPaid += amount;
+                            else totalOutstanding += amount;
+                            html += `<div style="background:#0f172a;border-radius:8px;padding:10px 12px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">`;
+                            html += `<div>`;
+                            html += `<div style="font-size:13px;font-weight:600;color:white">${p.job_type || 'Service'}</div>`;
+                            html += `<div style="font-size:11px;color:#94a3b8">${p.date || ''}</div>`;
+                            html += `</div>`;
+                            html += `<div style="text-align:right">`;
+                            html += `<div style="font-size:14px;font-weight:700;color:${isPaid ? '#22c55e' : '#f59e0b'}">$${amount.toLocaleString('en-US', {minimumFractionDigits:2})}</div>`;
+                            html += `<div style="font-size:10px;color:${isPaid ? '#22c55e' : '#f59e0b'}">${p.status}</div>`;
+                            html += `</div>`;
+                            html += `</div>`;
+                        });
+                    }
+                    document.getElementById('customerHistoryList').innerHTML = html;
+                    document.getElementById('customerTotalPaid').textContent = '$' + totalPaid.toLocaleString('en-US', {minimumFractionDigits:2});
+                    if (totalOutstanding > 0) {
+                        document.getElementById('customerTotalOutstanding').textContent = '$' + totalOutstanding.toLocaleString('en-US', {minimumFractionDigits:2}) + ' outstanding';
+                    }
+                }
+            } catch(e) {
+                document.getElementById('customerHistoryList').innerHTML = '<div class="empty-state">Error loading history</div>';
+            }
+        }
+
+        function closeCustomerHistory() {
+            document.getElementById('customerHistoryModal').classList.remove('active');
+        }
+
         // Load on startup
         loadDashboard();
         // Auto-refresh every 5 minutes
@@ -4254,6 +4305,22 @@ async function submitCreateCampaign() {
             <div class="modal-actions">
                 <button class="btn-cancel-modal" onclick="closeScheduleBlockModal()">Cancel</button>
                 <button class="btn-book" id="scheduleBlockBtn" onclick="submitScheduleBlock()">Block Dates</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Customer Payment History Modal -->
+    <div class="modal-overlay" id="customerHistoryModal">
+        <div class="booking-modal" style="max-height:95vh;overflow-y:auto">
+            <div class="modal-title" id="customerHistoryTitle">Payment History</div>
+            <div id="customerHistoryTotal" style="background:#0f172a;border-radius:8px;padding:12px;margin-bottom:14px;text-align:center">
+                <div style="font-size:11px;color:#94a3b8">Total Paid</div>
+                <div style="font-size:24px;font-weight:700;color:#22c55e" id="customerTotalPaid">$0.00</div>
+                <div style="font-size:11px;color:#f59e0b" id="customerTotalOutstanding"></div>
+            </div>
+            <div id="customerHistoryList"><div class="loading">Loading...</div></div>
+            <div class="modal-actions">
+                <button class="btn-cancel-modal" onclick="closeCustomerHistory()">Close</button>
             </div>
         </div>
     </div>
