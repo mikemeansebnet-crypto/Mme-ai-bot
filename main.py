@@ -5262,7 +5262,7 @@ def dashboard_customer_history():
             rec_name = (f.get("Customer Name", "") or f.get("Customer Name ", "") or "").strip().lower()
             rec_phone = (f.get("Phone Number", "") or f.get("Customer Phone", "") or "").strip()
             # Match if customer name contains search term or vice versa
-            name_match = customer_name.lower() in rec_name or rec_name in customer_name.lower()
+            name_match = bool(rec_name) and (customer_name.lower() in rec_name or rec_name in customer_name.lower())
             phone_match = customer_phone.strip() in rec_phone.strip() or rec_phone.strip() in customer_phone.strip()
             if not name_match and not phone_match:
                 continue
