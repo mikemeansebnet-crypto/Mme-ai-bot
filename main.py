@@ -2332,6 +2332,9 @@ Only set has_schedule to true if there is a specific date or time mentioned."""
     # Parse Claude's two-line response
     lines = claude_response.strip().split("\n")
     reply = lines[0].strip() if lines else claude_response
+    # Hard cap SMS at 160 characters
+    if len(reply) > 160:
+        reply = reply[:157] + "..."
 
     # Extract JSON from second line
     collected = {}
