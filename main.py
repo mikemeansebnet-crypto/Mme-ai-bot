@@ -5243,11 +5243,22 @@ def dashboard_customer_history():
         twilio_number = request.twilio_number
         AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
         AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
-        resp = requests.get(
-            f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/Payments",
-            headers={"Authorization": f"Bearer {AIRTABLE_TOKEN}"}
-        )
-        all_records = resp.json().get("records", [])
+        all_records = []
+        offset = None
+        while True:
+            params = {"pageSize": 100}
+            if offset:
+                params["offset"] = offset
+            resp = requests.get(
+                f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/Payments",
+                headers={"Authorization": f"Bearer {AIRTABLE_TOKEN}"},
+                params=params
+            )
+            data = resp.json()
+            all_records.extend(data.get("records", []))
+            offset = data.get("offset")
+            if not offset:
+                break
         payments = []
         for r in all_records:
             f = r.get("fields", {})
