@@ -5258,8 +5258,7 @@ def dashboard_customer_history():
             contractor_str = str(f.get("Contractor", "") or "")
             record_twilio = str(f.get("Contractor Twilio Number", "") or "")
             record_twilio2 = str(f.get("Twilio Number", "") or "")
-            if contractor_record_id not in contractor_str and twilio_number not in record_twilio and twilio_number not in record_twilio2:
-                continue
+            pass
             # Filter by customer name or phone
             rec_name = (f.get("Customer Name", "") or f.get("Customer Name ", "") or "").strip().lower()
             rec_phone = (f.get("Phone Number", "") or f.get("Customer Phone", "") or "").strip()
