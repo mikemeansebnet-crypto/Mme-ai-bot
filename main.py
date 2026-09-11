@@ -5251,9 +5251,11 @@ def dashboard_customer_history():
         payments = []
         for r in all_records:
             f = r.get("fields", {})
-            # Filter by twilio number
+            # Filter by contractor - check multiple fields
             record_twilio = str(f.get("Contractor Twilio Number", "") or "")
-            if twilio_number not in record_twilio:
+            contractor_str = str(f.get("Contractor", "") or "")
+            contractor_id = request.contractor_id
+            if twilio_number not in record_twilio and contractor_id not in contractor_str:
                 continue
             # Exact name match
             rec_name = (f.get("Customer Name", "") or f.get("Customer Name ", "") or "").strip()
