@@ -5241,7 +5241,6 @@ def dashboard_customer_history():
         customer_name = request.args.get("name", "").strip()
         customer_phone = request.args.get("phone", "").strip()
         twilio_number = request.twilio_number
-        contractor_record_id = request.contractor_id
         AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
         AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
         resp = requests.get(
@@ -5252,20 +5251,13 @@ def dashboard_customer_history():
         payments = []
         for r in all_records:
             f = r.get("fields", {})
-            rec_name = (f.get("Customer Name", "") or f.get("Customer Name ", "") or "").strip().lower()
-            print(f"HISTORY DEBUG | rec_name={rec_name} | search={customer_name.lower()} | name_match={bool(rec_name) and (customer_name.lower() in rec_name or rec_name in customer_name.lower())}")
-            # Filter by contractor
-            contractor_str = str(f.get("Contractor", "") or "")
+            # Filter by twilio number
             record_twilio = str(f.get("Contractor Twilio Number", "") or "")
-            record_twilio2 = str(f.get("Twilio Number", "") or "")
-            pass
-            # Filter by customer name or phone
-            rec_name = (f.get("Customer Name", "") or f.get("Customer Name ", "") or "").strip().lower()
-            rec_phone = (f.get("Phone Number", "") or f.get("Customer Phone", "") or "").strip()
-            # Match if customer name contains search term or vice versa
-            name_match = rec_name == customer_name.lower()
-            phone_match = customer_phone.strip() in rec_phone.strip() or rec_phone.strip() in customer_phone.strip()
-            if not name_match and not phone_match:
+            if twilio_number not in record_twilio:
+                continue
+            # Exact name match
+            rec_name = (f.get("Customer Name", "") or f.get("Customer Name ", "") or "").strip()
+            if rec_name.lower() != customer_name.lower():
                 continue
             status = f.get("Payment Status", "")
             if isinstance(status, dict):
@@ -5279,7 +5271,6 @@ def dashboard_customer_history():
                 "date": f.get("Payment Date", "") or f.get("Date", ""),
                 "method": f.get("Payment Method", ""),
             })
-        # Sort by date newest first
         payments.sort(key=lambda x: x.get("date", ""), reverse=True)
         return jsonify({"ok": True, "payments": payments})
     except Exception as e:
