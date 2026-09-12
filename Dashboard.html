@@ -3175,6 +3175,16 @@ async function submitCreateCampaign() {
             document.getElementById('editEstimateTotal').textContent = '$' + total.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
         }
 
+        function updateLineItemDescription(index, value) {
+            if (!currentEstimate.line_items) return;
+            currentEstimate.line_items[index].description = value;
+        }
+
+        function updateLineItemDetail(index, value) {
+            if (!currentEstimate.line_items) return;
+            currentEstimate.line_items[index].detail = value;
+        }
+
         async function submitSendEstimate() {
             const customerPhone = document.getElementById('editCustomerPhone').value.trim();
             const customerName = document.getElementById('editCustomerName').value.trim();
