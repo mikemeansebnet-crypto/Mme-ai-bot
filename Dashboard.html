@@ -3153,8 +3153,8 @@ async function submitCreateCampaign() {
                 const amt = parseFloat(item.amount || 0);
                 total += amt;
                 html += '<div style="background:#0f172a;border-radius:8px;padding:10px;margin-bottom:8px">';
-                html += '<div style="font-size:13px;font-weight:600;color:white;margin-bottom:4px">' + (item.description || '') + '</div>';
-                html += '<div style="font-size:11px;color:#94a3b8;margin-bottom:6px">' + (item.detail || '') + '</div>';
+                html += '<input type="text" value="' + (item.description || '').replace(/"/g, '&quot;') + '" onchange="updateLineItemDescription(' + i + ', this.value)" style="background:#1e293b;border:1px solid #334155;border-radius:6px;padding:6px 10px;color:white;font-size:13px;font-weight:600;width:100%;margin-bottom:4px;box-sizing:border-box">';
+                html += '<input type="text" value="' + (item.detail || '').replace(/"/g, '&quot;') + '" onchange="updateLineItemDetail(' + i + ', this.value)" style="background:#1e293b;border:1px solid #334155;border-radius:6px;padding:6px 10px;color:#94a3b8;font-size:11px;width:100%;margin-bottom:6px;box-sizing:border-box">';
                 html += '<div style="display:flex;gap:8px;align-items:center">';
                 html += '<input type="number" value="' + amt + '" step="0.01" min="0" ';
                 html += 'onchange="updateLineItemAmount(' + i + ', this.value)" ';
