@@ -4559,6 +4559,8 @@ def dashboard_quick_pay():
     try:
         data = request.get_json(silent=True) or {}
         customer_name = data.get("customer_name", "").strip()
+        payment_method_raw = data.get("payment_method", "")
+        print(f"QUICK PAY START | {customer_name} | method={payment_method_raw} | amount={data.get('amount')}")
         customer_phone = data.get("customer_phone", "").strip()
         customer_email = data.get("customer_email", "").strip()
         amount = float(data.get("amount", 0))
