@@ -4556,18 +4556,17 @@ def dashboard_inbox_delete_thread():
 @app.route("/dashboard/action/quick-pay", methods=["POST"])
 @dashboard_auth_required
 def dashboard_quick_pay():
-    """Send a payment request without requiring a booked job record."""
     try:
         data = request.get_json(silent=True) or {}
         customer_name = data.get("customer_name", "").strip()
         customer_phone = data.get("customer_phone", "").strip()
+        customer_email = data.get("customer_email", "").strip()
         amount = float(data.get("amount", 0))
         job_description = data.get("job_description", "Service").strip()
-        payment_method = data.get("payment_method", "Stripe").strip()
-        customer_email = data.get("customer_email", "").strip()
+        payment_method = str(data.get("payment_method", "Stripe")).strip().strip('"').strip("'")
         twilio_number = request.twilio_number
-        contractor = get_contractor_by_twilio_number(twilio_number) or {}
         contractor_id = request.contractor_id
+        contractor = get_contractor_by_twilio_number(twilio_number) or {}
         business_name = (contractor.get("Business Name") or "Your Contractor").strip()
 
         if not customer_name or not customer_phone or not amount:
@@ -4578,30 +4577,33 @@ def dashboard_quick_pay():
         at_headers = {"Authorization": f"Bearer {AIRTABLE_TOKEN}", "Content-Type": "application/json"}
         today = datetime.now().strftime("%Y-%m-%d")
 
-        def create_payment_record():
-            try:
-                resp = requests.post(
-                    f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/Payments",
-                    headers=at_headers,
-                    json={"fields": {
-                        "fldAZ5Qr0NCU11J0A": customer_name,
-                        "fld8bUzdzFeeXLrlD": customer_phone,
-                        "fld596bZM5ZCI7ga8": amount,
-                        "fldeROEzoyhWKJ36y": job_description,
-                        "fldWg6gGv6dKFb853": "Unpaid",
-                        "fldUFO1PfTeiLA3UR": str(payment_method).strip('"').strip("'").strip(),
-                        "fldYNu0gpLuiCsF6Z": today,
-                        "fldxdSy7mICyTo50P": [contractor_id],
-                    }}
-                )
-                print(f"QUICK PAY | Airtable response | {resp.status_code} | {resp.text[:200]}")
-                print(f"QUICK PAY | contractor_id={contractor_id} | twilio={twilio_number}")
-            except Exception as e:
-                print(f"QUICK PAY | Airtable error | {e}")
+        # Step 1 — Create Airtable record first and get record ID
+        airtable_record_id = ""
+        try:
+            at_resp = requests.post(
+                f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/Payments",
+                headers=at_headers,
+                json={"fields": {
+                    "fldAZ5Qr0NCU11J0A": customer_name,
+                    "fld8bUzdzFeeXLrlD": customer_phone,
+                    "fld596bZM5ZCI7ga8": amount,
+                    "fldeROEzoyhWKJ36y": job_description,
+                    "fldWg6gGv6dKFb853": "Unpaid",
+                    "fldUFO1PfTeiLA3UR": payment_method,
+                    "fldYNu0gpLuiCsF6Z": today,
+                    "fldxdSy7mICyTo50P": [contractor_id],
+                }}
+            )
+            print(f"QUICK PAY | Airtable | {at_resp.status_code} | {at_resp.text[:200]}")
+            if at_resp.status_code in [200, 201]:
+                airtable_record_id = at_resp.json().get("id", "")
+                print(f"QUICK PAY | Record created | {airtable_record_id}")
+        except Exception as at_err:
+            print(f"QUICK PAY | Airtable error | {at_err}")
 
+        # Step 2 — Send payment based on method
         if payment_method == "Stripe":
             from app.app.stripe_service import create_payment_link as _create_pl
-            airtable_record_id = create_payment_record()
             result = _create_pl(
                 customer_name=customer_name,
                 amount=amount,
@@ -4624,21 +4626,24 @@ def dashboard_quick_pay():
 
         elif payment_method == "Zelle":
             zelle_info = (contractor.get("Zelle") or "").strip()
-            msg = f"Hi {customer_name.split()[0]}! Please send ${amount:,.2f} for {job_description} via Zelle to {zelle_info}. Thank you!"
-            send_fallback_sms(to_number=customer_phone, body=msg)
-            create_payment_record()
+            send_fallback_sms(
+                to_number=customer_phone,
+                body=f"Hi {customer_name.split()[0]}! Please send ${amount:,.2f} for {job_description} via Zelle to {zelle_info}. Thank you!"
+            )
             return jsonify({"ok": True})
 
         elif payment_method == "Cash":
-            msg = f"Hi {customer_name.split()[0]}! Your balance of ${amount:,.2f} for {job_description} is due. Cash accepted at time of service. Thank you!"
-            send_fallback_sms(to_number=customer_phone, body=msg)
-            create_payment_record()
+            send_fallback_sms(
+                to_number=customer_phone,
+                body=f"Hi {customer_name.split()[0]}! Your balance of ${amount:,.2f} for {job_description} is due. Cash accepted at time of service. Thank you!"
+            )
             return jsonify({"ok": True})
 
         elif payment_method == "Check":
-            msg = f"Hi {customer_name.split()[0]}! Please make your check for ${amount:,.2f} payable to {business_name} for {job_description}. Thank you!"
-            send_fallback_sms(to_number=customer_phone, body=msg)
-            create_payment_record()
+            send_fallback_sms(
+                to_number=customer_phone,
+                body=f"Hi {customer_name.split()[0]}! Please make your check for ${amount:,.2f} payable to {business_name} for {job_description}. Thank you!"
+            )
             return jsonify({"ok": True})
 
         return jsonify({"ok": False, "error": "Unknown payment method"}), 400
