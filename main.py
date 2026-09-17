@@ -6681,10 +6681,50 @@ def estimate_respond(token):
             else:
                 msg = f"Estimate changes requested by {customer_name}: {comments[:100]}"
             send_fallback_sms(to_number=notify_sms, body=msg)
+
+        # If approved — send deposit request to customer
+        if action == "Approved":
+            try:
+                customer_phone = fields.get("Customer Phone", "")
+                business_name = contractor.get("Business Name", "Your Contractor")
+                # Calculate 1/3 deposit from midpoint of range
+                midpoint = (float(quote_low) + float(quote_high)) / 2
+                deposit = round(midpoint / 3, 2)
+
+                # Create Stripe payment link for deposit
+                from app.app.stripe_service import create_payment_link as _create_pl
+                stripe_result = _create_pl(
+                    customer_name=customer_name,
+                    amount=deposit,
+                    job_description=f"1/3 Deposit - {fields.get('Project Type', 'Service')}",
+                    record_id="",
+                    business_name=business_name
+                )
+
+                if stripe_result.get("ok") and customer_phone:
+                    deposit_url = stripe_result.get("url", "")
+                    first_name = customer_name.split()[0] if customer_name else "there"
+                    send_fallback_sms(
+                        to_number=customer_phone,
+                        body=f"Hi {first_name}! Thank you for approving your estimate. To secure your spot a 1/3 deposit of ${deposit:,.2f} is required. Pay here: {deposit_url} We will confirm your scheduled date once received."
+                    )
+                    print(f"ESTIMATE APPROVED | Deposit SMS sent | {customer_phone} | ${deposit}")
+                    
+                    # Send push notification to contractor
+                    try:
+                        send_push_notification(
+                            twilio_number=twilio_number,
+                            title="💰 Estimate Approved!",
+                            message=f"{customer_name} approved estimate. Deposit of ${deposit:,.2f} requested. Schedule when ready.",
+                            url="/dashboard"
+                        )
+                    except Exception as push_err:
+                        print(f"ESTIMATE APPROVED | Push error (non-fatal) | {push_err}")
+
+            except Exception as deposit_err:
+                print(f"ESTIMATE APPROVED | Deposit request error (non-fatal) | {deposit_err}")
+
         return jsonify({"ok": True})
-    except Exception as e:
-        print(f"ESTIMATE RESPOND ERROR | {e}")
-        return jsonify({"ok": False, "error": str(e)}), 500
 
 
 @app.route("/dashboard/action/book-regular-client", methods=["POST"])
