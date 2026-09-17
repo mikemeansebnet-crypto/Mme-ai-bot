@@ -6731,6 +6731,10 @@ def estimate_respond(token):
 
         return jsonify({"ok": True})
 
+    except Exception as e:
+        print(f"ESTIMATE RESPOND ERROR | {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
 
 @app.route("/dashboard/action/book-regular-client", methods=["POST"])
 @dashboard_auth_required
