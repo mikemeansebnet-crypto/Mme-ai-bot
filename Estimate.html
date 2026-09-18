@@ -155,6 +155,17 @@
                     <div class="quote-range">$${Number(d.quote_low).toLocaleString('en-US', {minimumFractionDigits:0, maximumFractionDigits:0})} - $${Number(d.quote_high).toLocaleString('en-US', {minimumFractionDigits:0, maximumFractionDigits:0})}</div>
                     ${d.notes ? `<div class="label">Notes</div><div class="value">${d.notes}</div>` : ''}
                 </div>
+                ${d.line_items && d.line_items.length ? `
+                <div class="card">
+                    <div class="title">Scope of Work</div>
+                    ${d.line_items.map(item => `
+                        <div style="border-bottom:1px solid #e5e7eb;padding:10px 0">
+                            <div style="font-weight:600;color:#1a1a1a;margin-bottom:4px">${item.description || ''}</div>
+                            ${item.detail ? `<div style="font-size:13px;color:#6b7280;margin-bottom:4px">${item.detail}</div>` : ''}
+                            <div style="font-size:14px;font-weight:700;color:#16a34a">$${parseFloat(item.amount || 0).toLocaleString('en-US', {minimumFractionDigits:2})}</div>
+                        </div>
+                    `).join('')}
+                </div>` : ''}
                 ${materials.length ? `<div class="card">${materialsHtml}</div>` : ''}
                 <div class="card" id="actionCard">
                     <div class="title" style="margin-bottom:16px">Looks good?</div>
