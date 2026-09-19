@@ -813,6 +813,7 @@ def create_estimate_approval(
             "Quote Low": float(quote_low),
             "Quote High": float(quote_high),
             "Materials List": _json.dumps(materials),
+            "Line Items": _json.dumps(line_items) if line_items else "[]",
             "Notes": notes,
             "Approval Token": token,
             "Status": "Pending",
