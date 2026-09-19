@@ -5302,6 +5302,94 @@ def dashboard_customer_history():
         print(f"CUSTOMER HISTORY ERROR | {e}")
         return jsonify({"ok": False, "error": str(e)}), 500
 
+@app.route("/dashboard/action/send-batch-invoice", methods=["POST"])
+@dashboard_auth_required
+def dashboard_send_batch_invoice():
+    try:
+        data = request.get_json(silent=True) or {}
+        customer_name = data.get("customer_name", "").strip()
+        amount = float(data.get("amount", 0))
+        description = data.get("description", "").strip()
+        record_ids = data.get("record_ids", [])
+        twilio_number = request.twilio_number
+        contractor = get_contractor_by_twilio_number(twilio_number) or {}
+        business_name = (contractor.get("Business Name") or "Your Contractor").strip()
+        notify_email = (contractor.get("Notify Email") or "").strip()
+
+        # Get customer email from recurring customers
+        AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
+        AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
+        at_headers = {"Authorization": f"Bearer {AIRTABLE_TOKEN}", "Content-Type": "application/json"}
+
+        # Look up customer email from recurring customers table
+        rc_resp = requests.get(
+            f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/tblxGfrifBiGRk80M",
+            headers={"Authorization": f"Bearer {AIRTABLE_TOKEN}"},
+        )
+        customer_email = ""
+        for r in rc_resp.json().get("records", []):
+            f = r.get("fields", {})
+            name = f.get("Name", "") or f.get("Customer Name", "")
+            if name.lower() == customer_name.lower():
+                customer_email = f.get("Email", "")
+                break
+
+        if not customer_email:
+            return jsonify({"ok": False, "error": "Customer email not found in recurring customers"}), 400
+
+        # Create Stripe invoice
+        from app.app.stripe_service import create_stripe_invoice
+        result = create_stripe_invoice(
+            customer_email=customer_email,
+            customer_name=customer_name,
+            amount=amount,
+            service_description=description[:500],
+            business_name=business_name,
+            due_days=30,
+            contractor_stripe_account_id="",
+            application_fee_percent=1.0,
+        )
+
+        if not result.get("ok"):
+            return jsonify({"ok": False, "error": result.get("error")}), 500
+
+        # Create one consolidated payment record in Airtable
+        from datetime import datetime
+        today = datetime.now().strftime("%Y-%m-%d")
+        contractor_id = request.contractor_id
+        requests.post(
+            f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/Payments",
+            headers=at_headers,
+            json={"fields": {
+                "fldAZ5Qr0NCU11J0A": customer_name,
+                "fld596bZM5ZCI7ga8": amount,
+                "fldeROEzoyhWKJ36y": description,
+                "fldWg6gGv6dKFb853": "Unpaid",
+                "fldUFO1PfTeiLA3UR": "Stripe",
+                "fldYNu0gpLuiCsF6Z": today,
+                "fldxdSy7mICyTo50P": [contractor_id],
+                "fldngufZKDk8G0bZ2": result.get("invoice_number", ""),
+            }}
+        )
+
+        # Mark individual records as Invoiced
+        for record_id in record_ids:
+            try:
+                requests.patch(
+                    f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/Payments/{record_id}",
+                    headers=at_headers,
+                    json={"fields": {"fldWg6gGv6dKFb853": "Invoiced"}}
+                )
+            except Exception as e:
+                print(f"BATCH INVOICE | Record update error (non-fatal) | {e}")
+
+        print(f"BATCH INVOICE | Sent | {customer_name} | ${amount} | {len(record_ids)} records")
+        return jsonify({"ok": True, "invoice_number": result.get("invoice_number", "")})
+
+    except Exception as e:
+        print(f"BATCH INVOICE ERROR | {e}")
+        return jsonify({"ok": False, "error": str(e)}), 500
+
 @app.route("/onesignal/register", methods=["POST"])
 @dashboard_auth_required
 def onesignal_register():
