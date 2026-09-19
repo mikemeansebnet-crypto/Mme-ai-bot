@@ -6629,6 +6629,11 @@ def estimate_data(token):
             materials = _json.loads(materials_raw) if materials_raw else []
         except Exception:
             materials = []
+        line_items_raw = fields.get("Line Items", "")
+        try:
+            line_items = _json.loads(line_items_raw) if line_items_raw else []
+        except Exception:
+            line_items = []
         return jsonify({
             "ok": True,
             "business_name": contractor.get("Business Name", "Your Contractor"),
@@ -6638,6 +6643,7 @@ def estimate_data(token):
             "quote_high": fields.get("Quote High", 0),
             "notes": fields.get("Notes", ""),
             "materials": materials,
+            "line_items": line_items,
         })
     except Exception as e:
         print(f"ESTIMATE DATA ERROR | {e}")
