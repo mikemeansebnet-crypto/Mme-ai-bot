@@ -3569,7 +3569,7 @@ async function submitCreateCampaign() {
             }
         }
 
-        async function openCustomerHistory(customerName, customerPhone) {
+        async function openCustomerHistory(customerName, customerPhone, showBatch = false) {
             document.getElementById('customerHistoryTitle').textContent = customerName + ' — Payment History';
             document.getElementById('customerHistoryList').innerHTML = '<div class="loading">Loading...</div>';
             document.getElementById('customerTotalPaid').textContent = '$0.00';
