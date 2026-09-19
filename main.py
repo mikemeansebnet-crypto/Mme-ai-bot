@@ -789,7 +789,7 @@ def save_message_to_inbox(
 def create_estimate_approval(
     customer_name, customer_phone, customer_email,
     service_address, project_type, quote_low, quote_high,
-    materials, notes, twilio_number, pdf_url=""
+    materials, notes, twilio_number, pdf_url="", line_items=None
 ):
     """Creates an Estimate Approval record and texts the customer an approval link."""
     import secrets
