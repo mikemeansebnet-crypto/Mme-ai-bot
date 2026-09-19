@@ -943,7 +943,7 @@
                     <div class="job-actions">
                         <button onclick="if(confirm('Mark $${inv.amount} from ${customerName} as paid?')) dashboardAction('/dashboard/action/mark-paid', {record_id:'${recordId}'}, 'Invoice marked paid!')" class="action-btn" style="background:#22c55e;color:#000;flex:1">✓ Mark Paid</button>
                         <button onclick="dashboardAction('/dashboard/action/send-reminder', {customer_name:'${customerName}', customer_phone:'${customerPhone}', amount:'${inv.amount}', job_type:'${inv.job_type||''}'}, 'Reminder sent!')" class="action-btn btn-sms">💬 Send Reminder</button>
-                        <button onclick="openCustomerHistory('${customerName}', '${customerPhone}')" class="action-btn" style="background:#334155;color:white;font-size:11px">📋 History</button>
+                        <button onclick="openCustomerHistory('${customerName}', '${customerPhone}', true)" class="action-btn" style="background:#334155;color:white;font-size:11px">📋 History</button>
                     </div>
                 </div>`;
             }).join('');
