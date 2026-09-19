@@ -5014,6 +5014,7 @@ def dashboard_send_estimate():
                     notes=notes,
                     twilio_number=twilio_number,
                     pdf_url=pdf_url or "",
+                    line_items=line_items,
                 )
                 print(f"SEND ESTIMATE | Approval link sent | {customer_phone}")
             except Exception as e:
@@ -6231,6 +6232,7 @@ Be thorough - price every single item you observe needs attention."""
                     notes=estimate_data.get("notes", ""),
                     twilio_number=twilio_number,
                     pdf_url=video_url,
+                    line_items=estimate_data.get("line_items", []),
                 )
                 print(f"WALKTHROUGH | Estimate approval sent to customer | {customer_phone}")
             except Exception as e:
