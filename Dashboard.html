@@ -3587,13 +3587,20 @@ async function submitCreateCampaign() {
                     if (!data.payments.length) {
                         html = '<div class="empty-state">No payment history found</div>';
                     } else {
-                        data.payments.forEach(p => {
+                        let unpaidItems = [];
+                        data.payments.forEach((p, idx) => {
                             const isPaid = p.status === 'Paid';
                             const amount = parseFloat(p.amount || 0);
                             if (isPaid) totalPaid += amount;
-                            else totalOutstanding += amount;
+                            else {
+                                totalOutstanding += amount;
+                                unpaidItems.push(p);
+                            }
                             html += `<div style="background:#0f172a;border-radius:8px;padding:10px 12px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">`;
-                            html += `<div>`;
+                            if (showBatch && !isPaid) {
+                                html += `<div style="margin-right:10px"><input type="checkbox" id="batch_${idx}" data-record-id="${p.record_id}" data-amount="${amount}" data-desc="${(p.job_type || 'Service').replace(/"/g, '')}" checked style="width:16px;height:16px;cursor:pointer"></div>`;
+                            }
+                            html += `<div style="flex:1">`;
                             html += `<div style="font-size:13px;font-weight:600;color:white">${p.job_type || 'Service'}</div>`;
                             html += `<div style="font-size:11px;color:#94a3b8">${p.date || ''}</div>`;
                             html += `</div>`;
@@ -3603,6 +3610,12 @@ async function submitCreateCampaign() {
                             html += `</div>`;
                             html += `</div>`;
                         });
+                        // Add batch invoice button if there are unpaid items
+                        if (showBatch && unpaidItems.length > 0) {
+                            html += `<div style="margin-top:12px">`;
+                            html += `<button onclick="submitBatchInvoice('${customerName}')" style="background:#22c55e;color:#000;border:none;border-radius:8px;padding:12px;width:100%;font-size:14px;font-weight:700;cursor:pointer">📤 Send Batch Invoice for Selected Items</button>`;
+                            html += `</div>`;
+                        }
                     }
                     document.getElementById('customerHistoryList').innerHTML = html;
                     document.getElementById('customerTotalPaid').textContent = '$' + totalPaid.toLocaleString('en-US', {minimumFractionDigits:2});
@@ -3610,6 +3623,7 @@ async function submitCreateCampaign() {
                         document.getElementById('customerTotalOutstanding').textContent = '$' + totalOutstanding.toLocaleString('en-US', {minimumFractionDigits:2}) + ' outstanding';
                     }
                 }
+            
             } catch(e) {
                 document.getElementById('customerHistoryList').innerHTML = '<div class="empty-state">Error loading history</div>';
             }
@@ -3617,6 +3631,52 @@ async function submitCreateCampaign() {
 
         function closeCustomerHistory() {
             document.getElementById('customerHistoryModal').classList.remove('active');
+        }
+
+         async function submitBatchInvoice(customerName) {
+            // Collect all checked items
+            const checkboxes = document.querySelectorAll('#customerHistoryList input[type="checkbox"]:checked');
+            if (!checkboxes.length) {
+                alert('Please select at least one invoice.');
+                return;
+            }
+            let totalAmount = 0;
+            let descriptions = [];
+            let recordIds = [];
+            checkboxes.forEach(cb => {
+                const amount = parseFloat(cb.dataset.amount || 0);
+                totalAmount += amount;
+                descriptions.push(cb.dataset.desc + ': $' + amount.toLocaleString('en-US', {minimumFractionDigits:2}));
+                recordIds.push(cb.dataset.recordId);
+            });
+            const description = descriptions.join('\n');
+            if (!confirm(`Send batch invoice to ${customerName} for $${totalAmount.toLocaleString('en-US', {minimumFractionDigits:2})}?\n\n${description}`)) return;
+
+            try {
+                const res = await fetch('/dashboard/action/send-batch-invoice', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Dashboard-Token': getCookie('dashboard_token')
+                    },
+                    body: JSON.stringify({
+                        customer_name: customerName,
+                        amount: totalAmount,
+                        description: description,
+                        record_ids: recordIds,
+                    })
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    closeCustomerHistory();
+                    loadDashboard();
+                    alert(`Batch invoice sent to ${customerName} for $${totalAmount.toLocaleString('en-US', {minimumFractionDigits:2})}!`);
+                } else {
+                    alert('Error: ' + (data.error || 'Something went wrong'));
+                }
+            } catch(e) {
+                alert('Request failed. Please try again.');
+            }
         }
 
         // Load on startup
