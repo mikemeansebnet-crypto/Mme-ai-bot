@@ -6795,13 +6795,40 @@ def estimate_respond(token):
                 midpoint = (float(quote_low) + float(quote_high)) / 2
                 deposit = round(midpoint / 3, 2)
 
+                # Create Airtable record first to get record ID
+                AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
+                AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
+                at_headers = {"Authorization": f"Bearer {AIRTABLE_TOKEN}", "Content-Type": "application/json"}
+                from datetime import datetime as _dt
+                contractor_id = request.contractor_id if hasattr(request, 'contractor_id') else ""
+                airtable_record_id = ""
+                try:
+                    at_resp = requests.post(
+                        f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/Payments",
+                        headers=at_headers,
+                        json={"fields": {
+                            "fldAZ5Qr0NCU11J0A": customer_name,
+                            "fld8bUzdzFeeXLrlD": customer_phone,
+                            "fld596bZM5ZCI7ga8": deposit,
+                            "fldeROEzoyhWKJ36y": f"1/3 Deposit - {fields.get('Project Type', 'Service')}",
+                            "fldWg6gGv6dKFb853": "Unpaid",
+                            "fldUFO1PfTeiLA3UR": "Stripe",
+                            "fldYNu0gpLuiCsF6Z": _dt.now().strftime("%Y-%m-%d"),
+                            "fldxdSy7mICyTo50P": [contractor_id] if contractor_id else [],
+                        }}
+                    )
+                    airtable_record_id = at_resp.json().get("id", "")
+                    print(f"ESTIMATE APPROVED | Deposit record created | {airtable_record_id}")
+                except Exception as at_err:
+                    print(f"ESTIMATE APPROVED | Deposit record error | {at_err}")
+
                 # Create Stripe payment link for deposit
                 from app.app.stripe_service import create_payment_link as _create_pl
                 stripe_result = _create_pl(
                     customer_name=customer_name,
                     amount=deposit,
                     job_description=f"1/3 Deposit - {fields.get('Project Type', 'Service')}",
-                    record_id="",
+                    record_id=airtable_record_id,
                     business_name=business_name
                 )
 
