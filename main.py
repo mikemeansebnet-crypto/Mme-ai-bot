@@ -5369,6 +5369,7 @@ def dashboard_send_batch_invoice():
                 "fldYNu0gpLuiCsF6Z": today,
                 "fldxdSy7mICyTo50P": [contractor_id],
                 "fldngufZKDk8G0bZ2": result.get("invoice_number", ""),
+                "fldwXPa5rnyvI39FS": result.get("invoice_id", ""),
             }}
         )
 
