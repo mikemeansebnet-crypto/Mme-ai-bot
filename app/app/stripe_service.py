@@ -237,30 +237,50 @@ def _mark_paid_by_amount_email(amount: float, email: str):
     except Exception as e:
         print(f"PAYMENT FALLBACK ERROR | {e}")
 
-def _mark_paid_by_invoice_number(invoice_number: str, amount: float):
-    """Finds Airtable payment record by invoice number and marks paid."""
+def _mark_paid_by_invoice_number(invoice_number: str, amount: float, stripe_invoice_id: str = ""):
+    """Finds Airtable payment record by Stripe Invoice ID or QB Invoice Number and marks paid."""
     try:
         import os
         import requests as _req
         AIRTABLE_TOKEN = os.environ.get("AIRTABLE_TOKEN")
         AIRTABLE_BASE_ID = os.environ.get("AIRTABLE_BASE_ID")
         headers = {"Authorization": f"Bearer {AIRTABLE_TOKEN}"}
-        resp = _req.get(
-            f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/Payments",
-            headers=headers
-        )
-        records = resp.json().get("records", [])
-        for r in records:
+        all_records = []
+        offset = None
+        while True:
+            params = {"pageSize": 100}
+            if offset:
+                params["offset"] = offset
+            resp = _req.get(
+                f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/Payments",
+                headers=headers,
+                params=params
+            )
+            data = resp.json()
+            all_records.extend(data.get("records", []))
+            offset = data.get("offset")
+            if not offset:
+                break
+        for r in all_records:
             f = r.get("fields", {})
-            rec_invoice = f.get("QB Invoice Number", "") or f.get("Invoice Number", "")
             status = f.get("Payment Status", "")
             if isinstance(status, dict):
                 status = status.get("name", "")
-            if rec_invoice == invoice_number and status == "Unpaid":
+            if status != "Unpaid":
+                continue
+            # Match by Stripe Invoice ID first (most reliable)
+            rec_stripe_id = f.get("Stripe Invoice ID", "")
+            if stripe_invoice_id and rec_stripe_id == stripe_invoice_id:
                 update_airtable_paid(r["id"])
-                print(f"PAYMENT CONFIRMED | Matched by invoice# {invoice_number} | ${amount}")
+                print(f"PAYMENT CONFIRMED | Matched by Stripe Invoice ID | {stripe_invoice_id}")
                 return
-        print(f"PAYMENT CONFIRMED | No match for invoice# {invoice_number} | ${amount}")
+            # Fallback to QB Invoice Number
+            rec_invoice = f.get("QB Invoice Number", "")
+            if invoice_number and rec_invoice == invoice_number:
+                update_airtable_paid(r["id"])
+                print(f"PAYMENT CONFIRMED | Matched by QB Invoice# | {invoice_number}")
+                return
+        print(f"PAYMENT CONFIRMED | No match | stripe_id={stripe_invoice_id} | invoice#={invoice_number}")
     except Exception as e:
         print(f"INVOICE MATCH ERROR | {e}")
 
