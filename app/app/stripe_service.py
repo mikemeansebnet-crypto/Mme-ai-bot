@@ -340,10 +340,12 @@ def handle_stripe_event(event: dict) -> dict:
                 print(f"PAYMENT CONFIRMED | invoice.paid | Record: {record_id}")
             else:
                 try:
-                    invoice_number = obj.get("number", "")
-                    amount = obj.get("amount_paid", 0) / 100
-                    print(f"PAYMENT CONFIRMED | invoice.paid | Trying invoice# {invoice_number} | ${amount}")
-                    _mark_paid_by_invoice_number(invoice_number, amount)
+                    obj_dict = obj.to_dict() if hasattr(obj, 'to_dict') else dict(obj)
+                    invoice_number = obj_dict.get("number", "")
+                    stripe_invoice_id = obj_dict.get("id", "")
+                    amount = obj_dict.get("amount_paid", 0) / 100
+                    print(f"PAYMENT CONFIRMED | invoice.paid | stripe_id={stripe_invoice_id} | invoice#={invoice_number} | ${amount}")
+                    _mark_paid_by_invoice_number(invoice_number, amount, stripe_invoice_id)
                 except Exception as e:
                     print(f"PAYMENT CONFIRMED | invoice.paid fallback error | {e}")
         else:
