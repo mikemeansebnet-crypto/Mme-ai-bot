@@ -4148,21 +4148,16 @@ def dashboard_data():
             time_str = ""
             try:
                 dt = datetime.fromisoformat(appt)
-
-                # If no timezone, assume it's already Eastern
                 if dt.tzinfo is None:
                     dt_eastern = dt.replace(tzinfo=eastern)
                 else:
                     dt_eastern = dt.astimezone(eastern)
-
                 date_str = dt_eastern.strftime("%Y-%m-%d")
                 time_str = dt_eastern.strftime("%-I:%M %p")
-
             except Exception as e:
                 print("TIME PARSE ERROR:", appt, e)
                 pass
             return {
-                # ADDED: record_id for action buttons
                 "record_id": record.get("id", ""),
                 "name": fields.get("Customer Name") or fields.get("Client Name") or "Unknown",
                 "phone": fields.get("Call Back Number", ""),
@@ -4189,9 +4184,8 @@ def dashboard_data():
         open_lead_records = open_leads_resp.json().get("records", [])
         open_leads = []
         for r in open_lead_records:
-            f = r.get("fields", {}) 
+            f = r.get("fields", {})
             open_leads.append({
-                # ADDED: record_id for action buttons
                 "record_id": r.get("id", ""),
                 "name": f.get("Customer Name") or f.get("Client Name") or "Unknown",
                 "phone": f.get("Call Back Number", ""),
@@ -4212,6 +4206,10 @@ def dashboard_data():
             if not offset:
                 break
             params["offset"] = offset
+
+        # Build a set of job record IDs already covered by a Payments record,
+        # so we don't double-flag a job that already has an invoice/payment tracked.
+        paid_or_tracked_job_ids = set()
         unpaid_records = []
         for r in all_payment_records:
             f = r.get("fields", {})
@@ -4219,7 +4217,6 @@ def dashboard_data():
             if isinstance(status, dict):
                 status = status.get("name", "")
 
-            # Match contractor by linked-record ID (same logic as /dashboard/revenue)
             contractor_links = f.get("Contractor", [])
             contractor_ids = [
                 c.get("id", "") if isinstance(c, dict) else str(c)
@@ -4234,10 +4231,13 @@ def dashboard_data():
                 or (twilio_number and twilio_number in record_twilio2)
             )
 
-            print(f"DASH DEBUG | record={r.get('id')} | status={status} | contractor_ids={contractor_ids} | my_id={contractor_record_id} | matches={matches_contractor}")
-
             if not matches_contractor:
                 continue
+
+            linked_leads = f.get("Linked Lead", [])
+            for lead_id in linked_leads:
+                paid_or_tracked_job_ids.add(lead_id)
+
             if status == "Unpaid":
                 unpaid_records.append(r)
 
@@ -4263,6 +4263,15 @@ def dashboard_data():
                 "invoice_number": f.get("QB Invoice Number", "") or f.get("Invoice Number", "") or "",
             })
 
+        # NEW: jobs whose date has passed, with no linked payment record at all
+        # (covers rain delays, missed same-day invoicing, etc. — these fall off
+        # Today/Tomorrow and can drop off Recent Bookings once 10 newer jobs exist)
+        stale_unpaid_jobs = [
+            j for j in all_jobs
+            if j["date"] and j["date"] < today_str and j["record_id"] not in paid_or_tracked_job_ids
+        ]
+        stale_unpaid_jobs.sort(key=lambda x: x["date"])  # oldest first
+
         recent_bookings = sorted(
             [j for j in all_jobs if j["date"]],
             key=lambda x: x["date"],
@@ -4280,6 +4289,7 @@ def dashboard_data():
             "all_jobs": all_jobs,
             "open_leads": open_leads,
             "unpaid_invoices": unpaid_invoices,
+            "stale_unpaid_jobs": stale_unpaid_jobs,
             "recent_bookings": recent_bookings
         })
 
