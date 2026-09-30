@@ -4586,21 +4586,26 @@ def dashboard_quick_pay():
             at_resp = requests.post(
                 f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/Payments",
                 headers=at_headers,
-                json={"fields": {
-                    "fldAZ5Qr0NCU11J0A": customer_name,
-                    "fld8bUzdzFeeXLrlD": customer_phone,
-                    "fld596bZM5ZCI7ga8": amount,
-                    "fldeROEzoyhWKJ36y": job_description,
-                    "fldWg6gGv6dKFb853": "Unpaid",
-                    "fldUFO1PfTeiLA3UR": payment_method,
-                    "fldYNu0gpLuiCsF6Z": today,
-                    "fldxdSy7mICyTo50P": [contractor_id],
-                }}
+                json={
+                    "typecast": True,
+                    "fields": {
+                        "fldAZ5Qr0NCU11J0A": customer_name,
+                        "fld8bUzdzFeeXLrlD": customer_phone,
+                        "fld596bZM5ZCI7ga8": amount,
+                        "fldeROEzoyhWKJ36y": job_description,
+                        "fldWg6gGv6dKFb853": "Unpaid",
+                        "fldUFO1PfTeiLA3UR": payment_method,
+                        "fldYNu0gpLuiCsF6Z": today,
+                        "fldxdSy7mICyTo50P": [contractor_id],
+                    }
+                }
             )
             print(f"QUICK PAY | Airtable | {at_resp.status_code} | {at_resp.text[:200]}")
             if at_resp.status_code in [200, 201]:
                 airtable_record_id = at_resp.json().get("id", "")
                 print(f"QUICK PAY | Record created | {airtable_record_id}")
+            else:
+                print(f"QUICK PAY | Airtable FAILED | {at_resp.status_code} | {at_resp.text[:300]}")
         except Exception as at_err:
             print(f"QUICK PAY | Airtable error | {at_err}")
 
@@ -4628,26 +4633,26 @@ def dashboard_quick_pay():
             return jsonify(result)
 
         elif payment_method == "Zelle":
-            zelle_info = (contractor.get("Zelle") or "").strip()
+            zelle_info = (contractor.get("Zelle Info") or "").strip()
             send_fallback_sms(
                 to_number=customer_phone,
                 body=f"Hi {customer_name.split()[0]}! Please send ${amount:,.2f} for {job_description} via Zelle to {zelle_info}. Thank you!"
             )
-            return jsonify({"ok": True})
+            return jsonify({"ok": True, "record_id": airtable_record_id})
 
         elif payment_method == "Cash":
             send_fallback_sms(
                 to_number=customer_phone,
                 body=f"Hi {customer_name.split()[0]}! Your balance of ${amount:,.2f} for {job_description} is due. Cash accepted at time of service. Thank you!"
             )
-            return jsonify({"ok": True})
+            return jsonify({"ok": True, "record_id": airtable_record_id})
 
         elif payment_method == "Check":
             send_fallback_sms(
                 to_number=customer_phone,
                 body=f"Hi {customer_name.split()[0]}! Please make your check for ${amount:,.2f} payable to {business_name} for {job_description}. Thank you!"
             )
-            return jsonify({"ok": True})
+            return jsonify({"ok": True, "record_id": airtable_record_id})
 
         return jsonify({"ok": False, "error": "Unknown payment method"}), 400
 
