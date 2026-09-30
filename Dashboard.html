@@ -982,6 +982,37 @@
             }).join('');
         }
 
+        function renderStaleJobs() {
+            const jobs = dashboardData.stale_unpaid_jobs || [];
+            document.getElementById('staleJobsCount').textContent = jobs.length;
+            const el = document.getElementById('staleJobsList');
+            if (!jobs.length) {
+                el.innerHTML = '<div class="empty-state">Nothing overdue — all caught up ✓</div>';
+                return;
+            }
+            el.innerHTML = jobs.map(job => {
+                const phone = job.phone ? job.phone.replace(/\D/g,'') : '';
+                const recordId = job.record_id || '';
+                const customerName = job.name || '';
+                const customerPhone = job.phone || '';
+                return `
+                <div class="job-card urgent">
+                    <div class="job-time">${job.date || ''}</div>
+                    <div class="job-name">${job.name || 'Unknown'}</div>
+                    <div class="job-address">${job.address || ''}</div>
+                    <div class="job-type">${job.job_type || ''}</div>
+                    ${phone ? `
+                    <div class="job-actions" style="margin-top:8px">
+                        <a href="tel:+1${phone}" class="action-btn btn-call">📞 Call</a>
+                        <a href="sms:+1${phone}" class="action-btn btn-sms">💬 Text</a>
+                    </div>` : ''}
+                    <div class="job-actions" style="margin-top:8px">
+                        <button onclick="openCompletePayModal('${recordId}', '${customerName}', '${customerPhone}', '${job.job_type||''}')" class="action-btn" style="background:#22c55e;color:#000;flex:1">✓ Complete & Pay</button>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
             
 
         function getCookie(name) {
